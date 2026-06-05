@@ -57,7 +57,7 @@
   .cy{ color:var(--cyan) } .gr{ color:var(--green) } .am{ color:var(--amber) } .vi{ color:var(--violet) }
   .blk{ display:block }
 
-  .lead{ margin:18px 0 6px }
+  .lead{ margin:20px 0 10px }
   .mark{ font-size:46px; font-weight:700; letter-spacing:1px; line-height:1; margin:0 0 2px }
   .mark .s{ color:var(--green) }
   .tag{ color:var(--dim); margin:0 0 18px; max-width:64ch }
@@ -67,7 +67,7 @@
   pre::-webkit-scrollbar{ height:6px } pre::-webkit-scrollbar-thumb{ background:var(--edge); border-radius:3px }
   .map{ color:var(--dim) } .map b{ color:var(--fg) }
 
-  .grp{ margin:30px 0 4px }
+  .grp{ margin:56px 0 6px }
   .out{ margin:6px 0 0 }
   .verb{ display:grid; grid-template-columns:7ch 1fr; gap:6px 16px; margin-top:6px }
   .verb dt{ color:var(--green); font-weight:500 }
@@ -142,7 +142,7 @@
         you chose "<span class="cy">ship</span>" → <span class="gr">🚀 DEPLOYING abc123def</span>
 <span class="am">🛡</span>   Replayed Response → acted=<span class="am">false</span> <span class="faint">(duplicate delivery, ignored)</span></pre>
 
-      <div class="grp"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">a2h open</span></div>
+      <div class="grp"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">a2h docs</span></div>
       <div class="links out">
         <a class="lk" href="https://github.com/autnmy/a2h-protocol/blob/main/spec/v0.2.md"><span class="k">spec</span><span class="d">the normative v0.2 specification</span></a>
         <a class="lk" href="https://github.com/autnmy/a2h-protocol/blob/main/skill/SKILL.md"><span class="k">skill</span><span class="d">integrate A2H in one shot (agent-native)</span></a>
@@ -152,7 +152,7 @@
         <a class="lk" href="https://github.com/autnmy/a2h-protocol"><span class="k">repo</span><span class="d">github.com/autnmy/a2h-protocol</span></a>
       </div>
 
-      <div class="grp"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">a2h rules --why-it-matters</span></div>
+      <div class="grp"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">a2h rules</span></div>
       <ul class="rules out">
         <li>The Hub assigns the message <code>id</code>; <code>idempotency_key</code> is required on <code>ask</code>/<code>task</code>.</li>
         <li><code>state</code> is agent-owned and AEAD-sealed — the Hub never holds the key; returned state is untrusted until verified.</li>
@@ -161,7 +161,7 @@
       </ul>
     </div>
 
-    <div class="row" style="margin-top:26px"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cur" id="cur"></span></div>
+    <div class="row" style="margin-top:48px"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cur" id="cur"></span></div>
   </div>
 
   <div class="status">
@@ -174,7 +174,7 @@
 (function(){
   var cmd = document.getElementById('cmd');
   var about = document.getElementById('about');
-  var text = 'a2h --about';
+  var text = 'a2h about';
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduce){ cmd.textContent = text; about.hidden = false; return; }
   var i = 0;
