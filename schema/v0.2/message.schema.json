@@ -11,7 +11,7 @@
     "created_at": { "type": "string", "format": "date-time" },
     "agent": { "$ref": "#/$defs/agent" },
     "title": { "type": "string", "minLength": 1, "maxLength": 200 },
-    "body": { "type": "string" },
+    "body": { "type": "string", "contentMediaType": "text/markdown", "description": "Human-readable Markdown detail. Untrusted: the Hub sanitizes to a no-raw-HTML profile before rendering (spec §9.6). Length is capability-advertised via max_body_bytes, not constrained here." },
     "priority": { "enum": ["low", "normal", "high", "urgent"], "default": "normal" },
     "tags": { "type": "array", "items": { "type": "string" } },
     "context": { "type": "array", "items": { "$ref": "#/$defs/part" } },
