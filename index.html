@@ -94,14 +94,14 @@
   .in{ outline:none; caret-color:transparent; color:var(--fg); min-width:2px }
 
   /* ---- advance cue (press ↵ or scroll) — rides below the latest block ---- */
-  .cue{ display:flex; justify-content:center; margin:18px 0 6px }
+  .cue{ display:flex; justify-content:center; margin:38px 0 6px }
   .cue.gone{ display:none }
   .cuebtn{ cursor:pointer; user-select:none; font-size:12.5px; color:var(--dim);
     background:rgba(255,255,255,.025);
     border:1px solid var(--edge); border-radius:999px; padding:5px 14px; display:inline-flex; align-items:center; gap:8px; transition:color .2s, border-color .2s }
   .cuebtn:hover{ color:var(--fg); border-color:#2c333d }
   .cuebtn kbd{ font:inherit; color:var(--green); background:rgba(87,217,163,.1); border:1px solid rgba(87,217,163,.3); border-radius:5px; padding:0 6px }
-  .cuebtn .chev{ color:var(--cyan); position:relative; top:-2px; animation:bob 1.6s ease-in-out infinite }
+  .cuebtn .chev{ color:var(--cyan); position:relative; top:-4px; animation:bob 1.6s ease-in-out infinite }
   @keyframes bob{ 0%,100%{ transform:translateY(0); opacity:.65 } 50%{ transform:translateY(3px); opacity:1 } }
   @media (prefers-reduced-motion: reduce){ .cuebtn .chev{ animation:none } }
 
