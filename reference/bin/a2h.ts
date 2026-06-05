@@ -95,6 +95,60 @@ function cmdVectors(): void {
   if (report.failed > 0) process.exit(1);
 }
 
+function cmdAbout(): void {
+  console.log(
+    [
+      "A2H — Agent-to-Human Protocol",
+      "",
+      "A vendor-neutral protocol for an agent to reach a human and get a decision",
+      "back. The agent-to-human complement to A2A and MCP.",
+      "",
+      "  MCP  →  agent ↔ tools",
+      "  A2A  →  agent ↔ agent",
+      "  A2H  →  agent ↔ human     ← this standard",
+      "",
+      "verbs: notify · ask · task        https://a2hprotocol.org",
+    ].join("\n"),
+  );
+}
+
+function cmdVerbs(): void {
+  console.log(
+    [
+      "notify   FYI / summary / status. No response.            — a daily digest",
+      "ask      A decision the human makes; answer routes back.  — ship / hold",
+      "task     A manual action a human performs out-of-band.    — rotate a key",
+    ].join("\n"),
+  );
+}
+
+function cmdDocs(): void {
+  console.log(
+    [
+      "spec         https://a2hprotocol.org/spec/v0.2.md",
+      "skill        https://github.com/autnmy/a2h-protocol/blob/main/skill/SKILL.md",
+      "reference    https://github.com/autnmy/a2h-protocol/tree/main/reference",
+      "schemas      https://a2hprotocol.org/schema/v0.2/message.schema.json",
+      "conformance  https://github.com/autnmy/a2h-protocol/tree/main/conformance",
+      "repo         https://github.com/autnmy/a2h-protocol",
+    ].join("\n"),
+  );
+}
+
+function cmdRules(): void {
+  console.log(
+    [
+      "- The Hub assigns the message id; idempotency_key is required on ask/task.",
+      "- state is agent-owned and AEAD-sealed — the Hub never holds the key;",
+      "  returned state is untrusted until verified.",
+      "- Every pushed Response is signed (RFC 8785 JCS + detached signature);",
+      "  agents verify, dedupe, and act at most once.",
+      "- actor is Hub-attested; resolver authz is fail-closed; callbacks must",
+      "  target an agent-owned, verified host.",
+    ].join("\n"),
+  );
+}
+
 const argv = process.argv.slice(2);
 const cmd = argv[0];
 const { positionals, flags } = parseArgs(argv.slice(1));
@@ -113,11 +167,27 @@ switch (cmd) {
   case "vectors":
     cmdVectors();
     break;
+  case "about":
+    cmdAbout();
+    break;
+  case "verbs":
+    cmdVerbs();
+    break;
+  case "docs":
+    cmdDocs();
+    break;
+  case "rules":
+    cmdRules();
+    break;
   default:
     console.log(
       [
         "a2h — A2H reference CLI",
         "",
+        "  a2h about                 what A2H is, in one screen",
+        "  a2h verbs                 the three message verbs",
+        "  a2h docs                  links to the spec, skill, schemas, repo",
+        "  a2h rules                 the trust rules that matter",
         "  a2h validate <file> [--as message|response|capability]",
         "  a2h sign <signed_context.json> --key <key>",
         "  a2h verify <signed_context.json> --v1 <sig> --key <key>",
