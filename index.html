@@ -332,7 +332,9 @@
     }, { rootMargin:'-45% 0px -45% 0px', threshold:0 });
     sentinelEls = Array.prototype.slice.call(document.querySelectorAll('.sentinel'));
     sentinelEls.forEach(function(s){ io.observe(s); });
-    var cbtn = document.getElementById('cuebtn');
+    // Use the captured cueEl, not getElementById: pump() has already run removeCue()
+    // by now (detaching the cue), so the button is out of the document tree.
+    var cbtn = cueEl && cueEl.querySelector('.cuebtn');
     if(cbtn){
       cbtn.innerHTML = window.matchMedia('(pointer:fine)').matches
         ? 'press <kbd>↵</kbd> or scroll <span class="chev">⌄</span>'
