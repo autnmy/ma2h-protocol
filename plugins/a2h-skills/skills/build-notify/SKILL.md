@@ -37,6 +37,13 @@ title like `[smoke] <app>-notify`. Surface any non-2xx with the Hub's error body
 ### 4. Hand off
 Tell the user how their agents trigger it and which env/secrets must be present at runtime.
 
+### 5. (Optional) Package as a plugin for your team
+If other people's agents should also send to this Hub, offer to package the generated skill(s) as an
+**installable plugin** in this repo: add `.claude-plugin/plugin.json` for the plugin and a root
+`.claude-plugin/marketplace.json` listing it (bundle whichever verb skills the app exposes —
+notify/ask/task — in the one plugin). Then teammates run `/plugin marketplace add <this-repo>` →
+`/plugin install <app>-a2h@<marketplace>` and use `/<app>-notify`. Validate with `claude plugin validate .`.
+
 ## Template — the generated `<app>-notify` skill
 
 ````markdown

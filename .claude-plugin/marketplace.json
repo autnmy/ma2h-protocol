@@ -12,7 +12,7 @@
     {
       "name": "a2h-skills",
       "source": "./plugins/a2h-skills",
-      "description": "Agent-native A2H toolkit: meta-skills that scaffold app-specific notify / ask / task skills wired to your A2H Hub."
+      "description": "Agent-native A2H toolkit: 'implement' builds a conformant A2H Hub in your app (any stack); 'build-notify' / 'build-ask' / 'build-task' generate app-specific sender skills. Independent — use only what you need."
     }
   ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "a2h-skills",
-  "description": "Meta-skills that scaffold app-specific A2H notify / ask / task skills for your app, wired to your A2H Hub (e.g. OH HAI). Each builder generates a ready-to-use verb skill your agents invoke to reach a human.",
+  "description": "The agent-native A2H toolkit: 'implement' builds a conformant A2H Hub in your app (any language/framework, graded against the conformance vectors); 'build-notify' / 'build-ask' / 'build-task' generate app-specific verb skills your agents invoke to reach a human. Skills are independent — use only what you need.",
   "version": "0.1.0",
   "author": {
     "name": "Autonomy",

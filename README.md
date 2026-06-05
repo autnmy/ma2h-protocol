@@ -62,7 +62,7 @@ schema/v0.2/
 examples/                          ← concrete envelopes (notify/ask/task + responses + the resume callback)
 conformance/                       ← vector format, the three verification classes, starter vectors
 reference/                         ← @a2h/reference — vendor-neutral TypeScript reference impl + `a2h` CLI
-skill/SKILL.md                     ← agent-native skill: how an agent integrates A2H in one shot
+plugins/a2h-skills/                ← installable plugin: implement a Hub + build notify/ask/task skills
 ```
 
 ## Stewardship & governance
