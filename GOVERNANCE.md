@@ -1,6 +1,6 @@
 # A2H Governance
 
-**Status:** Draft · **Steward:** Autonomy LLC
+**Status:** Draft · **Steward:** Autonomy
 
 ## 1. Stewardship model
 

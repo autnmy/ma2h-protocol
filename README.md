@@ -1,6 +1,6 @@
 # A2H — Agent-to-Human Protocol
 
-> **Status:** Draft · **Version:** 0.2 · **Steward:** Autonomy LLC · **License:** Apache-2.0
+> **Status:** Draft · **Version:** 0.2 · **Steward:** Autonomy · **License:** Apache-2.0
 > A vendor- and runtime-neutral protocol for agents to reach a human and get a decision back.
 
 ## The one-line pitch
@@ -67,7 +67,7 @@ skill/SKILL.md                     ← agent-native skill: how an agent integrat
 
 ## Stewardship & governance
 
-**A2H is stewarded by Autonomy LLC** and licensed [Apache-2.0](LICENSE). It is deliberately structured
+**A2H is stewarded by Autonomy** and licensed [Apache-2.0](LICENSE). It is deliberately structured
 to read as a neutral, donate-able standard — not a single-vendor artifact — because open protocols only
 get adopted when implementers' legal teams can clear the patent risk (the reason A2A moved to the Linux
 Foundation within two months of launch). See [GOVERNANCE.md](GOVERNANCE.md) for the full model.
@@ -76,7 +76,7 @@ Foundation within two months of launch). See [GOVERNANCE.md](GOVERNANCE.md) for 
 
 | | What it is | Owner | License / model |
 |---|---|---|---|
-| **A2H** (this repo) | The open spec + schema | Stewarded by Autonomy LLC, donate-able | Apache-2.0, DCO contributions |
+| **A2H** (this repo) | The open spec + schema | Stewarded by Autonomy, donate-able | Apache-2.0, DCO contributions |
 | **The Hub** (separate) | The hosted server + native triage app | Autonomy LLC commercial product | Proprietary |
 
 Autonomy authors the standard *and* sells the best implementation of it. The standard stays neutral so it
