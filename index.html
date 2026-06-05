@@ -61,6 +61,7 @@
   #track{ display:none }
   body.motion #track{ display:block; position:relative; padding-bottom:42vh }
   body.motion .sentinel{ height:80vh }
+  body.motion .screen{ padding-bottom:80px }
   body.motion .win{
     position:fixed; top:24px; bottom:24px; left:50%; transform:translateX(-50%);
     width:min(900px, calc(100vw - 36px)); margin:0; z-index:5;
@@ -93,6 +94,18 @@
   @keyframes blink{ 50%{ opacity:0 } }
   .in{ outline:none; caret-color:transparent; color:var(--fg); min-width:2px }
 
+  /* ---- advance cue (press ↵ or scroll) ---- */
+  .cue{ position:absolute; left:0; right:0; bottom:44px; display:flex; justify-content:center; pointer-events:none; z-index:4; transition:opacity .35s ease }
+  .cue.gone{ opacity:0; visibility:hidden }
+  .cuebtn{ pointer-events:auto; cursor:pointer; user-select:none; font-size:12.5px; color:var(--dim);
+    background:rgba(13,15,19,.82); -webkit-backdrop-filter:blur(7px); backdrop-filter:blur(7px);
+    border:1px solid var(--edge); border-radius:999px; padding:6px 15px; display:inline-flex; align-items:center; gap:8px; transition:color .2s, border-color .2s }
+  .cuebtn:hover{ color:var(--fg); border-color:#2c333d }
+  .cuebtn kbd{ font:inherit; color:var(--green); background:rgba(87,217,163,.1); border:1px solid rgba(87,217,163,.3); border-radius:5px; padding:0 6px }
+  .cuebtn .chev{ color:var(--cyan); animation:bob 1.6s ease-in-out infinite }
+  @keyframes bob{ 0%,100%{ transform:translateY(0); opacity:.65 } 50%{ transform:translateY(3px); opacity:1 } }
+  @media (prefers-reduced-motion: reduce){ .cuebtn .chev{ animation:none } }
+
   @media (max-width:600px){
     body{ font-size:13px }
     .win{ width:100%; margin:0; min-height:100vh; border:0; border-radius:0; box-shadow:none }
@@ -109,6 +122,7 @@
 <main class="win" id="win" aria-label="A2H terminal">
   <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="name">a2h — agent-to-human protocol</span><span></span></div>
   <div class="screen" id="screen"></div>
+  <div class="cue gone" id="cue" aria-hidden="true"><span class="cuebtn" id="cuebtn" role="button" tabindex="-1">press <kbd>↵</kbd> or scroll <span class="chev">⌄</span></span></div>
   <div class="status">
     <span class="seg"><span class="pill">A2H</span> <span>v0.2 · draft</span></span>
     <span class="seg"><span class="hide-sm">stewarded by Autonomy</span> <span class="sep">·</span> Apache-2.0</span>
@@ -225,6 +239,20 @@
   }
   function unlock(i){ if(i>unlocked){ unlocked=i; pump(); } }
 
+  // Enter / tap advances the reveal by scrolling the next sentinel to center,
+  // so the keyboard path and the scroll path drive the exact same unlock.
+  var sentinelEls = [], navTarget = 0;
+  var cueEl = document.getElementById('cue');
+  function hideCue(){ if(cueEl) cueEl.classList.add('gone'); }
+  function revealNext(){
+    if(doneAll) return;
+    var furthest = Math.max(navTarget, unlocked);
+    if(furthest >= steps.length - 1){ navTarget = steps.length - 1; return; }
+    navTarget = furthest + 1;
+    var s = sentinelEls[navTarget];
+    if(s && s.scrollIntoView) s.scrollIntoView({ behavior:'smooth', block:'center' });
+  }
+
   // ---- interactive ----
   var current=null;
   function focusInput(){
@@ -267,6 +295,7 @@
     addPrompt(20);
   }
   function startInteractive(){
+    hideCue();
     screen.appendChild(el('tl', '<span class="faint"># your turn — try: a2h rules · a2h docs · npm run demo · help</span>'));
     addPrompt(40);
   }
@@ -290,7 +319,22 @@
     var io = new IntersectionObserver(function(entries){
       entries.forEach(function(e){ if(e.isIntersecting) unlock(parseInt(e.target.dataset.i,10)); });
     }, { rootMargin:'-45% 0px -45% 0px', threshold:0 });
-    document.querySelectorAll('.sentinel').forEach(function(s){ io.observe(s); });
+    sentinelEls = Array.prototype.slice.call(document.querySelectorAll('.sentinel'));
+    sentinelEls.forEach(function(s){ io.observe(s); });
+    var cbtn = document.getElementById('cuebtn');
+    if(cbtn){
+      cbtn.innerHTML = window.matchMedia('(pointer:fine)').matches
+        ? 'press <kbd>↵</kbd> or scroll <span class="chev">⌄</span>'
+        : 'tap or scroll <span class="chev">⌄</span>';
+      cbtn.addEventListener('click', revealNext);
+    }
+    if(cueEl) cueEl.classList.remove('gone');
+    document.addEventListener('keydown', function(e){
+      if(e.key !== 'Enter' || doneAll) return;
+      var t = e.target;
+      if(t && (t.isContentEditable || t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
+      e.preventDefault(); revealNext();
+    });
   }
   init();
 })();
