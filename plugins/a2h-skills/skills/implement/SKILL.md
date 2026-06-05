@@ -40,10 +40,10 @@ Implement these (paths are conventional — match the spec's shapes, adapt routi
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/v1/messages` | ingest `notify`/`ask`/`task`; **Hub assigns `id`**; returns `202` + ack |
-| GET | `/v1/messages` · `/v1/messages/:id` | inbox read; reads are **idempotent** |
-| POST | `/v1/messages/:id/resolve` | a human resolves an `ask`/`task` → triggers the signed response |
-| GET | `/v1/messages/:id/response` | pull the signed Response (pull-mode callbacks) |
-| GET | `/v1/capability` | advertise limits + supported auth schemes |
+| GET | `/v1/messages` · `/v1/messages/{id}` | inbox read; reads are **idempotent**; **pull-mode** clients read the signed terminal Response **embedded in the message body** of `GET /v1/messages/{id}` |
+| POST | `/v1/messages/{id}/resolve` | a human resolves an `ask`/`task` → triggers the signed response |
+| POST | `/v1/messages/{id}/cancel` | the agent withdraws an open `ask` → `cancelled` |
+| GET | `/.well-known/a2h` | advertise limits + supported auth schemes (standardized discovery) |
 | GET | `/v1/stream` *(optional)* | SSE live tail for a live inbox |
 
 ## 3. The Hub MUSTs — your definition of done
@@ -52,15 +52,15 @@ Every one of these is normative. The implementation is not done until each is sa
 a test. (This is the same checklist the conformance vectors enforce.)
 
 - [ ] **`id` is Hub-assigned**, never a client input. Clients correlate via `client_ref` (opaque; never a dedup key; never shown to resolvers).
-- [ ] **Idempotency:** `idempotency_key` is **required** for `ask`/`task`; dedup scope `(agent.id, idempotency_key)` → a retry returns the same `id`, never a second row/decision.
+- [ ] **Idempotency:** `idempotency_key` is **required** for `ask`/`task`; dedup scope `(agent.id, idempotency_key)` → a retry with an **identical payload** returns the same `id`, never a second row/decision. Reusing the **same key with a different payload** MUST return **`409 Conflict`** (never silently the original `id`).
 - [ ] **`state` is agent-owned + sealed:** opaque AEAD blob; the **Hub MUST NOT inspect, log, or hold the key**; returned **verbatim** on resolution.
 - [ ] **Every pushed Response is signed:** RFC 8785 **JCS** over the `signed_context` + a **detached HMAC-SHA256**, with a `jti` nonce, a ±120s window, and binding to `id` + `resolution_id` + `callback_url`.
 - [ ] **`actor` is Hub-attested** from the authenticated session — never the resolving request body; format `<type>:<id>`, `type ∈ {human, agent, system}`.
 - [ ] **Resolver authz is fail-closed** (`allowed_resolvers` defaults closed).
-- [ ] **Callbacks** target an **agent-owned, verified** host (push or pull) with **SSRF controls**: host-ownership verification, private-range refusal at delivery time, no redirects, credential-host binding.
-- [ ] **Lifecycle** is atomic, single-writer, **first-terminal-wins**. Resolutions: `ask` → `answered|declined|cancelled|expired`; `task` → `completed|dismissed|expired`. Statuses: `open` → `delivered` → terminal.
+- [ ] **Callbacks** target an **agent-owned, verified** host (push or pull) with **SSRF controls**: host-ownership verification, private-range refusal at delivery time, no redirects, credential-host binding. The Hub **MUST NOT** server-side-fetch `context.file.uri` unless that URI passes the **same host controls used for callbacks**.
+- [ ] **Lifecycle** is atomic, single-writer, **first-terminal-wins**. Resolutions: `ask` → `answered|declined|cancelled|expired`; `task` → `completed|dismissed|expired`. Statuses: `delivered` is terminal-on-acceptance for **`notify` only** (`open` → `delivered`); `ask`/`task` transition **`open` → terminal** directly (no `delivered` state).
 - [ ] **`body` is untrusted Markdown** — sanitize to a **no-raw-HTML** profile before any rendering.
-- [ ] **Telemetry/logs exclude** `body`, `context`, `response.value`, `response.comment`.
+- [ ] **Telemetry/logs exclude** `state`, `body`, `context`, `response.value`, `response.comment` — `state` is a hard **MUST NOT log** (the agent's opaque resume context).
 - [ ] **Capability discovery** advertises `max_body_bytes` / `max_part_bytes` / `max_context_parts` / auth schemes, and the Hub **enforces** those limits at ingest.
 - [ ] **Submit returns `202`; GET reads are idempotent** (a terminal message returns the same body).
 

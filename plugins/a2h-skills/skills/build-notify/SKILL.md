@@ -18,7 +18,7 @@ message, get `202`, done. No callback, no resume, no idempotency key required.
 Inspect the repo first (`AGENTS.md` / `CLAUDE.md` / `.env.example` / existing config), then ask the user
 only for what's missing:
 - **App name / slug** → names the generated skill (e.g. `acme-notify`).
-- **Hub base URL** (e.g. `https://hub.acme.com`). Limits can be discovered at `GET {HUB}/v1/capability`.
+- **Hub base URL** (e.g. `https://hub.acme.com`). Limits can be discovered at `GET {HUB}/.well-known/a2h`.
 - **Auth** — how the agent obtains its Hub **bearer token** (env var name like `A2H_TOKEN`, a secret
   manager, etc.). **Never hardcode the token** in the generated skill.
 - **Agent identity** — how to fill `agent.id` / `agent.run_id` / `agent.runtime` / `agent.project` from
@@ -68,8 +68,9 @@ Compose and POST an A2H `notify` to <APP>'s Hub. Fire-and-forget — do not wait
 - `priority` *(optional)*: `low | normal | high | urgent` (default `<DEFAULT_PRIORITY>`)
 - `tags` *(optional)*: `string[]`
 
-Expect `202 { id, status: "open" }`. On non-2xx, surface the error. Do **not** blind-retry — `notify` has
-no idempotency key, so a retry creates a duplicate.
+Expect `202 { id, status: "delivered" }` (a `notify` submit ack is `delivered`, not `open` — there is no
+response leg). On non-2xx, surface the error. Do **not** blind-retry — `notify` has no idempotency key, so
+a retry creates a duplicate.
 
 ```bash
 curl -sS -X POST "<HUB_URL>/v1/messages" \

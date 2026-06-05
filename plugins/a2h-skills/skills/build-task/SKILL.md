@@ -72,27 +72,35 @@ description: Ask a human to perform a manual, out-of-band action via <APP>'s A2H
   - `instructions`: what the human must do (Markdown)
   - `checklist` *(optional)*: `[{ "text": "…", "done": false }, …]`
   - `verification` *(optional)*: how completion is confirmed
-  - `allowed_resolvers` *(optional)*: e.g. `["human:*"]` — fail-closed if omitted-and-required.
+  - **`allowed_resolvers` (REQUIRED for a human task)**: set `["human:*"]` (or a specific `human:<id>`). If
+    omitted it **fails closed to the submitting `agent.id` only** — so no human can resolve the task and it
+    will sit unresolvable until it expires.
   - `callback`: `{ "mode": "push", "url": "<CALLBACK_URL>", "auth": { "scheme": "<hmac|bearer|apikey>", "<secret_ref|token_ref>": "…" } }` — or `{ "mode": "pull" }`.
 - `state` *(optional)*: an **agent-sealed** (AEAD) resume blob; the Hub stores it opaquely.
 
 Expect `202 { id, status: "open" }`. Retries reuse the **same `idempotency_key`** → same `id`, no duplicate.
 
 ## Receive (resume)
-The run may end here. When the human resolves it, the Hub sends a **signed Response**:
-- **push:** delivered to `<CALLBACK_URL>` → your handler re-invokes this agent.
-- **pull:** poll `GET <HUB_URL>/v1/messages/{id}/response` (Bearer) until it returns one.
+The run may end here. When the human resolves it, the agent gets the terminal Response one of two ways:
+
+- **push:** the Hub `POST`s a **signed Response** to `<CALLBACK_URL>` → your handler re-invokes this agent.
+- **pull:** poll `GET <HUB_URL>/v1/messages/{id}` (Bearer) until the message reaches a terminal state; the
+  terminal `response` is **embedded in the message body**. A pull response is **not** signed — it's trusted
+  via the authenticated GET transport + the immutable terminal record (no `jti` / detached signature).
 
 Then **MUST**:
-1. **Verify** the signature: recompute RFC 8785 JCS over the `signed_context`, check the detached
-   `X-A2H-Signature: v1=…` HMAC (per-agent key), the `jti` nonce, the ±120s window, and the binding to
-   `id` + `resolution_id` + `callback_url`. Reject on any mismatch.
-2. **Dedupe** on `resolution_id` and **act at most once**.
+1. **(push only) Verify** the signature: recompute RFC 8785 JCS over the `signed_context`, check the
+   detached `A2H-Signature: t=<unix>,jti=<nonce>,v1=<base64url(sig)>` HMAC (per-agent key), the `jti`
+   nonce, the ±120s window (`t`), and the binding to `id` + `resolution_id` + `callback_url`. Reject on any
+   mismatch. **Pull skips this step** — just read the terminal `response`.
+2. **Dedupe** on `(in_reply_to, resolution_id)` (where `in_reply_to` is the message `id`) and **act at most
+   once**.
 3. If you sent `state`, **verify + open** it (AEAD) before trusting it.
-4. Read the outcome: `resolution ∈ { completed | dismissed | expired }` (+ optional `response.comment`,
-   and `response.value` if the Hub captured checklist/verification results).
+4. Read the outcome: `resolution ∈ { completed | dismissed | expired }`. A `task` Response carries
+   `response.comment` and/or the final `checklist` state — there is **no `response.value`** (that field is
+   reserved for `ask`).
 
-Use the A2H reference (`signing.verifyResponse`, `state-seal.openState`) for steps 1 and 3.
+Use the A2H reference (`signing.verifyResponse`, `state-seal.openState`) for steps 1 (push) and 3.
 ````
 
 ## References
