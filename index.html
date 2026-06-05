@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>A2H — Agent-to-Human Protocol</title>
-<meta name="description" content="A vendor-neutral protocol for agents to reach a human and get a decision back. Send a summary (notify), ask a decision and resume on the answer (ask), or assign a manual action (task). The agent-to-human complement to A2A and MCP." />
+<meta name="description" content="A vendor-neutral protocol for an agent to reach a human and get a decision back. notify · ask · task. The agent-to-human complement to A2A and MCP." />
 <meta property="og:title" content="A2H — Agent-to-Human Protocol" />
 <meta property="og:description" content="The agent-to-human complement to A2A and MCP. notify · ask · task." />
 <meta name="theme-color" content="#0d0f13" />
@@ -13,93 +13,92 @@
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
 <style>
   :root{
-    --bg:#070809; --term:#0d0f13; --bar:#14171d; --edge:#20242c; --edge-soft:#171b21;
+    --bg:#070809; --term:#0d0f13; --bar:#14171d; --edge:#20242c;
     --fg:#d4dae3; --dim:#6c7480; --faint:#454d59;
-    --green:#57d9a3; --cyan:#66b2ff; --amber:#e6c07b; --violet:#b692ff; --red:#ff6b6b;
+    --green:#57d9a3; --cyan:#66b2ff; --amber:#e6c07b; --violet:#b692ff;
     --radius:13px;
   }
-  *{box-sizing:border-box}
+  *{ box-sizing:border-box }
   html{ -webkit-text-size-adjust:100% }
   body{
     margin:0; min-height:100vh; background:var(--bg); color:var(--fg);
     font-family:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     font-size:14px; line-height:1.65; letter-spacing:-0.1px;
-    display:flex; align-items:center; justify-content:center; padding:40px 18px;
-    background-image:radial-gradient(120% 90% at 50% -10%, #11161d 0%, var(--bg) 55%);
+    background-image:radial-gradient(120% 80% at 50% -10%, #11161d 0%, var(--bg) 55%);
   }
   ::selection{ background:rgba(102,178,255,.22) }
-  a{ color:var(--cyan); text-decoration:none }
-  a:hover{ text-decoration:underline; text-underline-offset:3px }
-  a:focus-visible{ outline:1px solid var(--cyan); outline-offset:3px; border-radius:3px }
+  a{ color:var(--cyan); text-decoration:none } a:hover{ text-decoration:underline; text-underline-offset:3px }
 
+  /* ---- window (default: static, normal flow) ---- */
   .win{
-    width:100%; max-width:840px; background:var(--term);
+    position:relative; width:min(900px, calc(100vw - 36px)); margin:40px auto;
+    display:flex; flex-direction:column; background:var(--term);
     border:1px solid var(--edge); border-radius:var(--radius);
-    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 40px 120px -30px rgba(0,0,0,.85), 0 0 0 1px rgba(0,0,0,.4);
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 40px 120px -30px rgba(0,0,0,.85);
     overflow:hidden;
   }
   .bar{
-    display:grid; grid-template-columns:1fr auto 1fr; align-items:center;
-    height:42px; padding:0 14px; background:linear-gradient(var(--bar), #11141a);
-    border-bottom:1px solid var(--edge);
+    flex:0 0 auto; display:grid; grid-template-columns:1fr auto 1fr; align-items:center;
+    height:42px; padding:0 14px; background:linear-gradient(var(--bar), #11141a); border-bottom:1px solid var(--edge);
   }
-  .dots{ display:flex; gap:8px }
-  .dots i{ width:12px; height:12px; border-radius:50%; display:block }
+  .dots{ display:flex; gap:8px } .dots i{ width:12px; height:12px; border-radius:50%; display:block }
   .dots i:nth-child(1){ background:#ff5f56 } .dots i:nth-child(2){ background:#ffbd2e } .dots i:nth-child(3){ background:#27c93f }
-  .bar .name{ text-align:center; color:var(--dim); font-size:12.5px; letter-spacing:.2px }
-
-  .screen{ padding:30px 30px 14px; }
-  .row{ white-space:pre-wrap; word-break:break-word }
-  .p{ color:var(--green); font-weight:500 }
-  .car{ color:var(--faint) }
-  .cmd{ color:var(--fg) }
-  .dim{ color:var(--dim) } .faint{ color:var(--faint) }
-  .cy{ color:var(--cyan) } .gr{ color:var(--cyan) } .am{ color:var(--amber) } .vi{ color:var(--violet) }
-  .blk{ display:block }
-
-  .lead{ margin:20px 0 10px }
-  .mark{ font-size:46px; font-weight:700; letter-spacing:1px; line-height:1; margin:0 0 2px }
-  .mark .s{ color:var(--green) }
-  .tag{ color:var(--dim); margin:0 0 18px; max-width:64ch }
-  .tag b{ color:var(--fg); font-weight:500 }
-
-  pre{ margin:0; font:inherit; white-space:pre; max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:thin; scrollbar-color:var(--edge) transparent }
-  pre::-webkit-scrollbar{ height:6px } pre::-webkit-scrollbar-thumb{ background:var(--edge); border-radius:3px }
-  .map{ color:var(--dim) } .map b{ color:var(--fg) }
-
-  .grp{ margin:56px 0 6px }
-  .out{ margin:6px 0 0 }
-  .verb{ display:grid; grid-template-columns:7ch 1fr; gap:6px 16px; margin-top:6px }
-  .verb dt{ color:var(--cyan); font-weight:500 }
-  .verb dd{ margin:0; color:var(--dim) }
-  .verb dd b{ color:var(--fg); font-weight:400 }
-
-  .links{ margin-top:8px; display:grid; gap:3px }
-  .links .lk{ display:grid; grid-template-columns:13ch 1fr; gap:14px; padding:2px 0 }
-  .links .k{ color:var(--violet) }
-  .links .d{ color:var(--faint) }
-
-  .rules{ margin:8px 0 0; padding:0; list-style:none; color:var(--dim) }
-  .rules li{ padding:1px 0 } .rules li::before{ content:"• "; color:var(--cyan) }
-  .rules code{ color:var(--amber) }
-
-  .cur{ display:inline-block; width:8.5px; height:1.05em; vertical-align:-2px; background:var(--green); margin-left:2px; animation:blink 1.05s steps(1) infinite }
-  @keyframes blink{ 50%{ opacity:0 } }
-
+  .bar .name{ text-align:center; color:var(--dim); font-size:12.5px }
+  .screen{
+    flex:1 1 auto; min-height:0; overflow-y:auto; padding:30px 30px 18px;
+    scrollbar-width:thin; scrollbar-color:var(--edge) transparent;
+  }
+  .screen::-webkit-scrollbar{ width:8px } .screen::-webkit-scrollbar-thumb{ background:var(--edge); border-radius:4px }
   .status{
-    display:flex; justify-content:space-between; align-items:center; gap:12px;
-    border-top:1px solid var(--edge); background:#0a0c10; color:var(--dim);
-    font-size:12px; padding:8px 16px;
+    flex:0 0 auto; display:flex; justify-content:space-between; align-items:center; gap:12px;
+    border-top:1px solid var(--edge); background:#0a0c10; color:var(--dim); font-size:12px; padding:8px 16px;
   }
   .status .seg{ display:flex; align-items:center; gap:8px }
   .status .pill{ color:#0a0c10; background:var(--cyan); border-radius:4px; padding:1px 7px; font-weight:700; letter-spacing:.3px }
   .status .sep{ color:var(--faint) }
 
+  /* ---- motion mode: fixed floating terminal + tall scroll track ---- */
+  #track{ display:none }
+  body.motion #track{ display:block; position:relative; padding-bottom:42vh }
+  body.motion .sentinel{ height:80vh }
+  body.motion .win{
+    position:fixed; top:24px; bottom:24px; left:50%; transform:translateX(-50%);
+    width:min(900px, calc(100vw - 36px)); margin:0; z-index:5;
+  }
+
+  /* ---- terminal content ---- */
+  .row{ white-space:pre-wrap; word-break:break-word }
+  .p{ color:var(--green); font-weight:500 } .car{ color:var(--faint) } .cmd{ color:var(--fg) }
+  .cmt{ color:var(--dim) }
+  .dim{ color:var(--dim) } .faint{ color:var(--faint) }
+  .cy,.gr{ color:var(--cyan) } .am{ color:var(--amber) } .vi{ color:var(--violet) }
+  .ln{ }
+  .tl{ white-space:pre-wrap; word-break:break-word }
+
+  .lead{ margin:20px 0 10px }
+  .mark{ font-size:46px; font-weight:700; letter-spacing:1px; line-height:1; margin:0 0 4px } .mark .s{ color:var(--green) }
+  .tag{ color:var(--dim); margin:0 0 18px; max-width:64ch } .tag b{ color:var(--fg); font-weight:500 }
+  .map{ margin:0; color:var(--dim); white-space:pre } .map b{ color:var(--fg) }
+
+  .verb{ display:grid; grid-template-columns:7ch 1fr; gap:6px 16px; margin:6px 0 0 }
+  .verb dt{ color:var(--cyan); font-weight:500 } .verb dd{ margin:0; color:var(--dim) } .verb dd b{ color:var(--fg); font-weight:400 }
+  .links{ margin:6px 0 0; display:grid; gap:3px }
+  .links .lk{ display:grid; grid-template-columns:13ch 1fr; gap:14px; padding:2px 0; color:var(--fg) }
+  .links .lk:hover{ text-decoration:none } .links .k{ color:var(--violet) } .links .lk:hover .k{ text-decoration:underline; text-underline-offset:3px } .links .d{ color:var(--faint) }
+  .rules{ margin:6px 0 0; padding:0; list-style:none; color:var(--dim) }
+  .rules li{ padding:1px 0 } .rules li::before{ content:"• "; color:var(--cyan) } .rules code{ color:var(--amber) }
+
+  /* ---- cursor + interactive input ---- */
+  .cur{ display:inline-block; width:8.5px; height:1.05em; vertical-align:-2px; background:var(--green); margin-left:2px; animation:blink 1.05s steps(1) infinite }
+  @keyframes blink{ 50%{ opacity:0 } }
+  .in{ outline:none; caret-color:transparent; color:var(--fg); min-width:2px }
+
   @media (max-width:600px){
-    body{ font-size:13px; padding:0 }
-    .win{ max-width:none; min-height:100vh; border:0; border-radius:0; box-shadow:none }
+    body{ font-size:13px }
+    .win{ width:100%; margin:0; min-height:100vh; border:0; border-radius:0; box-shadow:none }
+    body.motion .win{ top:0; bottom:0; left:0; transform:none; width:100% }
     .screen{ padding:22px 16px 12px } .mark{ font-size:32px }
-    pre{ font-size:11.5px; line-height:1.5 }
+    .map,.tl{ font-size:11.5px; line-height:1.5 }
     .verb{ grid-template-columns:1fr } .verb dd{ margin:0 0 6px }
     .links .lk{ grid-template-columns:1fr; gap:0 } .links .d{ margin-bottom:6px }
     .status{ font-size:11px } .status .hide-sm{ display:none }
@@ -107,81 +106,193 @@
 </style>
 </head>
 <body>
-<main class="win" aria-label="A2H terminal">
+<main class="win" id="win" aria-label="A2H terminal">
   <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="name">a2h — agent-to-human protocol</span><span></span></div>
-
-  <div class="screen">
-    <div class="row"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd" id="cmd"></span></div>
-
-    <div class="out" id="about" hidden>
-      <div class="lead">
-        <div class="mark">A<span class="s">2</span>H</div>
-        <p class="tag">A vendor-neutral protocol for an agent to <b>reach a human and get a decision back</b>.
-        The agent-to-human complement to A2A and MCP.</p>
-        <pre class="map"><b>MCP</b>  →  agent ↔ tools
-<b>A2A</b>  →  agent ↔ agent
-<b>A2H</b>  →  agent ↔ human     <span class="gr">← this standard</span></pre>
-      </div>
-
-      <div class="grp"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">a2h verbs</span></div>
-      <dl class="verb out">
-        <dt>notify</dt><dd>FYI / summary / status. <b>No response.</b> <span class="faint">— a daily digest</span></dd>
-        <dt>ask</dt><dd>A decision the human makes; the answer <b>routes back</b> to the (often exited) agent. <span class="faint">— ship / hold</span></dd>
-        <dt>task</dt><dd>A manual action a human performs <b>out-of-band</b>, then marks done. <span class="faint">— rotate a key</span></dd>
-      </dl>
-
-      <div class="grp"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">npm run demo</span> <span class="dim"># you are the human in the loop</span></div>
-      <pre class="out"><span class="cy">📬</span>  notify → "Daily deploy digest — web-app"   <span class="faint">[durable · status=delivered]</span>
-<span class="cy">📬</span>  NEW DECISION in your inbox:
-        Ship the candidate build to prod, or hold?
-          <span class="dim">• ship — Ship to prod now</span>
-          <span class="dim">• hold — Hold for review</span>
-<span class="vi">👤</span>  Your decision [ship/hold]: <span class="cy">ship</span>
-<span class="am">🔏</span>  Hub attested the actor, signed the Response, pushed it
-<span class="gr">🤖</span>  Agent re-invoked: signature verified <span class="gr">✓</span>, sealed state opened <span class="gr">✓</span>
-        you chose "<span class="cy">ship</span>" → <span class="gr">🚀 DEPLOYING abc123def</span>
-<span class="am">🛡</span>   Replayed Response → acted=<span class="am">false</span> <span class="faint">(duplicate delivery, ignored)</span></pre>
-
-      <div class="grp"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">a2h docs</span></div>
-      <div class="links out">
-        <a class="lk" href="https://github.com/autnmy/a2h-protocol/blob/main/spec/v0.2.md"><span class="k">spec</span><span class="d">the normative v0.2 specification</span></a>
-        <a class="lk" href="https://github.com/autnmy/a2h-protocol/blob/main/skill/SKILL.md"><span class="k">skill</span><span class="d">integrate A2H in one shot (agent-native)</span></a>
-        <a class="lk" href="https://github.com/autnmy/a2h-protocol/tree/main/reference"><span class="k">reference</span><span class="d">strict-TypeScript implementation + a2h CLI</span></a>
-        <a class="lk" href="/schema/v0.2/message.schema.json"><span class="k">schemas</span><span class="d">JSON Schema 2020-12 · dereferenceable here</span></a>
-        <a class="lk" href="https://github.com/autnmy/a2h-protocol/tree/main/conformance"><span class="k">conformance</span><span class="d">vectors + downstream proof obligations</span></a>
-        <a class="lk" href="https://github.com/autnmy/a2h-protocol"><span class="k">repo</span><span class="d">github.com/autnmy/a2h-protocol</span></a>
-      </div>
-
-      <div class="grp"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">a2h rules</span></div>
-      <ul class="rules out">
-        <li>The Hub assigns the message <code>id</code>; <code>idempotency_key</code> is required on <code>ask</code>/<code>task</code>.</li>
-        <li><code>state</code> is agent-owned and AEAD-sealed — the Hub never holds the key; returned state is untrusted until verified.</li>
-        <li>Every pushed Response is signed (RFC&nbsp;8785 JCS + detached signature); agents verify, dedupe, act at most once.</li>
-        <li><code>actor</code> is Hub-attested; resolver authz is fail-closed; callbacks must target an agent-owned, verified host.</li>
-      </ul>
-    </div>
-
-    <div class="row" style="margin-top:48px"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cur" id="cur"></span></div>
-  </div>
-
+  <div class="screen" id="screen"></div>
   <div class="status">
     <span class="seg"><span class="pill">A2H</span> <span>v0.2 · draft</span></span>
     <span class="seg"><span class="hide-sm">stewarded by Autonomy&nbsp;LLC</span> <span class="sep">·</span> Apache-2.0</span>
   </div>
 </main>
+<div id="track" aria-hidden="true"></div>
+
+<noscript>
+  <div style="max-width:720px;margin:40px auto;padding:0 20px;color:#d4dae3;font-family:monospace">
+    <h1>A2H — Agent-to-Human Protocol</h1>
+    <p>A vendor-neutral protocol for an agent to reach a human and get a decision back — the agent-to-human complement to A2A and MCP. Verbs: notify · ask · task.</p>
+    <p><a href="https://github.com/autnmy/a2h-protocol" style="color:#66b2ff">github.com/autnmy/a2h-protocol</a></p>
+  </div>
+</noscript>
 
 <script>
 (function(){
-  var cmd = document.getElementById('cmd');
-  var about = document.getElementById('about');
-  var text = 'a2h about';
+  var screen = document.getElementById('screen');
   var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (reduce){ cmd.textContent = text; about.hidden = false; return; }
-  var i = 0;
-  (function type(){
-    if (i <= text.length){ cmd.textContent = text.slice(0, i++); setTimeout(type, 46 + Math.random()*40); }
-    else { about.hidden = false; about.animate ? about.animate([{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'none'}],{duration:260,easing:'ease-out'}) : null; }
-  })();
+  function sleep(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+  function autoscroll(){ screen.scrollTop = screen.scrollHeight; }
+  function esc(s){ return s.replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function el(cls, html){ var d=document.createElement('div'); if(cls) d.className=cls; if(html!=null) d.innerHTML=html; return d; }
+
+  var OUT = {
+    about: { block:
+      '<div class="lead"><div class="mark">A<span class="s">2</span>H</div>'
+      + '<p class="tag">A vendor-neutral protocol for an agent to <b>reach a human and get a decision back</b>. The agent-to-human complement to A2A and MCP.</p>'
+      + '<pre class="map"><b>MCP</b>  →  agent ↔ tools\n<b>A2A</b>  →  agent ↔ agent\n<b>A2H</b>  →  agent ↔ human     <span class="gr">← this standard</span></pre></div>' },
+    verbs: { block:
+      '<dl class="verb">'
+      + '<dt>notify</dt><dd>FYI / summary / status. <b>No response.</b> <span class="faint">— a daily digest</span></dd>'
+      + '<dt>ask</dt><dd>A decision the human makes; the answer <b>routes back</b> to the (often exited) agent. <span class="faint">— ship / hold</span></dd>'
+      + '<dt>task</dt><dd>A manual action a human performs <b>out-of-band</b>, then marks done. <span class="faint">— rotate a key</span></dd>'
+      + '</dl>' },
+    docs: { block:
+      '<div class="links">'
+      + '<a class="lk" href="https://github.com/autnmy/a2h-protocol/blob/main/spec/v0.2.md"><span class="k">spec</span><span class="d">the normative v0.2 specification</span></a>'
+      + '<a class="lk" href="https://github.com/autnmy/a2h-protocol/blob/main/skill/SKILL.md"><span class="k">skill</span><span class="d">integrate A2H in one shot (agent-native)</span></a>'
+      + '<a class="lk" href="https://github.com/autnmy/a2h-protocol/tree/main/reference"><span class="k">reference</span><span class="d">strict-TypeScript implementation + a2h CLI</span></a>'
+      + '<a class="lk" href="/schema/v0.2/message.schema.json"><span class="k">schemas</span><span class="d">JSON Schema 2020-12 · dereferenceable here</span></a>'
+      + '<a class="lk" href="https://github.com/autnmy/a2h-protocol/tree/main/conformance"><span class="k">conformance</span><span class="d">vectors + downstream proof obligations</span></a>'
+      + '<a class="lk" href="https://github.com/autnmy/a2h-protocol"><span class="k">repo</span><span class="d">github.com/autnmy/a2h-protocol</span></a>'
+      + '</div>' },
+    rules: { block:
+      '<ul class="rules">'
+      + '<li>The Hub assigns the message <code>id</code>; <code>idempotency_key</code> is required on <code>ask</code>/<code>task</code>.</li>'
+      + '<li><code>state</code> is agent-owned and AEAD-sealed — the Hub never holds the key; returned state is untrusted until verified.</li>'
+      + '<li>Every pushed Response is signed (RFC 8785 JCS + detached signature); agents verify, dedupe, and act at most once.</li>'
+      + '<li><code>actor</code> is Hub-attested; resolver authz is fail-closed; callbacks must target an agent-owned, verified host.</li>'
+      + '</ul>' },
+    demo: { lines: [
+      '<span class="cy">📬</span>  notify → "Daily deploy digest — web-app"   <span class="faint">[durable · status=delivered]</span>',
+      '<span class="cy">📬</span>  NEW DECISION in your inbox:',
+      '        Ship the candidate build to prod, or hold?',
+      '          <span class="dim">• ship — Ship to prod now</span>',
+      '          <span class="dim">• hold — Hold for review</span>',
+      '<span class="vi">👤</span>  Your decision [ship/hold]: <span class="cy">ship</span>',
+      '<span class="am">🔏</span>  Hub attested the actor, signed the Response, pushed it',
+      '<span class="gr">🤖</span>  Agent re-invoked: signature verified <span class="gr">✓</span>, sealed state opened <span class="gr">✓</span>',
+      '        you chose "<span class="cy">ship</span>" → <span class="gr">🚀 DEPLOYING abc123def</span>',
+      '<span class="am">🛡</span>   Replayed Response → acted=<span class="am">false</span> <span class="faint">(duplicate delivery, ignored)</span>'
+    ] }
+  };
+  var HELP = { lines: [
+    'a2h about        what A2H is, in one screen',
+    'a2h verbs        the three message verbs',
+    'a2h docs         links to the spec, skill, schemas, repo',
+    'a2h rules        the trust rules that matter',
+    'a2h run-vectors  run the conformance vectors',
+    'npm run demo     replay the human-in-the-loop demo',
+    'clear            clear the screen'
+  ] };
+
+  var steps = [
+    { cmd:'a2h about', out:OUT.about },
+    { cmd:'a2h verbs', out:OUT.verbs },
+    { cmd:'npm run demo', comment:'# you are the human in the loop', out:OUT.demo },
+    { cmd:'a2h docs', out:OUT.docs },
+    { cmd:'a2h rules', out:OUT.rules }
+  ];
+
+  function newCmdRow(gap){
+    var row = el('row');
+    if(screen.children.length && gap) row.style.marginTop = gap + 'px';
+    row.innerHTML = '<span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd"></span>';
+    screen.appendChild(row); autoscroll();
+    return row;
+  }
+  async function typeInto(span, text, instant){
+    if(instant){ span.textContent = text; autoscroll(); return; }
+    for(var i=0;i<text.length;i++){ span.textContent += text.charAt(i); autoscroll(); await sleep(28 + Math.random()*34); }
+  }
+  async function printOut(out, instant){
+    if(!out) return;
+    if(out.block){ screen.appendChild(el('ln', out.block)); autoscroll(); return; }
+    if(out.lines){ for(var i=0;i<out.lines.length;i++){ screen.appendChild(el('tl', out.lines[i])); autoscroll(); if(!instant) await sleep(70); } }
+  }
+  async function reveal(step, instant){
+    var row = newCmdRow(54);
+    var cmd = row.querySelector('.cmd');
+    await typeInto(cmd, step.cmd, instant);
+    if(step.comment){ var c=el('cmt'); c.textContent=' '+step.comment; cmd.after(c); }
+    await printOut(step.out, instant);
+  }
+
+  // ---- reveal engine (one-way) ----
+  var revealed=-1, unlocked=-1, busy=false, doneAll=false;
+  async function pump(){
+    if(busy) return; busy=true;
+    while(revealed < unlocked){ revealed++; await reveal(steps[revealed], false); }
+    busy=false;
+    if(revealed === steps.length-1 && !doneAll){ doneAll=true; startInteractive(); }
+  }
+  function unlock(i){ if(i>unlocked){ unlocked=i; pump(); } }
+
+  // ---- interactive ----
+  var current=null;
+  function focusInput(){
+    if(!current) return; current.focus();
+    try{ var r=document.createRange(); r.selectNodeContents(current); r.collapse(false); var s=window.getSelection(); s.removeAllRanges(); s.addRange(r); }catch(e){}
+  }
+  function onPaste(e){ e.preventDefault(); var t=((e.clipboardData||window.clipboardData).getData('text')||'').replace(/\s+/g,' '); document.execCommand('insertText', false, t); }
+  function onKey(e){ if(e.key==='Enter'){ e.preventDefault(); submit(); } }
+  function addPrompt(gap){
+    var row = el('row'); if(gap) row.style.marginTop = gap+'px';
+    row.innerHTML = '<span class="p">~/a2h</span> <span class="car">❯</span> <span class="in" contenteditable="true" spellcheck="false" autocapitalize="off" autocorrect="off"></span><span class="cur"></span>';
+    screen.appendChild(row); autoscroll();
+    current = row.querySelector('.in');
+    current.addEventListener('keydown', onKey);
+    current.addEventListener('paste', onPaste);
+    if(!reduce && window.matchMedia('(pointer:fine)').matches) focusInput();
+  }
+  function resolve(t){
+    if(!t) return { out:null };
+    if(t==='clear') return { clear:true };
+    if(t==='help' || t==='a2h' || t==='a2h help' || t==='a2h --help') return { out:HELP };
+    if(t==='a2h about') return { out:OUT.about };
+    if(t==='a2h verbs') return { out:OUT.verbs };
+    if(t==='a2h docs') return { out:OUT.docs };
+    if(t==='a2h rules') return { out:OUT.rules };
+    if(t==='a2h run-vectors' || t==='a2h vectors') return { out:{ lines:['<span class="cy">8 passed</span> · 0 failed · <span class="faint">1 skipped</span>'] } };
+    if(/^a2h (validate|sign|verify)\b/.test(t)) return { out:{ lines:['<span class="faint">usage:</span> '+esc(t.split(' ').slice(0,2).join(' '))+' … run it in the reference → github.com/autnmy/a2h-protocol'] } };
+    if(t==='npm run demo') return { out:OUT.demo };
+    return { out:{ lines:['<span class="am">command not found:</span> '+esc(t)] } };
+  }
+  async function submit(){
+    var input = current; if(!input) return;
+    var text = (input.textContent || '').trim();
+    input.removeAttribute('contenteditable'); input.removeEventListener('keydown', onKey);
+    var row = input.parentElement; var cur = row.querySelector('.cur'); if(cur) cur.remove();
+    current = null;
+    var res = resolve(text);
+    if(res.clear){ screen.innerHTML=''; addPrompt(0); return; }
+    await printOut(res.out, false);
+    addPrompt(20);
+  }
+  function startInteractive(){
+    screen.appendChild(el('tl', '<span class="faint"># your turn — try: a2h rules · a2h docs · npm run demo · help</span>'));
+    addPrompt(40);
+  }
+  document.getElementById('win').addEventListener('click', function(e){
+    if(e.target.closest('a')) return;
+    if(window.getSelection().toString() !== '') return;
+    if(current) focusInput();
+  });
+
+  // ---- init ----
+  function init(){
+    if(reduce){
+      (async function(){ for(var i=0;i<steps.length;i++){ await reveal(steps[i], true); } startInteractive(); })();
+      return;
+    }
+    document.body.classList.add('motion');
+    var track = document.getElementById('track');
+    var h=''; for(var i=0;i<steps.length;i++){ h += '<div class="sentinel" data-i="'+i+'"></div>'; }
+    track.innerHTML = h;
+    unlock(0);
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if(e.isIntersecting) unlock(parseInt(e.target.dataset.i,10)); });
+    }, { rootMargin:'-45% 0px -45% 0px', threshold:0 });
+    document.querySelectorAll('.sentinel').forEach(function(s){ io.observe(s); });
+  }
+  init();
 })();
 </script>
 </body>
