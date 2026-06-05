@@ -96,7 +96,9 @@
   .status .sep{ color:var(--faint) }
 
   @media (max-width:600px){
-    body{ font-size:13px } .screen{ padding:22px 16px 12px } .mark{ font-size:32px }
+    body{ font-size:13px; padding:0 }
+    .win{ max-width:none; min-height:100vh; border:0; border-radius:0; box-shadow:none }
+    .screen{ padding:22px 16px 12px } .mark{ font-size:32px }
     pre{ font-size:11.5px; line-height:1.5 }
     .verb{ grid-template-columns:1fr } .verb dd{ margin:0 0 6px }
     .links .lk{ grid-template-columns:1fr; gap:0 } .links .d{ margin-bottom:6px }
