@@ -87,7 +87,7 @@ description: Ask a human to perform a manual, out-of-band action via <APP>'s A2H
   - `callback`: `{ "mode": "push", "url": "<CALLBACK_URL>", "auth": { "scheme": "<hmac|bearer|apikey>", "<secret_ref|token_ref>": "…" } }` — or `{ "mode": "pull" }`.
 - `state` *(optional)*: an **agent-sealed** (AEAD) resume blob; the Hub stores it opaquely.
 
-Expect `202 { id, status: "open" }`. Retries reuse the **same `idempotency_key`** → same `id`, no duplicate.
+Expect `202` with `{ id, status: "open", poll_url }` — **persist `poll_url`** (pull mode polls it to resume). Retries reuse the **same `idempotency_key`** → same `id`, no duplicate.
 
 ## Receive (resume)
 The run may end here. When the human resolves it, the agent gets the terminal Response one of two ways:

@@ -98,7 +98,7 @@ description: Ask a human a decision via <APP>'s A2H Hub and route the signed ans
 - `request.callback`: `{ "mode": "push", "url": "<CALLBACK_URL>", "auth": { "scheme": "<hmac|bearer|apikey>", "<secret_ref|token_ref>": "…" } }` — or `{ "mode": "pull" }`.
 - `state` *(optional)*: an **agent-sealed** (AEAD) resume blob. Seal it yourself; the Hub stores it opaquely.
 
-Expect `202 { id, status: "open" }`. If you retry, reuse the **same `idempotency_key`** — you'll get the
+Expect `202` with `{ id, status: "open", poll_url }` — **persist `poll_url`** (pull mode polls it to resume). If you retry, reuse the **same `idempotency_key`** — you'll get the
 same `id` back, never a duplicate decision.
 
 ## Receive (resume)
