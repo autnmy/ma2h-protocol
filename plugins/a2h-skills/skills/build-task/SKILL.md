@@ -43,17 +43,20 @@ re-deriving crypto — see the [reference implementation](https://github.com/aut
 
 ### 3. Verify
 Smoke-test the full loop: send a test `task`, mark it **done** in the inbox, confirm the agent receives the
-Response, **verifies the signature**, sees `resolution: "completed"`, and acts **once** (a replay is a no-op).
+Response (**push:** verifies the signature; **pull:** reads the terminal response from the ack's `poll_url`),
+sees `resolution: "completed"`, and acts **once** (a replay is a no-op).
 
 ### 4. Hand off
 Document how agents invoke it, the callback/resume wiring, and required secrets.
 
 ### 5. (Optional) Package as a plugin for your team
 If other people's agents should also send to this Hub, offer to package the generated skill(s) as an
-**installable plugin** in this repo: add `.claude-plugin/plugin.json` for the plugin and a root
-`.claude-plugin/marketplace.json` listing it (bundle whichever verb skills the app exposes —
-notify/ask/task — in the one plugin). Then teammates run `/plugin marketplace add <this-repo>` →
-`/plugin install <app>-a2h@<marketplace>` and use `/<app>-task`. Validate with `claude plugin validate .`.
+**installable plugin** in this repo. Plugin skills live under the **plugin root** — put each generated skill
+at `<plugin-root>/skills/<app>-task/SKILL.md` (move it there from `.claude/skills/`, or point the plugin's
+`skills` path at its location), then add `.claude-plugin/plugin.json` and a root
+`.claude-plugin/marketplace.json` listing it (bundle whichever verb skills the app exposes — notify/ask/task).
+Teammates run `/plugin marketplace add <this-repo>` → `/plugin install <app>-a2h@<marketplace>` and use
+`/<app>-task`. Validate with `claude plugin validate .`.
 
 ## Template — the generated `<app>-task` skill
 
@@ -90,7 +93,7 @@ Expect `202 { id, status: "open" }`. Retries reuse the **same `idempotency_key`*
 The run may end here. When the human resolves it, the agent gets the terminal Response one of two ways:
 
 - **push:** the Hub `POST`s a **signed Response** to `<CALLBACK_URL>` → your handler re-invokes this agent.
-- **pull:** poll the **`poll_url` returned in the `202` ack** (Bearer) until the message reaches a terminal
+- **pull:** poll the **`poll_url` returned in the `202` ack** (with the Hub's advertised auth header) until the message reaches a terminal
   state; the terminal `response` is **embedded in the message body** (use the ack's `poll_url` verbatim —
   the Hub may sit behind a path prefix). A pull response is **not** signed — it's trusted
   via the authenticated GET transport + the immutable terminal record (no `jti` / detached signature).

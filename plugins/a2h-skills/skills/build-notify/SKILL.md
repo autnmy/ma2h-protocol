@@ -39,10 +39,12 @@ Tell the user how their agents trigger it and which env/secrets must be present 
 
 ### 5. (Optional) Package as a plugin for your team
 If other people's agents should also send to this Hub, offer to package the generated skill(s) as an
-**installable plugin** in this repo: add `.claude-plugin/plugin.json` for the plugin and a root
-`.claude-plugin/marketplace.json` listing it (bundle whichever verb skills the app exposes —
-notify/ask/task — in the one plugin). Then teammates run `/plugin marketplace add <this-repo>` →
-`/plugin install <app>-a2h@<marketplace>` and use `/<app>-notify`. Validate with `claude plugin validate .`.
+**installable plugin** in this repo. Plugin skills live under the **plugin root** — put each generated skill
+at `<plugin-root>/skills/<app>-notify/SKILL.md` (move it there from `.claude/skills/`, or point the plugin's
+`skills` path at its location), then add `.claude-plugin/plugin.json` and a root
+`.claude-plugin/marketplace.json` listing it (bundle whichever verb skills the app exposes — notify/ask/task).
+Teammates run `/plugin marketplace add <this-repo>` → `/plugin install <app>-a2h@<marketplace>` and use
+`/<app>-notify`. Validate with `claude plugin validate .`.
 
 ## Template — the generated `<app>-notify` skill
 
@@ -71,6 +73,8 @@ Compose and POST an A2H `notify` to <APP>'s Hub. Fire-and-forget — do not wait
 Expect `202 { id, status: "delivered" }` (a `notify` submit ack is `delivered`, not `open` — there is no
 response leg). On non-2xx, surface the error. Do **not** blind-retry — `notify` has no idempotency key, so
 a retry creates a duplicate.
+
+> The `Authorization: Bearer` line below is the `bearer`-scheme example — for an `apikey` Hub, swap in its advertised API-key header.
 
 ```bash
 curl -sS -X POST "<HUB_URL>/v1/messages" \
