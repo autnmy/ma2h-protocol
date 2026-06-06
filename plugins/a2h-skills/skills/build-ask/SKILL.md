@@ -99,8 +99,10 @@ description: Ask a human a decision via <APP>'s A2H Hub and route the signed ans
 - `request.callback`: `{ "mode": "push", "url": "<CALLBACK_URL>", "auth": { "scheme": "<hmac|bearer|apikey>", "<secret_ref|token_ref>": "…" } }` — or `{ "mode": "pull" }`.
 - `state` *(optional)*: an **agent-sealed** (AEAD) resume blob. Seal it yourself; the Hub stores it opaquely.
 
-Expect `202` with `{ id, status: "open", poll_url }` — **persist `poll_url`** (pull mode polls it to resume). If you retry, reuse the **same `idempotency_key`** — you'll get the
-same `id` back, never a duplicate decision.
+Expect `202` with `{ id, status: "open", poll_url }` — **persist `poll_url`** (pull mode polls it to resume). If a `202` is lost, **persist the exact submitted envelope and replay it byte-for-byte** (same
+`idempotency_key` **and** same `created_at`) — you'll get the same `id` back, never a duplicate decision.
+Do **not** rebuild the envelope with a fresh `created_at`: the same key with a **different** payload is a
+`409` (§8.1), not the original decision.
 
 ## Receive (resume)
 The run may end here. When the human resolves it, the agent gets the terminal Response one of two ways:
@@ -127,7 +129,10 @@ Then **MUST**:
    `response.value`** — branch on the resolution and **don't treat a missing value as an error**.
    `response.comment` + `actor` may still be present.
 
-Use the A2H reference (`signing.verifyResponse`, `state-seal.openState`) for steps 1 (push) and 3.
+Use the A2H reference (`signing.verifyResponse`, `state-seal.openState`) for steps 1 (push) and 3 — but
+note `signing.verifyResponse` implements **`hmac-sha256` only** in v0.2; if the Hub advertises **`ed25519`**,
+verify the detached signature over the same JCS `signed_context` with your platform's ed25519 primitive,
+**not** that helper (it returns `alg not implemented: ed25519`).
 ````
 
 ## References

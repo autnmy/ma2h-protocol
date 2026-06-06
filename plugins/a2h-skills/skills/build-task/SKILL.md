@@ -88,7 +88,9 @@ description: Ask a human to perform a manual, out-of-band action via <APP>'s A2H
   - `callback`: `{ "mode": "push", "url": "<CALLBACK_URL>", "auth": { "scheme": "<hmac|bearer|apikey>", "<secret_ref|token_ref>": "…" } }` — or `{ "mode": "pull" }`.
 - `state` *(optional)*: an **agent-sealed** (AEAD) resume blob; the Hub stores it opaquely.
 
-Expect `202` with `{ id, status: "open", poll_url }` — **persist `poll_url`** (pull mode polls it to resume). Retries reuse the **same `idempotency_key`** → same `id`, no duplicate.
+Expect `202` with `{ id, status: "open", poll_url }` — **persist `poll_url`** (pull mode polls it to resume). On a lost `202`, **persist the exact submitted envelope and replay it byte-for-byte** (same
+`idempotency_key` **and** same `created_at`) → same `id`, no duplicate. A fresh `created_at` makes it a
+**different** payload → `409` (§8.1), not the original task.
 
 ## Receive (resume)
 The run may end here. When the human resolves it, the agent gets the terminal Response one of two ways:
@@ -112,7 +114,10 @@ Then **MUST**:
    `response.comment` and/or the final `checklist` state — there is **no `response.value`** (that field is
    reserved for `ask`).
 
-Use the A2H reference (`signing.verifyResponse`, `state-seal.openState`) for steps 1 (push) and 3.
+Use the A2H reference (`signing.verifyResponse`, `state-seal.openState`) for steps 1 (push) and 3 — but
+note `signing.verifyResponse` implements **`hmac-sha256` only** in v0.2; if the Hub advertises **`ed25519`**,
+verify the detached signature over the same JCS `signed_context` with your platform's ed25519 primitive,
+**not** that helper (it returns `alg not implemented: ed25519`).
 ````
 
 ## References
