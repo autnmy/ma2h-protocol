@@ -2,6 +2,20 @@
 
 All notable changes to the A2H Protocol specification.
 
+## Unreleased
+
+### Changed
+- **`body` schema now declares `contentMediaType: "text/markdown"`** so consumers validating against the
+  JSON Schema alone see the Markdown contract the spec already mandates (§9.6). Annotation-only and
+  non-validating — every previously-valid message stays valid and the schema `$id` is unchanged. (Body
+  length remains capability-advertised via `max_body_bytes`, deliberately not a schema `maxLength`.)
+
+### Process
+- Added `CONTRIBUTING.md`, a spec-change-aware PR template, and an SCP (Spec Change Proposal) issue
+  template — codifying the contribution process (editorial-PR vs. SCP split, BCP 14 normative language,
+  SemVer + `$id` discipline, mandatory security considerations, conformance/reference obligations, DCO
+  sign-off). Modeled on MCP SEP, Rust RFC, Python PEP, and IETF conventions.
+
 ## 0.2 (2026-06-03) — Draft
 
 **A breaking hardening pass.** v0.2 resolves the trust-model, return-leg, concurrency, and durability gaps
