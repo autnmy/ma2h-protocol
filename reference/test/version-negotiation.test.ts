@@ -85,3 +85,15 @@ test("a pre-0.3 ask missing `request` is a validation_error, not a TypeError (de
   } as unknown as A2hMessage;
   assert.throws(() => newHub().submit(malformed), isCode("validation_error"));
 });
+
+test("a non-object body (null) is a validation_error, not a TypeError (pre-validation guard)", () => {
+  assert.throws(() => newHub().submit(null as unknown as A2hMessage), isCode("validation_error"));
+});
+
+test("a malformed dotted version (00.2) is a validation_error regardless of callback mode", () => {
+  // The negotiation parse matches the schema's shape (^0\.\d+$ / canonical non-zero major), so a
+  // malformed version falls through to schema validation consistently — the error code must NOT
+  // depend on push vs pull (the inconsistency codex flagged).
+  assert.throws(() => newHub().submit(makeAsk("00.2", PUSH)), isCode("validation_error"));
+  assert.throws(() => newHub().submit(makeAsk("00.2", PULL)), isCode("validation_error"));
+});
