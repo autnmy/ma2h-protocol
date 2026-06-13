@@ -11,6 +11,7 @@
     { "ref": "§9.2", "assert": "The signed_context binds `payload_sha256` (v0.3) = lowercase-hex SHA-256 of JCS({response, state}), covering response.value/comment/actor/edited/resolved_at and state. The Hub signs over the delivered payload; the agent MUST RECOMPUTE the digest from the payload it received (never trusting a transmitted digest) and reject on mismatch. The top-level `agent`/`defaulted` are advisory; trust is derived from the bound `actor`/`resolution`." },
     { "ref": "§9.4", "assert": "Private/link-local/metadata refusal is applied at DELIVERY time (DNS-rebinding defense); no redirects; credential only for verified hosts." },
     { "ref": "§7", "assert": "All lifecycle transitions are atomic compare-and-set; first terminal wins and is immutable; answer at/before expires_at beats default_on_expire." },
-    { "ref": "§3.1", "assert": "Hub durability (open messages, committed resolutions, delivered notifies, pending push obligations surviving restart) is a conformance MUST." }
+    { "ref": "§3.1", "assert": "Hub durability (open messages, committed resolutions, delivered notifies, pending push obligations surviving restart) is a conformance MUST." },
+    { "ref": "§10, §9.2", "assert": "A Hub MUST reject a message whose `a2h_version` MAJOR it does not recognize with `version_not_supported`. Per the v0.3 signature break, a Hub MUST also reject (or negotiate) a pre-0.3 message requesting a PUSH callback — its signed Response is unverifiable by a pre-0.3 agent — while PULL stays compatible (§8.2)." }
   ]
 }

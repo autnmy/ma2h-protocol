@@ -4,6 +4,13 @@ All notable changes to the A2H Protocol specification.
 
 ## Unreleased
 
+### Added
+- **Reference Hub version negotiation (§10).** The reference Hub now rejects a message whose `a2h_version`
+  **major** it doesn't recognize with `version_not_supported`, and rejects a **pre-0.3 push** request (its
+  pushed Response is signed with the v0.3 payload-bound signature, which a pre-0.3 agent cannot verify) —
+  **pull stays compatible** (§8.2, pull responses aren't signature-verified). Spec §10 gains the
+  push-version-parity rule; `pa-001` records the downstream-proof obligation. (#9)
+
 ## 0.3 (2026-06-12) — Draft
 
 **Binds the response payload into the detached Response signature (§9.2).** A breaking signature change: the

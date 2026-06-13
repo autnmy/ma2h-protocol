@@ -22,6 +22,10 @@ import type {
   TaskMessage,
 } from "./types.js";
 
+/** Versions this reference Hub implements (spec §10) — major 0, up to minor 3. */
+const IMPLEMENTED_MINOR = 3;
+const HUB_VERSION = "0.3";
+
 export class HubError extends Error {
   constructor(
     public readonly code: string,
@@ -76,7 +80,52 @@ export class Hub {
     this.onDeliver = opts.onDeliver;
   }
 
+  /**
+   * Version negotiation (§10) — runs before schema validation so an unknown major returns
+   * `version_not_supported`, not a generic `validation_error`.
+   *
+   * - Rejects an unrecognized **major** (this Hub implements major 0).
+   * - Rejects a **pre-0.3 push** request: every pushed Response is signed with the v0.3
+   *   payload-bound `signed_context` (§9.2), which a pre-0.3 agent reconstructs differently and
+   *   rejects, so a v0.3 Hub's push is only verifiable by a v0.3+ agent. **Pull is unaffected** —
+   *   pull responses aren't signature-verified (§8.2) — so a pre-0.3 *pull* message is accepted.
+   *
+   * A malformed `a2h_version` falls through to schema validation (a `validation_error`).
+   */
+  private negotiateVersion(message: A2hMessage): void {
+    // A non-object body (`null`, array, primitive) must reach schema validation and yield a
+    // `validation_error` — never a raw TypeError here. (`typeof null === "object"`, so guard null too.)
+    if (typeof message !== "object" || message === null) return;
+    const raw = (message as { a2h_version?: unknown }).a2h_version;
+    if (typeof raw !== "string") return;
+
+    // Only a version matching the schema's recognized SHAPE is negotiated here; anything else (leading
+    // zeros, extra parts) is a malformed envelope and MUST fall through to schema validation — a
+    // consistent `validation_error`, independent of callback mode. The schema is `^0\.\d+$`, and §10
+    // reads the major as the integer before the first dot.
+    //
+    // §10 — a canonical non-zero major is recognized-but-unsupported (this Hub implements major 0):
+    const nonZeroMajor = /^([1-9]\d*)\.\d+$/.exec(raw);
+    if (nonZeroMajor) {
+      throw new HubError(
+        "version_not_supported",
+        `a2h_version "${raw}": major ${nonZeroMajor[1]} is not supported (this Hub implements ${HUB_VERSION}; §10)`,
+      );
+    }
+    // Push parity (§9.2 v0.3 break) — a schema-valid `0.x` below the implemented minor whose callback
+    // is push. Match `^0\.\d+$` exactly so every valid pre-0.3 (incl. a leading-zero minor) is caught.
+    const zeroX = /^0\.(\d+)$/.exec(raw);
+    if (zeroX && Number(zeroX[1]) < IMPLEMENTED_MINOR && this.callbackOf(message)?.mode === "push") {
+      throw new HubError(
+        "version_not_supported",
+        `a2h_version "${raw}": push callbacks require >= ${HUB_VERSION}. The pushed Response is signed with ` +
+          `the v0.3 payload-bound signature (§9.2), which a pre-0.3 agent cannot verify. Use a pull callback, or upgrade.`,
+      );
+    }
+  }
+
   submit(message: A2hMessage): SubmitAck {
+    this.negotiateVersion(message);
     const v = validateMessage(message);
     if (!v.valid) throw new HubError("validation_error", `invalid message: ${v.errors.join("; ")}`);
     const id = newMessageId();
@@ -234,8 +283,11 @@ export class Hub {
   }
 
   private callbackOf(message: A2hMessage): Callback | undefined {
-    if (message.type === "ask") return message.request.callback;
-    if (message.type === "task") return message.action.callback;
+    // Defensive `?.`: reached from `negotiateVersion` BEFORE schema validation, where a malformed
+    // pre-0.3 ask/task may lack `request`/`action`. Read the callback without assuming structure so
+    // version negotiation never throws a raw TypeError ahead of the `validation_error` it should yield.
+    if (message.type === "ask") return message.request?.callback;
+    if (message.type === "task") return message.action?.callback;
     return undefined;
   }
 
