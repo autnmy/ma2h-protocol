@@ -1,8 +1,8 @@
-// A2H domain types — strongly typed to spec/v0.2.md and schema/v0.2/*.
+// A2H domain types — strongly typed to spec/v0.3.md and schema/v0.3/*.
 // The discriminated unions mirror the JSON Schema `oneOf` branches exactly, so
 // the type system enforces the same shape rules the schemas do.
 
-/** Protocol version string, e.g. "0.2". */
+/** Protocol version string, e.g. "0.3". */
 export type A2hVersion = `0.${number}`;
 
 export type MessageType = "notify" | "ask" | "task";
@@ -152,6 +152,8 @@ export interface SignedContext {
   id: string;
   in_reply_to: string;
   jti: string;
+  /** Lowercase-hex SHA-256 of the canonical response payload (v0.3; spec §9.2). */
+  payload_sha256: string;
   resolution: Resolution;
   resolution_id: string;
   resolved_at: string;

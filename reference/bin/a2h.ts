@@ -68,6 +68,9 @@ function cmdSign(positionals: string[], flags: Map<string, string>): void {
   const key = flags.get("key");
   if (!file || !key) die("usage: a2h sign <signed_context.json> --key <key>");
   const sc = JSON.parse(readFileSync(file, "utf8")) as SignedContext;
+  if (typeof sc.payload_sha256 !== "string") {
+    die("signed_context missing payload_sha256 (required in v0.3; see spec §9.2)");
+  }
   console.log(signResponse(buildSignedContext(sc), { key }).header);
 }
 
@@ -77,6 +80,9 @@ function cmdVerify(positionals: string[], flags: Map<string, string>): void {
   const v1 = flags.get("v1");
   if (!file || !key || !v1) die("usage: a2h verify <signed_context.json> --v1 <sig> --key <key>");
   const sc = JSON.parse(readFileSync(file, "utf8")) as SignedContext;
+  if (typeof sc.payload_sha256 !== "string") {
+    die("signed_context missing payload_sha256 (required in v0.3; see spec §9.2)");
+  }
   const r = verifyResponse(buildSignedContext(sc), v1, { key });
   if (r.ok) {
     console.log("✓ signature ok");
@@ -125,10 +131,10 @@ function cmdVerbs(): void {
 function cmdDocs(): void {
   console.log(
     [
-      "spec         https://a2hprotocol.org/spec/v0.2.md",
+      "spec         https://a2hprotocol.org/spec/v0.3.md",
       "plugin       https://github.com/autnmy/a2h-protocol/tree/main/plugins/a2h-skills",
       "reference    https://github.com/autnmy/a2h-protocol/tree/main/reference",
-      "schemas      https://a2hprotocol.org/schema/v0.2/message.schema.json",
+      "schemas      https://a2hprotocol.org/schema/v0.3/message.schema.json",
       "conformance  https://github.com/autnmy/a2h-protocol/tree/main/conformance",
       "repo         https://github.com/autnmy/a2h-protocol",
     ].join("\n"),

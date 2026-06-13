@@ -7,7 +7,7 @@
 
 import { newJti, newMessageId, newResolutionId } from "./ids.js";
 import { applyResolution, type MessageRecord } from "./lifecycle.js";
-import { buildSignedContext, signResponse } from "./signing.js";
+import { buildSignedContext, computePayloadSha256, signResponse } from "./signing.js";
 import { validateMessage } from "./envelope.js";
 import type {
   A2hMessage,
@@ -130,7 +130,7 @@ export class Hub {
       throw new HubError("not_found", `unknown message: ${id}`);
     }
     if (record.message.type !== "ask") {
-      throw new HubError("validation_error", "only an `ask` is cancellable in v0.2");
+      throw new HubError("validation_error", "only an `ask` is cancellable in v0.3");
     }
     const t = nowMs ?? this.now();
     // Expiry-vs-cancel (§7): the ask conceptually expired at `expires_at`. A cancel arriving
@@ -250,6 +250,8 @@ export class Hub {
       id: record.id,
       in_reply_to: response.in_reply_to,
       jti: newJti(),
+      // §9.2: bind the response payload (value/comment/actor/edited/state) into the signature.
+      payload_sha256: computePayloadSha256(response.response, response.state),
       resolution: response.resolution,
       resolution_id: response.resolution_id,
       resolved_at: response.response?.resolved_at ?? new Date(this.now()).toISOString(),

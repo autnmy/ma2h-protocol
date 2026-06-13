@@ -22,7 +22,7 @@ const AjvCtor = (ajvMod.default ?? ajvMod) as { new (opts?: Record<string, unkno
 const formatsMod = require("ajv-formats") as { default?: unknown };
 const addFormats = (formatsMod.default ?? formatsMod) as (ajv: AjvLike) => unknown;
 
-const SCHEMA_DIR = new URL("../../schema/v0.2/", import.meta.url);
+const SCHEMA_DIR = new URL("../../schema/v0.3/", import.meta.url);
 const SCHEMA_FILES = [
   "message.schema.json",
   "response.schema.json",
@@ -30,7 +30,7 @@ const SCHEMA_FILES = [
   "get-message.schema.json",
   "capability.schema.json",
 ] as const;
-const BASE = "https://a2hprotocol.org/schema/v0.2/";
+const BASE = "https://a2hprotocol.org/schema/v0.3/";
 
 const ajv: AjvLike = new AjvCtor({ strict: false, allErrors: true });
 addFormats(ajv);

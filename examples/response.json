@@ -1,5 +1,5 @@
 {
-  "a2h_version": "0.2",
+  "a2h_version": "0.3",
   "in_reply_to": "msg_01HZXASK0001",
   "resolution_id": "res_01HZXR3SOLVE",
   "agent": { "id": "deploybot/dev-team", "run_id": "run_01HZXABCDEF" },

@@ -39,7 +39,7 @@ for (const f of responseExamples) {
 
 test("a notify carrying a request block is rejected", () => {
   const r = validateMessage({
-    a2h_version: "0.2",
+    a2h_version: "0.3",
     type: "notify",
     created_at: "2026-06-04T13:00:00Z",
     agent: { id: "a", run_id: "r", runtime: "cloud" },
@@ -51,7 +51,7 @@ test("a notify carrying a request block is rejected", () => {
 
 test("an ask without idempotency_key is rejected", () => {
   const r = validateMessage({
-    a2h_version: "0.2",
+    a2h_version: "0.3",
     type: "ask",
     created_at: "2026-06-04T13:00:00Z",
     agent: { id: "a", run_id: "r", runtime: "cli" },
@@ -63,7 +63,7 @@ test("an ask without idempotency_key is rejected", () => {
 
 test("a response with resolution 'ignored' is rejected", () => {
   const r = validateResponse({
-    a2h_version: "0.2",
+    a2h_version: "0.3",
     in_reply_to: "msg_1",
     resolution_id: "res_1",
     agent: { id: "a", run_id: "r" },

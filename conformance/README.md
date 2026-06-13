@@ -1,4 +1,4 @@
-# A2H Conformance Vectors (v0.2)
+# A2H Conformance Vectors (v0.3)
 
 These vectors let an implementer prove conformance. **Read this first** — it states what the vectors can
 and cannot verify, so green ≠ false confidence (spec §12).
@@ -39,8 +39,8 @@ Hub must reproduce (e.g., the signature vector `dp-001`).
 
 ```bash
 pnpm dlx ajv-cli@5 validate \
-  -s schema/v0.2/<target> \
-  -r "schema/v0.2/*.schema.json" \
+  -s schema/v0.3/<target> \
+  -r "schema/v0.3/*.schema.json" \
   -d <input.json>
 ```
 
@@ -49,8 +49,9 @@ or load all five schemas into any Draft 2020-12 validator and check each vector'
 
 ## Downstream proof obligations (the Hub must discharge)
 
-1. **Signature** — reproduce `dp-001`: JCS(`signed_context`) → HMAC-SHA256 with the test key → the
-   expected `v1`. Reject a tampered `signed_context` and a replayed `jti` within the window.
+1. **Signature** — reproduce `dp-001`: JCS(`signed_context`, now incl. `payload_sha256`) → HMAC-SHA256
+   with the test key → the expected `v1`, and recompute `payload_sha256` from the fixture's `payload`.
+   Reject a tampered `signed_context` and a replayed `jti` within the window.
 2. **SSRF** — refuse a callback host in a private/link-local/metadata range, including via DNS rebinding
    at delivery time; refuse redirects; refuse to attach a credential to an unverified host; dev-mode
    allowlist fails closed in production.
@@ -61,3 +62,7 @@ or load all five schemas into any Draft 2020-12 validator and check each vector'
 5. **Request-leg auth** (`dp-002`) — a message's poll/callback/cancel access is bound to the submitting
    principal: a second authenticated agent can neither read nor cancel another agent's message by id
    (`run_id` does not authorize cross-run access), and the non-submitter sees `404`, not `403`.
+6. **Response-payload integrity** (`dp-003`) — the §9.2 signature binds `payload_sha256`, a digest of the
+   response payload. A Response whose `response.value`/`comment`/`actor` or `state` is altered in transit —
+   signed metadata and `A2H-Signature` header left intact — fails verification, because the agent recomputes
+   the digest from the payload it received (v0.3; issue #7).

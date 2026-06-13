@@ -6,9 +6,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { Hub, HubError, type DeliveredPush } from "../src/hub.js";
-import { Agent } from "../src/agent.js";
+import { Agent, parseSignatureHeader } from "../src/agent.js";
+import { buildSignedContext, computePayloadSha256, signResponse } from "../src/signing.js";
 import { sealState } from "../src/state-seal.js";
-import type { A2hMessage } from "../src/types.js";
+import type { A2hMessage, JsonObject } from "../src/types.js";
 
 const SIGNING_KEY = "hub-signing-key-0123456789abcdef0123456789abcdef";
 const RESUME_URL = "https://deploybot.example/a2h/resume";
@@ -16,7 +17,7 @@ const T0 = 1_750_000_000_000;
 
 function makeAsk(sealKey: Buffer, t: number): A2hMessage {
   return {
-    a2h_version: "0.2",
+    a2h_version: "0.3",
     type: "ask",
     created_at: new Date(t).toISOString(),
     agent: { id: "deploybot/dev-team", run_id: "run_1", runtime: "github-actions" },
@@ -161,7 +162,7 @@ test("a cancel past expires_at loses to the default expiry, not cancelled (§7 e
 test("notify is delivered on acceptance and durably pull-checkable", () => {
   const hub = new Hub({ signingKey: SIGNING_KEY, now: () => T0 });
   const notify: A2hMessage = {
-    a2h_version: "0.2",
+    a2h_version: "0.3",
     type: "notify",
     created_at: new Date(T0).toISOString(),
     agent: { id: "deploybot/dev-team", run_id: "digest_1", runtime: "cloud" },
@@ -197,7 +198,16 @@ test("a human answer at expires_at wins; one millisecond later, default wins", (
   assert.equal(afterDeadline.response?.actor, "system:default_on_expire");
 });
 
-test("a tampered state blob is rejected on resume (signature passes, AEAD catches it)", () => {
+// Deterministically corrupt a ciphertext byte of a sealed-state blob (version.nonce.ct.tag).
+function corruptSealed(state: JsonObject | undefined): string {
+  const sealed = String(state!["sealed"]);
+  const parts = sealed.split(".");
+  const ctBuf = Buffer.from(parts[2]!, "base64url");
+  ctBuf[0] = ctBuf[0]! ^ 0xff;
+  return [parts[0], parts[1], ctBuf.toString("base64url"), parts[3]].join(".");
+}
+
+test("a tampered state blob in transit fails the signature (v0.3 binds the payload, issue #7)", () => {
   const sealKey = randomBytes(32);
   const deliveries: DeliveredPush[] = [];
   const hub = new Hub({ signingKey: SIGNING_KEY, now: () => T0, onDeliver: (p) => { deliveries.push(p); } });
@@ -208,16 +218,48 @@ test("a tampered state blob is rejected on resume (signature passes, AEAD catche
   const d = deliveries[0];
   assert.ok(d);
 
-  const st = d.response.state;
-  assert.ok(st);
-  const sealed = String(st["sealed"]);
-  const parts = sealed.split(".");
-  const ctBuf = Buffer.from(parts[2]!, "base64url");
-  ctBuf[0] = ctBuf[0]! ^ 0xff; // deterministically corrupt a ciphertext byte
-  const mutated = ctBuf.toString("base64url");
-  const tampered = { ...d.response, state: { sealed: [parts[0], parts[1], mutated, parts[3]].join(".") } };
-
+  // A proxy mutates the sealed state but cannot re-sign. The agent recomputes payload_sha256 over the
+  // received (tampered) state; it diverges from the Hub's signed digest, so the SIGNATURE layer rejects
+  // it before AEAD even runs. (In v0.2 this passed the signature and only AEAD caught it.)
+  const tampered = { ...d.response, state: { sealed: corruptSealed(d.response.state) } };
   const r = agent.onResume(tampered, d.signature, T0 + 2_000);
+  assert.equal(r.acted, false);
+  assert.match(r.acted === false ? r.reason : "", /signature/);
+});
+
+test("AEAD seal still catches tampered state when the signature is valid (§9.3, malicious-Hub re-sign)", () => {
+  const sealKey = randomBytes(32);
+  const deliveries: DeliveredPush[] = [];
+  const hub = new Hub({ signingKey: SIGNING_KEY, now: () => T0, onDeliver: (p) => { deliveries.push(p); } });
+  const agent = new Agent({ callbackUrl: RESUME_URL, callbackKey: SIGNING_KEY, sealKey });
+
+  const ack = hub.submit(makeAsk(sealKey, T0));
+  hub.resolve(ack.id, { actor: "human:alice", resolution: "answered", value: "hold" }, T0 + 1_000);
+  const d = deliveries[0];
+  assert.ok(d);
+
+  // Simulate a party that CAN sign (a malicious/compromised Hub) re-signing over the tampered payload:
+  // the signature now verifies, but state integrity is the agent's own responsibility (§9.3) — the
+  // per-agent AEAD seal key, which the Hub never sees, catches the corruption.
+  const tampered = { ...d.response, state: { sealed: corruptSealed(d.response.state) } };
+  const sig = parseSignatureHeader(d.signature);
+  const reSigned = signResponse(
+    buildSignedContext({
+      a2h_version: tampered.a2h_version,
+      callback_url: RESUME_URL,
+      id: tampered.in_reply_to,
+      in_reply_to: tampered.in_reply_to,
+      jti: sig.jti,
+      payload_sha256: computePayloadSha256(tampered.response, tampered.state),
+      resolution: tampered.resolution,
+      resolution_id: tampered.resolution_id,
+      resolved_at: tampered.response?.resolved_at ?? "",
+      t: sig.t,
+    }),
+    { key: SIGNING_KEY },
+  ).header;
+
+  const r = agent.onResume(tampered, reSigned, T0 + 2_000);
   assert.equal(r.acted, false);
   assert.match(r.acted === false ? r.reason : "", /integrity/);
 });

@@ -4,9 +4,9 @@
 // signature is bound to id + resolution_id + callback_url and cannot be replayed
 // across messages/endpoints. The agent verifies before acting on a pushed Response.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { canonicalize } from "./canonicalize.js";
-import type { Resolution, SignedContext } from "./types.js";
+import type { JsonObject, Resolution, ResponseDetail, SignedContext } from "./types.js";
 
 export type SignatureAlg = "hmac-sha256" | "ed25519";
 
@@ -17,6 +17,7 @@ export const SIGNED_FIELDS = [
   "id",
   "in_reply_to",
   "jti",
+  "payload_sha256",
   "resolution",
   "resolution_id",
   "resolved_at",
@@ -29,6 +30,8 @@ export interface SignedContextParts {
   id: string;
   in_reply_to: string;
   jti: string;
+  /** Lowercase-hex SHA-256 of the canonical response payload (spec §9.2; see computePayloadSha256). */
+  payload_sha256: string;
   resolution: Resolution;
   resolution_id: string;
   resolved_at: string;
@@ -44,11 +47,32 @@ export function buildSignedContext(parts: SignedContextParts): SignedContext {
     id: parts.id,
     in_reply_to: parts.in_reply_to,
     jti: parts.jti,
+    payload_sha256: parts.payload_sha256,
     resolution: parts.resolution,
     resolution_id: parts.resolution_id,
     resolved_at: parts.resolved_at,
     t: String(parts.t),
   };
+}
+
+/**
+ * Digest of the agent-consumed Response payload, bound into the signature (spec §9.2, issue #7).
+ *
+ * Computed over a fixed-key wrapper `{ response, state }` (each `null` when absent) so the digest
+ * is unambiguous and serialized with the same RFC 8785 JCS as the rest of the signed_context.
+ * Binds the ENTIRE response detail (value, edited, actor, resolved_at, comment) and state blob —
+ * no field cherry-picking — so a tampered answer fails verification.
+ *
+ * The Hub computes this over the payload it sends; the agent MUST RECOMPUTE it over the payload it
+ * actually received (never trust a supplied digest) so a forged payload cannot carry a matching one.
+ *
+ * NOTE (§9.2): for payloads containing numbers, conformant signers/verifiers MUST agree on RFC 8785
+ * number formatting. This reference canonicalize() is byte-exact for string/boolean/nested-string
+ * payloads; production impls with numeric payloads SHOULD use a vetted JCS library.
+ */
+export function computePayloadSha256(response?: ResponseDetail, state?: JsonObject): string {
+  const canonical = canonicalize({ response: response ?? null, state: state ?? null });
+  return createHash("sha256").update(canonical).digest("hex");
 }
 
 export interface SignResult {

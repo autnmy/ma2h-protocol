@@ -1,23 +1,36 @@
 {
   "id": "dp-001-signature",
   "class": "downstream-proof",
-  "description": "Deterministic signature fixture. The Hub MUST reproduce `v1` from JCS(signed_context) + HMAC-SHA256(test_key). Canonicalization for this all-ASCII-string input is sorted-key compact JSON (== RFC 8785 JCS here).",
+  "description": "Deterministic signature fixture (v0.3). The Hub MUST reproduce `v1` from JCS(signed_context) + HMAC-SHA256(test_key); signed_context now binds `payload_sha256` = lowercase-hex SHA-256 of JCS({response,state}). Recomputing the digest from `payload` MUST equal signed_context.payload_sha256.",
   "ref": "spec §9.2",
-  "obligation": "Reproduce header `v1`; reject a tampered signed_context; reject a replayed jti within ±120s.",
+  "obligation": "Reproduce header `v1`; reproduce `payload_sha256` from `payload`; reject a tampered signed_context; reject a replayed jti within ±120s.",
   "test_key": "a2h-test-secret-key-0123456789ab",
   "signature_alg": "hmac-sha256",
+  "payload": {
+    "response": {
+      "value": "hold",
+      "edited": false,
+      "actor": "human:alice",
+      "resolved_at": "2026-06-04T15:48:30Z",
+      "comment": "Let's get a human eye on the migration first."
+    },
+    "state": {
+      "sealed": "v1.demo.MOCK-SEALED-STATE-BLOB"
+    }
+  },
   "signed_context": {
-    "a2h_version": "0.2",
+    "a2h_version": "0.3",
     "callback_url": "https://deploybot.example/a2h/resume",
     "id": "msg_01HZXASK0001",
     "in_reply_to": "msg_01HZXASK0001",
     "jti": "jti_01HZX7Q9Z3DEMOFIX",
+    "payload_sha256": "3073dec57c04075d0b6bfa17c300fa9600ad92fb13e485e410c8a95274ac47ed",
     "resolution": "answered",
     "resolution_id": "res_01HZXR3SOLVE",
     "resolved_at": "2026-06-04T15:48:30Z",
     "t": "1749050910"
   },
-  "canonical_jcs": "{\"a2h_version\":\"0.2\",\"callback_url\":\"https://deploybot.example/a2h/resume\",\"id\":\"msg_01HZXASK0001\",\"in_reply_to\":\"msg_01HZXASK0001\",\"jti\":\"jti_01HZX7Q9Z3DEMOFIX\",\"resolution\":\"answered\",\"resolution_id\":\"res_01HZXR3SOLVE\",\"resolved_at\":\"2026-06-04T15:48:30Z\",\"t\":\"1749050910\"}",
-  "header": "A2H-Signature: t=1749050910,jti=jti_01HZX7Q9Z3DEMOFIX,v1=IbLbIhbpTXUH9_MQvsvsBilbYcAw7Q2YVe3x6QXTcUY",
-  "v1": "IbLbIhbpTXUH9_MQvsvsBilbYcAw7Q2YVe3x6QXTcUY"
+  "canonical_jcs": "{\"a2h_version\":\"0.3\",\"callback_url\":\"https://deploybot.example/a2h/resume\",\"id\":\"msg_01HZXASK0001\",\"in_reply_to\":\"msg_01HZXASK0001\",\"jti\":\"jti_01HZX7Q9Z3DEMOFIX\",\"payload_sha256\":\"3073dec57c04075d0b6bfa17c300fa9600ad92fb13e485e410c8a95274ac47ed\",\"resolution\":\"answered\",\"resolution_id\":\"res_01HZXR3SOLVE\",\"resolved_at\":\"2026-06-04T15:48:30Z\",\"t\":\"1749050910\"}",
+  "header": "A2H-Signature: t=1749050910,jti=jti_01HZX7Q9Z3DEMOFIX,v1=_973adHXSOdFhGqNeHcEg_Sc6Iu8bqv9hp5jAj9DpLY",
+  "v1": "_973adHXSOdFhGqNeHcEg_Sc6Iu8bqv9hp5jAj9DpLY"
 }

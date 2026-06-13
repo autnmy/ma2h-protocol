@@ -1,13 +1,14 @@
 {
   "id": "pa-001-prose-audits",
   "class": "prose-audit",
-  "description": "Normative MUSTs a human reviewer confirms are present and correctly scoped in spec/v0.2.md. NOT executable.",
+  "description": "Normative MUSTs a human reviewer confirms are present and correctly scoped in spec/v0.3.md. NOT executable.",
   "asserts": [
     { "ref": "§9.3", "assert": "Returned `state` is declared UNTRUSTED and the agent MUST verify integrity it applied before use." },
     { "ref": "§9.3", "assert": "State-seal key MUST be per-agent, Hub-invisible, distinct from the callback credential, and never embedded in `state`." },
     { "ref": "§9.1", "assert": "`allowed_resolvers` absent defaults fail-closed (only the submitting agent may resolve)." },
     { "ref": "§9.1, §8.4", "assert": "A message's poll, callback, AND cancel access are bound to the submitting principal; a non-submitting agent MUST NOT poll, receive the callback for, or cancel a message by its `id` (`run_id` MUST NOT authorize cross-run/cross-principal access). Cancel is state-terminating, so the cancel endpoint is named explicitly." },
     { "ref": "§9.2", "assert": "Response integrity is required for ALL callback schemes via a detached signature over RFC 8785 JCS(signed_context)." },
+    { "ref": "§9.2", "assert": "The signed_context binds `payload_sha256` (v0.3) = lowercase-hex SHA-256 of JCS({response, state}), covering response.value/comment/actor/edited/resolved_at and state. The Hub signs over the delivered payload; the agent MUST RECOMPUTE the digest from the payload it received (never trusting a transmitted digest) and reject on mismatch. The top-level `agent`/`defaulted` are advisory; trust is derived from the bound `actor`/`resolution`." },
     { "ref": "§9.4", "assert": "Private/link-local/metadata refusal is applied at DELIVERY time (DNS-rebinding defense); no redirects; credential only for verified hosts." },
     { "ref": "§7", "assert": "All lifecycle transitions are atomic compare-and-set; first terminal wins and is immutable; answer at/before expires_at beats default_on_expire." },
     { "ref": "§3.1", "assert": "Hub durability (open messages, committed resolutions, delivered notifies, pending push obligations surviving restart) is a conformance MUST." }

@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   console.log("\n=== A2H playground — you are the human in the loop ===\n");
 
   const notify: A2hMessage = {
-    a2h_version: "0.2",
+    a2h_version: "0.3",
     type: "notify",
     created_at: new Date().toISOString(),
     agent: { id: "deploy-bot/ci", run_id: "digest_1", runtime: "github-actions", project: "demo" },
@@ -44,7 +44,7 @@ async function main(): Promise<void> {
   console.log(`📬  notify → "${notify.title}"  [durable · status=${nAck.status}]\n`);
 
   const ask: A2hMessage = {
-    a2h_version: "0.2",
+    a2h_version: "0.3",
     type: "ask",
     created_at: new Date().toISOString(),
     agent: { id: "deploy-bot/ci", run_id: "ship_1", runtime: "github-actions", project: "demo" },

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://a2hprotocol.org/schema/v0.3/capability.schema.json",
+  "title": "A2H Capability Document (v0.3)",
+  "description": "Body of GET /.well-known/a2h. A Hub responding here is A2H-conformant. All fields beyond a2h_version are SHOULD.",
+  "type": "object",
+  "required": ["a2h_version"],
+  "properties": {
+    "a2h_version": { "type": "string", "pattern": "^0\\.\\d+$" },
+    "max_body_bytes": { "type": "integer", "minimum": 1 },
+    "max_part_bytes": { "type": "integer", "minimum": 1 },
+    "max_context_parts": { "type": "integer", "minimum": 0 },
+    "auth_schemes": { "type": "array", "items": { "enum": ["bearer", "apikey"] } },
+    "callback_auth_schemes": { "type": "array", "items": { "enum": ["hmac", "bearer", "apikey"] } },
+    "signature_algs": { "type": "array", "items": { "enum": ["hmac-sha256", "ed25519"] } },
+    "rate_limit": {
+      "type": "object",
+      "properties": {
+        "requests_per_minute": { "type": "integer", "minimum": 0 },
+        "inbox_depth": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "retention_days": { "type": "integer", "minimum": 1 },
+    "replay_window_seconds": { "type": "integer", "minimum": 1 }
+  }
+}

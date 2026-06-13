@@ -6,7 +6,7 @@
   "target": "response.schema.json",
   "expect": "invalid",
   "input": {
-    "a2h_version": "0.2",
+    "a2h_version": "0.3",
     "in_reply_to": "msg_1",
     "resolution_id": "res_1",
     "agent": { "id": "deploybot/dev-team", "run_id": "r1" },

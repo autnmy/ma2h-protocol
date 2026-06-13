@@ -5,7 +5,7 @@
 // or pull. onResume verifies the signature, deduplicates, and opens the sealed
 // state — treating everything on the return leg as untrusted until verified.
 
-import { buildSignedContext, verifyResponse } from "./signing.js";
+import { buildSignedContext, computePayloadSha256, verifyResponse } from "./signing.js";
 import { openState } from "./state-seal.js";
 import type { A2hResponse, JsonObject, Resolution } from "./types.js";
 
@@ -69,6 +69,9 @@ export class Agent {
       id: response.in_reply_to,
       in_reply_to: response.in_reply_to,
       jti: sig.jti,
+      // §9.2 (issue #7): RECOMPUTE the payload digest from the payload we actually received,
+      // so a tampered value/comment/actor/state diverges the digest and fails verification.
+      payload_sha256: computePayloadSha256(response.response, response.state),
       resolution: response.resolution,
       resolution_id: response.resolution_id,
       resolved_at: response.response?.resolved_at ?? "",

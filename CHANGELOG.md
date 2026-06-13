@@ -4,6 +4,23 @@ All notable changes to the A2H Protocol specification.
 
 ## Unreleased
 
+## 0.3 (2026-06-12) — Draft
+
+**Binds the response payload into the detached Response signature (§9.2).** A breaking signature change: the
+canonical `signed_context` now includes `payload_sha256`, a digest of the response payload, so a tampered
+answer is rejected end-to-end (independent of transport).
+
+### Breaking changes
+- **§9.2 signature binds `payload_sha256`.** The detached Response signature now covers a lowercase-hex
+  SHA-256 of JCS(`{ response, state }`) — binding `response.value` / `comment` / `actor` / `edited` /
+  `resolved_at` and the round-tripped `state`. Before v0.3 the answer `value` for a `select`/`input` ask was
+  unsigned, so a MITM or TLS-terminating proxy could flip it (e.g. `hold` → `ship`) and verification still
+  returned ok (#7). The Hub MUST sign over the payload it delivers; the agent MUST **recompute** the digest
+  from the payload it received and verify. A v0.2 verifier and a v0.3 signer compute different canonical
+  strings — there is no signature interop across this break within major `0`. New `spec/v0.3.md` +
+  `schema/v0.3/`; the reference impl and conformance vectors move to v0.3; `dp-001` is extended with the
+  bound payload and new `dp-003-payload-tamper-invalid` proves a tampered `value` fails verification.
+
 ### Changed
 - **`body` schema now declares `contentMediaType: "text/markdown"`** so consumers validating against the
   JSON Schema alone see the Markdown contract the spec already mandates (§9.6). Annotation-only and

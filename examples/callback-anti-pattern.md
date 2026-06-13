@@ -4,7 +4,7 @@
 holding the agent's credential:
 
 ```jsonc
-// ANTI-PATTERN — rejected by a conformant v0.2 Hub
+// ANTI-PATTERN — rejected by a conformant Hub
 "callback": {
   "mode": "push",
   "url": "https://api.github.com/repos/tmlayton/web-app/dispatches",
