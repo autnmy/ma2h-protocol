@@ -1,10 +1,14 @@
-// RFC 8785 JSON Canonicalization Scheme (JCS) — minimal reference covering the
-// JSON subset A2H signs (spec §9.2 `signed_context`: a flat object of strings).
+// RFC 8785 JSON Canonicalization Scheme (JCS) — the canonical serialization A2H signs
+// (spec §9.2): the flat `signed_context` AND the `payload_sha256` pre-image
+// `{ response, state }`, which (unlike signed_context) can carry numbers, arrays, and nesting.
 //
-// Production implementations SHOULD use a vetted JCS library for full IEEE-754
-// number formatting (RFC 8785 §3.2.2.3) and Unicode normalization. For A2H's
-// signed_context — whose values are protocol-controlled strings — this is
-// byte-exact with conformant JCS.
+// Numbers: `JSON.stringify(n)` is ECMAScript `Number::toString`, which RFC 8785 §3.2.2.3 is
+// *defined as* — so this is byte-exact RFC 8785 for every finite IEEE-754 double (proven by the
+// `dp-004` numeric vector: `1e-7`→`1e-7`, `1e21`→`1e+21`, `-0`→`0`, keys sorted). A signed numeric
+// payload value MUST therefore stay within double range: an integer beyond ±(2^53-1) cannot
+// round-trip and MUST be carried as a string. A non-JS implementation MUST use a vetted JCS library
+// whose number formatting matches `Number::toString` (and full Unicode normalization), or its
+// `payload_sha256` will diverge from a conformant signer's.
 
 export function canonicalize(value: unknown): string {
   if (value === null) return "null";

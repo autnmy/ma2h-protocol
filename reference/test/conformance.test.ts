@@ -22,3 +22,10 @@ test("the dp-003 payload-tamper vector is exercised and passes", () => {
   assert.ok(dp, "dp-003 vector present");
   assert.equal(dp.status, "pass");
 });
+
+test("the dp-004 numeric-payload vector is exercised and passes", () => {
+  const report = runVectors();
+  const dp = report.results.find((r) => r.id.startsWith("dp-004"));
+  assert.ok(dp, "dp-004 vector present");
+  assert.equal(dp.status, "pass");
+});

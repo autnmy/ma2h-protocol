@@ -1,12 +1,14 @@
 // Conformance-vector runner — executes the vectors in ../conformance/vectors/.
 // Only the executable classes run here: `schema-validation` (against the published
 // schemas) and the `downstream-proof` signature fixtures (dp-001 payload-bound
-// signature with recompute-from-payload, dp-003 payload-tamper rejection).
-// `prose-audit` vectors are reported as skipped — human sign-off, not executable (spec §12).
+// signature with recompute-from-payload, dp-003 payload-tamper rejection, dp-004
+// numeric-payload canonicalization). `prose-audit` vectors are reported as skipped —
+// human sign-off, not executable (spec §12).
 
 import { readdirSync, readFileSync } from "node:fs";
 import { validateCapability, validateMessage, validateResponse, type ValidationResult } from "./envelope.js";
 import { buildSignedContext, computePayloadSha256, signResponse, verifyResponse } from "./signing.js";
+import { canonicalize } from "./canonicalize.js";
 import type { JsonObject, ResponseDetail, SignedContext } from "./types.js";
 
 export type VectorStatus = "pass" | "fail" | "skip";
@@ -93,6 +95,20 @@ function runOne(id: string, cls: string, v: Record<string, unknown>): VectorResu
     if (res.ok) return { id, cls, status: "fail", detail: "tampered payload verified ok — binding broken" };
     if (res.reason !== "signature mismatch") {
       return { id, cls, status: "fail", detail: `tampered payload rejected for the wrong reason: ${res.reason}` };
+    }
+    return { id, cls, status: "pass" };
+  }
+  if (cls === "downstream-proof" && id.startsWith("dp-004")) {
+    // Numeric-payload canonicalization (§9.2): the JCS of {response, state} — including numbers — must
+    // reproduce the pinned bytes, and its SHA-256 the pinned digest. A non-JS signer whose number
+    // formatting diverges from RFC 8785 §3.2.2.3 fails here, catching cross-impl interop breaks early.
+    const payload = v["payload"] as { response?: ResponseDetail; state?: JsonObject };
+    const jcs = canonicalize({ response: payload.response ?? null, state: payload.state ?? null });
+    if (jcs !== v["payload_canonical_jcs"]) {
+      return { id, cls, status: "fail", detail: "canonical JCS mismatch (RFC 8785 number formatting)" };
+    }
+    if (computePayloadSha256(payload.response, payload.state) !== v["payload_sha256"]) {
+      return { id, cls, status: "fail", detail: "payload_sha256 mismatch" };
     }
     return { id, cls, status: "pass" };
   }

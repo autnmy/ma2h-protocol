@@ -1,0 +1,27 @@
+{
+  "id": "dp-004-numeric-payload",
+  "class": "downstream-proof",
+  "description": "Numeric-payload canonicalization for v0.3 payload_sha256 (§9.2). A response.value / state carrying numbers MUST canonicalize to byte-identical RFC 8785 JCS across implementations, so the digest agrees. Pins the canonical JCS + digest for a representative numeric set (integer, negative, fraction, 1e-7, 1e+21, max-safe int 2^53-1, nested array/object). RFC 8785 §3.2.2.3 number formatting == ECMAScript Number::toString; a non-JS signer MUST use a vetted JCS library to match.",
+  "ref": "spec §9.2, RFC 8785 §3.2.2.3",
+  "obligation": "canonicalize({response, state}) MUST equal `payload_canonical_jcs` byte-for-byte; the lowercase-hex SHA-256 of those bytes MUST equal `payload_sha256`. All numeric values are within IEEE-754 double range (±2^53-1); an integer beyond that MUST be carried as a string, not a number.",
+  "payload": {
+    "response": {
+      "value": {
+        "amount": 1234.5,
+        "count": 42,
+        "ratio": -0.001,
+        "tiny": 1e-7,
+        "big": 1e21,
+        "max_safe": 9007199254740991,
+        "items": [1, -2, 3.5],
+        "ok": true
+      },
+      "edited": false,
+      "actor": "human:alice",
+      "resolved_at": "2026-06-12T00:00:00Z"
+    },
+    "state": { "seq": 7, "balance": -0.5, "nested": { "n": 0 } }
+  },
+  "payload_canonical_jcs": "{\"response\":{\"actor\":\"human:alice\",\"edited\":false,\"resolved_at\":\"2026-06-12T00:00:00Z\",\"value\":{\"amount\":1234.5,\"big\":1e+21,\"count\":42,\"items\":[1,-2,3.5],\"max_safe\":9007199254740991,\"ok\":true,\"ratio\":-0.001,\"tiny\":1e-7}},\"state\":{\"balance\":-0.5,\"nested\":{\"n\":0},\"seq\":7}}",
+  "payload_sha256": "56186e18d2371cee2a6636cdab7223ff52d64cfeb5bbcba01a0b4e91b7e51dca"
+}

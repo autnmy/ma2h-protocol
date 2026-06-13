@@ -66,3 +66,8 @@ or load all five schemas into any Draft 2020-12 validator and check each vector'
    response payload. A Response whose `response.value`/`comment`/`actor` or `state` is altered in transit —
    signed metadata and `A2H-Signature` header left intact — fails verification, because the agent recomputes
    the digest from the payload it received (v0.3; issue #7).
+7. **Numeric-payload canonicalization** (`dp-004`) — a `{ response, state }` carrying numbers (integer,
+   negative, fraction, `1e-7`, `1e+21`, max-safe int 2^53-1, nested array/object) canonicalizes to the
+   pinned RFC 8785 JCS bytes and `payload_sha256`. A non-JS signer whose number formatting diverges from
+   ECMAScript `Number::toString` fails this, catching a cross-language digest mismatch before deployment
+   (§9.2 / RFC 8785 §3.2.2.3; issue #10).

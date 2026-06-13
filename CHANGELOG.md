@@ -10,6 +10,11 @@ All notable changes to the A2H Protocol specification.
   pushed Response is signed with the v0.3 payload-bound signature, which a pre-0.3 agent cannot verify) —
   **pull stays compatible** (§8.2, pull responses aren't signature-verified). Spec §10 gains the
   push-version-parity rule; `pa-001` records the downstream-proof obligation. (#9)
+- **Numeric-payload conformance proof for `payload_sha256` (§9.2).** New `dp-004` vector pins the canonical
+  RFC 8785 JCS + digest for a numeric `{ response, state }` (integer / negative / fraction / `1e-7` /
+  `1e+21` / max-safe int / nested), so cross-language signers can prove byte-agreement. Spec §9.2 adds the
+  representability rule (a signed integer outside ±(2^53−1) MUST be carried as a string; non-JS impls MUST
+  use a vetted JCS library — JS `Number::toString` already conforms); `pa-001` records the obligation. (#10)
 
 ## 0.3 (2026-06-12) — Draft
 
