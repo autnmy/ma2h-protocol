@@ -82,6 +82,24 @@ AHCP is a **coordination protocol**, not:
 It does not mandate a transport beyond an HTTP/JSON binding, a storage engine, or a user interface. It
 defines the message contract and the trust rules; implementations choose everything else.
 
+## When to use AHCP
+
+Agent-coordination protocols solve different problems — choose by the *shape* of the problem, not the
+participants:
+
+- **A2A (Agent2Agent)** — an agent coordinating with *other agents*: peer-to-peer task handoff between
+  autonomous services.
+- **Agent-to-human *addressing*** (e.g. "A2H"-style proposals) — *discovering and reaching* a specific
+  person across messaging channels. The problem is delivery: which human, on which channel, in a format
+  they can act on.
+- **AHCP** — the *coordination surface* a whole fleet shares with a human. Many agents converge on one
+  hub; a human handles notifications, decisions, and tasks from one place; and each signed answer routes
+  back to the originating (often already-exited) agent.
+
+Reach for AHCP when the problem is **many agents, one human, one durable hub** — not wiring two agents
+together, and not addressing a person. AHCP is the inbox and the decision loop, not the address book or
+the agent-to-agent wire.
+
 ## Reuse of prior art
 
 AHCP deliberately reuses conventions from established work so adopters are not learning a wholly new
