@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2hprotocol.org/schema/v0.2/message.schema.json",
+  "$id": "https://ahcpprotocol.org/schema/v0.2/message.schema.json",
   "title": "AHCP Message (v0.2)",
   "description": "Agent->Hub message envelope. Discriminated on `type`; cross-type fields are forbidden per branch. `id` is Hub-assigned and is NOT an input.",
   "type": "object",

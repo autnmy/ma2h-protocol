@@ -10,7 +10,7 @@ description: >-
 
 # Implement an AHCP Hub in this app
 
-You are implementing the **server side** of the [AHCP protocol](https://a2hprotocol.org) — a **Hub**: the
+You are implementing the **server side** of the [AHCP protocol](https://ahcpprotocol.org) — a **Hub**: the
 endpoint that **receives** `notify` / `ask` / `task` from agents, presents them to a human to triage, and
 **signs + routes the response** back to the agent. This is the protocol implementation, the receiver.
 
@@ -24,8 +24,8 @@ Your definition of done is **conformance**, not a copied reference implementatio
 ## 0. Ground yourself in the spec
 
 Read these before writing code — they are the source of truth:
-- **Spec:** <https://a2hprotocol.org/spec/v0.3.md> (§5 verbs · §6 response · §7 lifecycle · §8 transport · §9 security)
-- **Schemas:** <https://a2hprotocol.org/schema/v0.3/message.schema.json> · `response.schema.json` · `capability.schema.json` · `submit-ack.schema.json` · `get-message.schema.json`
+- **Spec:** <https://ahcpprotocol.org/spec/v0.3.md> (§5 verbs · §6 response · §7 lifecycle · §8 transport · §9 security)
+- **Schemas:** <https://ahcpprotocol.org/schema/v0.3/message.schema.json> · `response.schema.json` · `capability.schema.json` · `submit-ack.schema.json` · `get-message.schema.json`
 - **Reference impl** (the crypto/lifecycle, to mirror — see §3): <https://github.com/autnmy/a2h-protocol/tree/main/reference>
 - **Conformance vectors** (your tests): <https://github.com/autnmy/a2h-protocol/tree/main/conformance>
 
@@ -102,6 +102,6 @@ Tell the implementer: the Hub is up at `<base-url>` with `<auth>`. **To let agen
 `build-notify` / `build-ask` / `build-task`** in the apps whose agents should reach this Hub.
 
 ## References
-- AHCP: <https://a2hprotocol.org> · Spec: <https://a2hprotocol.org/spec/v0.3.md>
-- Schemas: <https://a2hprotocol.org/schema/v0.3/message.schema.json>
+- AHCP: <https://ahcpprotocol.org> · Spec: <https://ahcpprotocol.org/spec/v0.3.md>
+- Schemas: <https://ahcpprotocol.org/schema/v0.3/message.schema.json>
 - Reference impl + conformance: <https://github.com/autnmy/a2h-protocol/tree/main/reference> · <https://github.com/autnmy/a2h-protocol/tree/main/conformance>

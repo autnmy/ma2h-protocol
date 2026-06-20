@@ -4,6 +4,18 @@ All notable changes to the AHCP (Agent Human Coordination Protocol) specificatio
 
 ## Unreleased
 
+### Changed (breaking, pre-1.0)
+- **Domain migrated `a2hprotocol.org` → `ahcpprotocol.org` — including schema `$id`s.** The website and
+  the schema identifier namespace moved to the AHCP domain: every JSON Schema `"$id"` is now
+  `https://ahcpprotocol.org/schema/vX.Y/...`, and the reference resolver `BASE` matches. Per
+  `CONTRIBUTING.md` a `$id` change is breaking; it was done deliberately while the spec is pre-1.0 Draft
+  (GOVERNANCE permits pre-1.0 breaks) so the identity is clean before 1.0. **The wire format is
+  unchanged** (`a2h_version`, the `A2H-Signature` header, the envelope, and the signature algorithm are
+  identical), and a `301 a2hprotocol.org → ahcpprotocol.org` redirect keeps old pinned schema/spec URLs
+  resolving. Implementations that validate against a bundled local schema copy need no change; those that
+  fetch by `$id` URL should repoint the host. Verified by the reference suite (56/0). See
+  [MIGRATION.md §2](MIGRATION.md).
+
 ### Changed
 - **`a2h-skills` plugin templates migrated to v0.3.** The `implement` / `build-notify` / `build-ask` /
   `build-task` skills now target `a2h_version: "0.3"`, link the v0.3 spec/schema, and the push

@@ -83,7 +83,7 @@ Baseline counts captured 2026-06-20 (repo-wide, incl. docs/plans).
 | `A2H_CALLBACK_SECRET` | env var (§8.3) | 15 |
 | `/.well-known/a2h` | discovery path (§8.0) | 25 |
 | `x-a2h-sensitive` | schema extension field | 22 |
-| `a2hprotocol.org` | schema `$id` domain + canonical URL | 63 |
+| `a2hprotocol.org` → `ahcpprotocol.org` | schema `$id` domain + canonical URL (frozen during the rebrand; **re-minted post-rebrand** — see note) | 63 |
 | `autnmy/a2h-protocol` | GitHub repo slug + URLs | 37 |
 | `@a2h/reference` | npm package | 8 |
 | `a2h-skills` | plugin name + path + namespace | 26 |
@@ -93,13 +93,22 @@ The website's terminal demo commands (`a2h about`, `a2h verbs`, `a2h docs`, `a2h
 `a2h run-vectors`) mirror the real CLI and are **frozen** — the site is branded AHCP but demonstrates
 the `a2h` CLI verbatim. This brand↔CLI split is intentional (see `MIGRATION.md`).
 
+> **Domain re-mint (post-rebrand, approved).** The naming rebrand froze the domain at `a2hprotocol.org`
+> (the row above). As a deliberate, separate follow-up — approved during PR review and permitted because
+> the spec is pre-1.0 Draft — the website **and** the schema `$id` namespace were migrated to
+> `ahcpprotocol.org` (schema `$id`s + reference `BASE` + spec/schema links). Per `CONTRIBUTING.md` this is
+> a breaking `$id` change; it is mitigated by a `301 a2hprotocol.org → ahcpprotocol.org` redirect and
+> verified by the reference suite (56/0). The wire format (`a2h_version`, signature, envelope) is
+> unchanged. The other frozen tokens above (the `a2h` slug in `a2h_version`, the header, the CLI, the
+> npm/plugin names, the repo slug) are **not** affected. See `MIGRATION.md §2` and the `CHANGELOG`.
+
 ---
 
 ## 5. Assets requiring out-of-band action
 
 | Asset | Issue | Disposition |
 |-------|-------|-------------|
-| `og.png` | Binary social-card image previously rendered with the "A2H" wordmark. | **REGENERATED.** Replaced (1200×630) with an AHCP card matching the original terminal design — wordmark "AHCP" (H accented), updated title bar/diagram; frozen tokens (`~/a2h`, `a2h about`, `a2hprotocol.org`) preserved. Rendered from HTML for pixel-accurate text. |
+| `og.png` | Binary social-card image previously rendered with the "A2H" wordmark. | **REGENERATED.** Replaced (1200×630) with an AHCP card matching the original terminal design — wordmark "AHCP" (H accented), updated title bar/diagram; frozen tokens (`~/a2h`, `a2h about`, `ahcpprotocol.org`) preserved. Rendered from HTML for pixel-accurate text. |
 | `favicon.svg` | Contains one `A2H` text token. | **RENAME** (text edit, in scope — U4). |
 
 ---
@@ -128,5 +137,5 @@ The rebrand is correct iff, after all edits:
 > **Result (2026-06-20):** PASS. Frozen-token counts unchanged vs. baseline; reference suite **56 pass /
 > 0 fail**; `schema/` and `conformance/` diffs limited to `title`/`description` strings (vectors
 > untouched); brand grep returns only frozen identifiers (`A2H-Signature`, `A2H_CALLBACK_SECRET`,
-> `.well-known/a2h`, `a2h_version`, `@a2h`, `a2h-skills`, `a2hprotocol.org`, `autnmy/a2h-protocol`).
+> `.well-known/a2h`, `a2h_version`, `@a2h`, `a2h-skills`, `ahcpprotocol.org`, `autnmy/a2h-protocol`).
 > `og.png` was regenerated (1200×630 AHCP card, rendered from HTML) in response to PR review.

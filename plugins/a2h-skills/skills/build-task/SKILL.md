@@ -9,7 +9,7 @@ You are scaffolding a **custom, app-specific `task` skill** that THIS app's agen
 **manual action to perform out-of-band** (something the agent can't do itself — rotate a key, flip a
 production setting, sign a doc) and get told when it's **done** or **dismissed**. You are the *builder*.
 
-AHCP is the Agent Human Coordination Protocol — <https://a2hprotocol.org>. `task` shares `ask`'s **response leg** and
+AHCP is the Agent Human Coordination Protocol — <https://ahcpprotocol.org>. `task` shares `ask`'s **response leg** and
 its security contract; only the payload and resolution values differ:
 
 - **`idempotency_key` is REQUIRED** (scope `(agent.id, idempotency_key)`), so a retried submit never
@@ -127,6 +127,6 @@ platform's ed25519 primitive, **not** that helper (it returns `alg not implement
 ````
 
 ## References
-- Spec: <https://a2hprotocol.org/spec/v0.3.md> (§5 verbs, §6 response, §7 lifecycle, §9 security)
-- Schemas: <https://a2hprotocol.org/schema/v0.3/message.schema.json> · <https://a2hprotocol.org/schema/v0.3/response.schema.json>
+- Spec: <https://ahcpprotocol.org/spec/v0.3.md> (§5 verbs, §6 response, §7 lifecycle, §9 security)
+- Schemas: <https://ahcpprotocol.org/schema/v0.3/message.schema.json> · <https://ahcpprotocol.org/schema/v0.3/response.schema.json>
 - Reference impl (verify/seal): <https://github.com/autnmy/a2h-protocol/tree/main/reference>

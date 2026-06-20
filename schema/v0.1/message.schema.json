@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2hprotocol.org/schema/v0.1/message.schema.json",
+  "$id": "https://ahcpprotocol.org/schema/v0.1/message.schema.json",
   "title": "AHCP Message (v0.1)",
   "description": "Envelope for an Agent Human Coordination Protocol message. Discriminated on `type`.",
   "type": "object",

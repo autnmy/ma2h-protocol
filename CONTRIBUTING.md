@@ -55,7 +55,7 @@ AHCP versions the spec with SemVer intent:
 - **MAJOR** — breaking changes.
 
 **Schema `$id` discipline.** Each published schema version has an immutable `$id`
-(`https://a2hprotocol.org/schema/vX.Y/...`). A **non-breaking** change keeps the existing `$id` / path; a
+(`https://ahcpprotocol.org/schema/vX.Y/...`). A **non-breaking** change keeps the existing `$id` / path; a
 **breaking** change mints a new version path (and only lands via a merged SCP). Every PR declares whether
 the `$id` / version path changes.
 

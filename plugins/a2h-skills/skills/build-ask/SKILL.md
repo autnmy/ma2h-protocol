@@ -9,7 +9,7 @@ You are scaffolding a **custom, app-specific `ask` skill** that THIS app's agent
 **decision** in front of a human via the app's AHCP Hub, and have the **signed answer routed back** — even
 if the agent run has already exited. You are the *builder*: you produce the skill.
 
-AHCP is the Agent Human Coordination Protocol — <https://a2hprotocol.org>. Unlike `notify`, `ask` has a **response
+AHCP is the Agent Human Coordination Protocol — <https://ahcpprotocol.org>. Unlike `notify`, `ask` has a **response
 leg**, which makes it the most involved verb. Get these right in the generated skill:
 
 - **`idempotency_key` is REQUIRED** — stable per logical request, scope `(agent.id, idempotency_key)`, so a
@@ -145,6 +145,6 @@ platform's ed25519 primitive, **not** that helper (it returns `alg not implement
 ````
 
 ## References
-- Spec: <https://a2hprotocol.org/spec/v0.3.md> (§5 verbs, §6 response, §7 lifecycle, §9 security)
-- Schemas: <https://a2hprotocol.org/schema/v0.3/message.schema.json> · <https://a2hprotocol.org/schema/v0.3/response.schema.json>
+- Spec: <https://ahcpprotocol.org/spec/v0.3.md> (§5 verbs, §6 response, §7 lifecycle, §9 security)
+- Schemas: <https://ahcpprotocol.org/schema/v0.3/message.schema.json> · <https://ahcpprotocol.org/schema/v0.3/response.schema.json>
 - Reference impl (verify/seal): <https://github.com/autnmy/a2h-protocol/tree/main/reference>

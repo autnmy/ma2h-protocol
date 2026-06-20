@@ -30,7 +30,7 @@ const SCHEMA_FILES = [
   "get-message.schema.json",
   "capability.schema.json",
 ] as const;
-const BASE = "https://a2hprotocol.org/schema/v0.3/";
+const BASE = "https://ahcpprotocol.org/schema/v0.3/";
 
 const ajv: AjvLike = new AjvCtor({ strict: false, allErrors: true });
 addFormats(ajv);

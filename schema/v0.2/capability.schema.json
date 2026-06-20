@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2hprotocol.org/schema/v0.2/capability.schema.json",
+  "$id": "https://ahcpprotocol.org/schema/v0.2/capability.schema.json",
   "title": "AHCP Capability Document (v0.2)",
   "description": "Body of GET /.well-known/a2h. A Hub responding here is AHCP-conformant. All fields beyond a2h_version are SHOULD.",
   "type": "object",

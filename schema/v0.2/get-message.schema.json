@@ -1,18 +1,18 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2hprotocol.org/schema/v0.2/get-message.schema.json",
+  "$id": "https://ahcpprotocol.org/schema/v0.2/get-message.schema.json",
   "title": "AHCP GET Message Body (v0.2)",
   "description": "Body of GET /v1/messages/{id}: the original message plus current `status`, the Hub-assigned `id`, and (once terminal) the embedded `response`.",
   "type": "object",
   "required": ["id", "status"],
   "allOf": [
-    { "$ref": "https://a2hprotocol.org/schema/v0.2/message.schema.json" }
+    { "$ref": "https://ahcpprotocol.org/schema/v0.2/message.schema.json" }
   ],
   "properties": {
     "id": { "type": "string", "minLength": 1 },
     "status": { "enum": ["open", "delivered", "answered", "declined", "cancelled", "expired", "completed", "dismissed"] },
     "response": {
-      "$ref": "https://a2hprotocol.org/schema/v0.2/response.schema.json",
+      "$ref": "https://ahcpprotocol.org/schema/v0.2/response.schema.json",
       "description": "Present once the message is terminal (ask/task). Embeds the full Response envelope."
     }
   }

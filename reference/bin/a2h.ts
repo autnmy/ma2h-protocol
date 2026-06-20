@@ -113,7 +113,7 @@ function cmdAbout(): void {
       "  A2A   →  agent ↔ agent",
       "  AHCP  →  agent ↔ human     ← this standard",
       "",
-      "verbs: notify · ask · task        https://a2hprotocol.org",
+      "verbs: notify · ask · task        https://ahcpprotocol.org",
     ].join("\n"),
   );
 }
@@ -131,10 +131,10 @@ function cmdVerbs(): void {
 function cmdDocs(): void {
   console.log(
     [
-      "spec         https://a2hprotocol.org/spec/v0.3.md",
+      "spec         https://ahcpprotocol.org/spec/v0.3.md",
       "plugin       https://github.com/autnmy/a2h-protocol/tree/main/plugins/a2h-skills",
       "reference    https://github.com/autnmy/a2h-protocol/tree/main/reference",
-      "schemas      https://a2hprotocol.org/schema/v0.3/message.schema.json",
+      "schemas      https://ahcpprotocol.org/schema/v0.3/message.schema.json",
       "conformance  https://github.com/autnmy/a2h-protocol/tree/main/conformance",
       "repo         https://github.com/autnmy/a2h-protocol",
     ].join("\n"),

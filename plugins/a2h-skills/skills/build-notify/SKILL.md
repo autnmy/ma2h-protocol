@@ -9,7 +9,7 @@ You are scaffolding a **custom, app-specific `notify` skill** that THIS app's ag
 an AHCP **notify** (FYI / summary / status — no response) to the app's AHCP Hub. You are the *builder*: you
 produce the skill; you do not send notifications yourself.
 
-AHCP is the Agent Human Coordination Protocol — <https://a2hprotocol.org>. `notify` is **fire-and-forget**: post the
+AHCP is the Agent Human Coordination Protocol — <https://ahcpprotocol.org>. `notify` is **fire-and-forget**: post the
 message, get `202`, done. No callback, no resume, no idempotency key required.
 
 ## Steps
@@ -95,5 +95,5 @@ curl -sS -X POST "<HUB_URL>/v1/messages" \
 ````
 
 ## References
-- Spec: <https://a2hprotocol.org/spec/v0.3.md> · Message schema: <https://a2hprotocol.org/schema/v0.3/message.schema.json>
-- AHCP overview: <https://a2hprotocol.org>
+- Spec: <https://ahcpprotocol.org/spec/v0.3.md> · Message schema: <https://ahcpprotocol.org/schema/v0.3/message.schema.json>
+- AHCP overview: <https://ahcpprotocol.org>

@@ -25,9 +25,10 @@ discovery path / field name and break every existing implementation and conforma
 **Recommendation.** Add a single non-normative note near §1 or §10:
 
 > *Naming note: this protocol is named **AHCP (Agent Human Coordination Protocol)**. Its on-the-wire
-> identifiers — `a2h_version`, the `A2H-Signature` header, `A2H_CALLBACK_SECRET`, `/.well-known/a2h`,
-> `x-a2h-sensitive`, and the schema `$id` host `a2hprotocol.org` — retain the frozen `a2h` slug for
-> compatibility. They MUST NOT be renamed without a major version bump.*
+> identifiers — `a2h_version`, the `A2H-Signature` header, `A2H_CALLBACK_SECRET`, `/.well-known/a2h`, and
+> `x-a2h-sensitive` — retain the frozen `a2h` slug for compatibility and MUST NOT be renamed without a
+> major version bump. The schema `$id` host is `ahcpprotocol.org` (migrated from `a2hprotocol.org`
+> pre-1.0; see CHANGELOG), with `a2hprotocol.org` kept as a redirect.*
 
 This is a clarity addition (no wire change). It is already documented in `MIGRATION.md`; mirroring it in
 the spec protects the normative source directly. **Out of scope to apply in a naming-only change** —
@@ -89,7 +90,7 @@ cross-reference only.
 
 ## R6 — Make the schema `$id` ↔ path relationship explicit in the spec
 
-**Observation.** Schemas are served from `schema/vX.Y/…` but carry `$id`s on `a2hprotocol.org`.
+**Observation.** Schemas are served from `schema/vX.Y/…` but carry `$id`s on `ahcpprotocol.org`.
 `CONTRIBUTING.md` documents the freeze rule (a non-breaking change keeps the existing `$id`); the spec
 itself does not restate where the canonical schema lives or how `$id` relates to the served path.
 
