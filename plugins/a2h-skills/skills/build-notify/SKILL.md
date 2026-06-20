@@ -63,7 +63,7 @@ Compose and POST an AHCP `notify` to <APP>'s Hub. Fire-and-forget — do not wai
 - **Auth:** the Hub's advertised scheme (capability `auth_schemes`) — `Authorization: Bearer $<AUTH_ENV>` for `bearer`, or the API-key header for `apikey`; read from the environment, never hardcode
 
 **Envelope** (`type: "notify"`):
-- `a2h_version`: `"0.2"`
+- `a2h_version`: `"0.3"`
 - `created_at`: ISO-8601 now
 - `agent`: `{ "id": "<AGENT_ID>", "run_id": "<RUN_ID>", "runtime": "<RUNTIME>", "project": "<PROJECT>" }`  *(every value is a JSON string — keep the quotes)*
 - `title`: short subject (≤ 200 chars)
@@ -84,7 +84,7 @@ curl -sS -X POST "<HUB_URL>/v1/messages" \
   -H "Authorization: Bearer $<AUTH_ENV>" \
   -H "Content-Type: application/json" \
   -d '{
-    "a2h_version": "0.2",
+    "a2h_version": "0.3",
     "type": "notify",
     "created_at": "'"$(date -u +%FT%TZ)"'",
     "agent": { "id": "<AGENT_ID>", "run_id": "'"$RUN_ID"'", "runtime": "<RUNTIME>", "project": "<PROJECT>" },
@@ -95,5 +95,5 @@ curl -sS -X POST "<HUB_URL>/v1/messages" \
 ````
 
 ## References
-- Spec: <https://a2hprotocol.org/spec/v0.2.md> · Message schema: <https://a2hprotocol.org/schema/v0.2/message.schema.json>
+- Spec: <https://a2hprotocol.org/spec/v0.3.md> · Message schema: <https://a2hprotocol.org/schema/v0.3/message.schema.json>
 - AHCP overview: <https://a2hprotocol.org>

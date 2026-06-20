@@ -24,8 +24,8 @@ Your definition of done is **conformance**, not a copied reference implementatio
 ## 0. Ground yourself in the spec
 
 Read these before writing code — they are the source of truth:
-- **Spec:** <https://a2hprotocol.org/spec/v0.2.md> (§5 verbs · §6 response · §7 lifecycle · §8 transport · §9 security)
-- **Schemas:** <https://a2hprotocol.org/schema/v0.2/message.schema.json> · `response.schema.json` · `capability.schema.json` · `submit-ack.schema.json` · `get-message.schema.json`
+- **Spec:** <https://a2hprotocol.org/spec/v0.3.md> (§5 verbs · §6 response · §7 lifecycle · §8 transport · §9 security)
+- **Schemas:** <https://a2hprotocol.org/schema/v0.3/message.schema.json> · `response.schema.json` · `capability.schema.json` · `submit-ack.schema.json` · `get-message.schema.json`
 - **Reference impl** (the crypto/lifecycle, to mirror — see §3): <https://github.com/autnmy/a2h-protocol/tree/main/reference>
 - **Conformance vectors** (your tests): <https://github.com/autnmy/a2h-protocol/tree/main/conformance>
 
@@ -60,7 +60,7 @@ implementation is done when each MUST below holds **and** the vectors pass.
 - [ ] **`id` is Hub-assigned**, never a client input. Clients correlate via `client_ref` (opaque; never a dedup key; never shown to resolvers).
 - [ ] **Idempotency:** `idempotency_key` is **required** for `ask`/`task`; dedup scope `(agent.id, idempotency_key)` → a retry with an **identical payload** returns the same `id`, never a second row/decision. Reusing the **same key with a different payload** MUST return **`409 Conflict`** (never silently the original `id`).
 - [ ] **`state` is agent-owned + sealed:** opaque AEAD blob; the **Hub MUST NOT inspect, log, or hold the key**; returned **verbatim** on resolution.
-- [ ] **Every pushed Response is signed:** RFC 8785 **JCS** over the `signed_context` + a **detached signature** — `hmac-sha256`, or `ed25519` if the Hub advertises it in capability `signature_algs` (§9.2) — with a `jti` nonce, a ±120s window, and binding to `id` + `resolution_id` + `callback_url`.
+- [ ] **Every pushed Response is signed:** RFC 8785 **JCS** over the `signed_context` + a **detached signature** — `hmac-sha256`, or `ed25519` if the Hub advertises it in capability `signature_algs` (§9.2) — with a `jti` nonce, a ±120s window, and binding to `id` + `resolution_id` + `callback_url` + **`payload_sha256`** (v0.3 binds the response payload — the lowercase-hex SHA-256 of the JCS of `{ response, state }` — so a terminating proxy can't flip `response.value`; §9.2). Because this signature break is at the **push** leg, a Hub MUST reject a **push** callback requested at a **pre-0.3** `a2h_version` with `version_not_supported` (pull stays compatible; §10).
 - [ ] **`actor` is Hub-attested** from the authenticated session — never the resolving request body; format `<type>:<id>`, `type ∈ {human, agent, system}`.
 - [ ] **Resolver authz is fail-closed** (`allowed_resolvers` absent ⇒ only the submitting agent's actor **`agent:<agent.id>`** may resolve — actors compare in `<type>:<id>` form, never the raw id).
 - [ ] **Request-leg auth** (§9.1): the agent credential is scoped to one `agent.id` — **reject an envelope whose `agent.id` ≠ the credential (`403`)**, and **bind each message's poll, callback, AND cancel access to the submitting principal** (one agent must not read — or `POST /v1/messages/{id}/cancel` to terminally withdraw — another's message by `id`); `run_id` is opaque and **MUST NOT** authorize cross-run access.
@@ -102,6 +102,6 @@ Tell the implementer: the Hub is up at `<base-url>` with `<auth>`. **To let agen
 `build-notify` / `build-ask` / `build-task`** in the apps whose agents should reach this Hub.
 
 ## References
-- AHCP: <https://a2hprotocol.org> · Spec: <https://a2hprotocol.org/spec/v0.2.md>
-- Schemas: <https://a2hprotocol.org/schema/v0.2/message.schema.json>
+- AHCP: <https://a2hprotocol.org> · Spec: <https://a2hprotocol.org/spec/v0.3.md>
+- Schemas: <https://a2hprotocol.org/schema/v0.3/message.schema.json>
 - Reference impl + conformance: <https://github.com/autnmy/a2h-protocol/tree/main/reference> · <https://github.com/autnmy/a2h-protocol/tree/main/conformance>

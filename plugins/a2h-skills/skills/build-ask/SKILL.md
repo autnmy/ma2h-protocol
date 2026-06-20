@@ -19,8 +19,10 @@ leg**, which makes it the most involved verb. Get these right in the generated s
   the message body).
 - **Resume + verify** — the run may end; on the callback it is re-invoked. **Only pushed Responses are
   signed** (`A2H-Signature: t=<unix>,jti=<nonce>,v1=<base64url(sig)>` — RFC 8785 JCS + detached
-  HMAC-SHA256, ±120s window, bound to `id` + `resolution_id` + `callback_url`); a **pull** response is
-  trusted via the authenticated GET transport + the immutable terminal record, with no detached signature.
+  HMAC-SHA256, ±120s window, bound to `id` + `resolution_id` + `callback_url` + **`payload_sha256`**, which
+  binds the answer payload itself so a terminating proxy can't flip `response.value` (v0.3, §9.2)); a
+  **pull** response is trusted via the authenticated GET transport + the immutable terminal record, with no
+  detached signature.
   The agent **MUST verify the signature on push, dedupe on `(in_reply_to, resolution_id)`, and act at most
   once**.
 - **`state`** — any resume context is **agent-owned and sealed by the agent** (AEAD); the Hub never holds
@@ -83,7 +85,7 @@ description: Ask a human a decision via <APP>'s AHCP Hub and route the signed an
 - **Endpoint:** `POST <HUB_URL>/v1/messages`  ·  **Auth:** the Hub's advertised scheme (capability `auth_schemes`) — `Authorization: Bearer $<AUTH_ENV>` for `bearer`, or the API-key header for `apikey`
 
 **Envelope** (`type: "ask"`):
-- `a2h_version`: `"0.2"`, `created_at`: ISO now
+- `a2h_version`: `"0.3"`, `created_at`: ISO now
 - `agent`: `{ "id": "<AGENT_ID>", "run_id": "<RUN_ID>", "runtime": "<RUNTIME>", "project": "<PROJECT>" }`  *(every value is a JSON string — keep the quotes)*
 - `title`, `body` (Markdown), `priority?`, `tags?`
 - **`idempotency_key`** (REQUIRED): stable per logical request (e.g. a hash of the decision context).
@@ -114,11 +116,16 @@ The run may end here. When the human resolves it, the agent gets the terminal Re
   it's trusted via the authenticated GET transport + the immutable terminal record (no `jti` / detached signature).
 
 Then **MUST**:
-1. **(push only) Verify** the signature: recompute RFC 8785 JCS over the `signed_context`, verify the
-   detached `A2H-Signature: t=<unix>,jti=<nonce>,v1=<base64url(sig)>` with the Hub's **advertised algorithm**
-   (`hmac-sha256` with the per-agent key, or `ed25519` — see capability `signature_algs`), the `jti`
-   nonce (not seen before), the ±120s window (`t`), and the binding to `id` + `resolution_id` +
-   `callback_url`. Reject on any mismatch. **Pull skips this step** — just read the terminal `response`.
+1. **(push only) Verify** the signature: first **recompute `payload_sha256`** yourself as the lowercase-hex
+   SHA-256 of the RFC 8785 JCS of the fixed-key object `{ "response": <received `response` or null>,
+   "state": <received `state` or null> }` (v0.3, §9.2 — **never trust a transmitted digest**), then
+   reconstruct the canonical `signed_context` (`a2h_version, callback_url, id, in_reply_to, jti,
+   payload_sha256, resolution, resolution_id, resolved_at, t`) and verify the detached
+   `A2H-Signature: t=<unix>,jti=<nonce>,v1=<base64url(sig)>` over its JCS with the Hub's **advertised
+   algorithm** (`hmac-sha256` with the per-agent key, or `ed25519` — see capability `signature_algs`), the
+   `jti` nonce (not seen before), the ±120s window (`t`), and the binding to `id` + `resolution_id` +
+   `callback_url` + `payload_sha256`. Reject on any mismatch. **Pull skips this step** — just read the
+   terminal `response`.
 2. **Dedupe** on `(in_reply_to, resolution_id)` (where `in_reply_to` is the message `id`) and **act at most
    once** (callbacks may be delivered more than once).
 3. If you sent `state`, **verify + open** it (AEAD) before trusting it.
@@ -129,13 +136,15 @@ Then **MUST**:
    `response.value`** — branch on the resolution and **don't treat a missing value as an error**.
    `response.comment` + `actor` may still be present.
 
-Use the AHCP reference (`signing.verifyResponse`, `state-seal.openState`) for steps 1 (push) and 3 — but
-note `signing.verifyResponse` implements **`hmac-sha256` only** in v0.2; if the Hub advertises **`ed25519`**,
-verify the detached signature over the same JCS `signed_context` with your platform's ed25519 primitive,
-**not** that helper (it returns `alg not implemented: ed25519`).
+Use the AHCP reference for steps 1 (push) and 3: recompute the digest with
+`signing.computePayloadSha256(response, state)`, assemble the context with `signing.buildSignedContext(...)`,
+then call `signing.verifyResponse(signed_context, v1, { key })`; open `state` with `state-seal.openState`.
+Note `signing.verifyResponse` implements **`hmac-sha256` only** in the current reference; if the Hub
+advertises **`ed25519`**, verify the detached signature over the same JCS `signed_context` with your
+platform's ed25519 primitive, **not** that helper (it returns `alg not implemented: ed25519`).
 ````
 
 ## References
-- Spec: <https://a2hprotocol.org/spec/v0.2.md> (§5 verbs, §6 response, §7 lifecycle, §9 security)
-- Schemas: <https://a2hprotocol.org/schema/v0.2/message.schema.json> · <https://a2hprotocol.org/schema/v0.2/response.schema.json>
+- Spec: <https://a2hprotocol.org/spec/v0.3.md> (§5 verbs, §6 response, §7 lifecycle, §9 security)
+- Schemas: <https://a2hprotocol.org/schema/v0.3/message.schema.json> · <https://a2hprotocol.org/schema/v0.3/response.schema.json>
 - Reference impl (verify/seal): <https://github.com/autnmy/a2h-protocol/tree/main/reference>

@@ -35,12 +35,16 @@ Content that reads as internal notes or product marketing rather than protocol d
 | `README.md:56–61` | Repo-layout block points at `schema/v0.2/`. | **REWRITE → schema/v0.3/** (current), or list both with v0.3 marked current. |
 | `reference/README.md:4` | Current-spec link targets `../spec/v0.2.md` while the reference implementation is `@a2h/reference@0.3.0` (v0.3 behavior). | **REWRITE → ../spec/v0.3.md.** The reference impl is v0.3, so this pointer was genuinely stale. |
 
-**Deliberately NOT changed (version-pinned, not stale):** the plugin skill templates
-(`plugins/a2h-skills/skills/*/SKILL.md`) reference `spec/v0.2.md` / `schema/v0.2/` **and** instruct
-generated agents to send `a2h_version: "0.2"`. Those skills are internally consistent at v0.2; bumping
-only their spec links to v0.3 would create a mismatch, and bumping the emitted `a2h_version` is a
-behavioral/version change forbidden by this rename's constraints. Re-targeting the skills to v0.3 is a
-deliberate future decision (recorded as residual review work), not a naming fix.
+**Plugin skill templates migrated v0.2 → v0.3 (scope expansion, approved during PR review).** The
+plugin skill templates (`plugins/a2h-skills/skills/*/SKILL.md`) previously emitted `a2h_version: "0.2"`
+and linked the v0.2 spec/schema. Because v0.3 is current **and** a v0.3 Hub rejects pre-0.3 **push**
+callbacks (`version_not_supported`, §10), following these templates with a push callback against a
+current Hub broke ask/task flows — a real functional issue (raised by Codex review on the PR, confirmed
+against `version-negotiation.test.ts`). With explicit approval the templates were migrated to v0.3:
+`a2h_version: "0.3"`, v0.3 spec/schema links, and the push verification guidance now recomputes
+`payload_sha256` and reconstructs the 10-field `signed_context` per the v0.3 §9.2 payload-binding (the
+breaking signature change). This is a **behavioral** change beyond the naming-only rebrand, made
+deliberately to keep the tooling correct against the current protocol.
 
 No `a2h_version` value, schema, or normative content is changed by these fixes — they correct stale
 pointers only.
@@ -95,7 +99,7 @@ the `a2h` CLI verbatim. This brand↔CLI split is intentional (see `MIGRATION.md
 
 | Asset | Issue | Disposition |
 |-------|-------|-------------|
-| `og.png` | Binary social-card image rendered with the "A2H" wordmark. | **FLAG / DEFER.** Cannot be edited as text; regenerate the artwork with the AHCP wordmark in a follow-up. Not a code change. |
+| `og.png` | Binary social-card image previously rendered with the "A2H" wordmark. | **REGENERATED.** Replaced (1200×630) with an AHCP card matching the original terminal design — wordmark "AHCP" (H accented), updated title bar/diagram; frozen tokens (`~/a2h`, `a2h about`, `a2hprotocol.org`) preserved. Rendered from HTML for pixel-accurate text. |
 | `favicon.svg` | Contains one `A2H` text token. | **RENAME** (text edit, in scope — U4). |
 
 ---
@@ -125,4 +129,4 @@ The rebrand is correct iff, after all edits:
 > 0 fail**; `schema/` and `conformance/` diffs limited to `title`/`description` strings (vectors
 > untouched); brand grep returns only frozen identifiers (`A2H-Signature`, `A2H_CALLBACK_SECRET`,
 > `.well-known/a2h`, `a2h_version`, `@a2h`, `a2h-skills`, `a2hprotocol.org`, `autnmy/a2h-protocol`).
-> `og.png` remains flagged for artwork regeneration (deferred, non-code).
+> `og.png` was regenerated (1200×630 AHCP card, rendered from HTML) in response to PR review.

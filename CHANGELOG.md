@@ -5,6 +5,12 @@ All notable changes to the AHCP (Agent Human Coordination Protocol) specificatio
 ## Unreleased
 
 ### Changed
+- **`a2h-skills` plugin templates migrated to v0.3.** The `implement` / `build-notify` / `build-ask` /
+  `build-task` skills now target `a2h_version: "0.3"`, link the v0.3 spec/schema, and the push
+  verification guidance recomputes `payload_sha256` and reconstructs the v0.3 §9.2 `signed_context`
+  (payload-bound signature). Previously the templates emitted `a2h_version: "0.2"`, so following them
+  with a **push** callback against a current v0.3 Hub broke (the Hub rejects pre-0.3 push with
+  `version_not_supported`, §10). Generated sender skills now interoperate with a current Hub on push.
 - **Rebrand: A2H → AHCP.** The protocol's name is now **AHCP — Agent Human Coordination Protocol**
   (formerly *A2H — Agent-to-Human Protocol*). This is a **naming and documentation change only** — no
   protocol semantics, message shapes, schemas, endpoints, or version changed, and `a2h_version` is
