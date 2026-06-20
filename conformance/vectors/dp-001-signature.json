@@ -4,7 +4,7 @@
   "description": "Deterministic signature fixture (v0.3). The Hub MUST reproduce `v1` from JCS(signed_context) + HMAC-SHA256(test_key); signed_context now binds `payload_sha256` = lowercase-hex SHA-256 of JCS({response,state}). Recomputing the digest from `payload` MUST equal signed_context.payload_sha256.",
   "ref": "spec §9.2",
   "obligation": "Reproduce header `v1`; reproduce `payload_sha256` from `payload`; reject a tampered signed_context; reject a replayed jti within ±120s.",
-  "test_key": "a2h-test-secret-key-0123456789ab",
+  "test_key": "ahcp-test-secret-key-0123456789ab",
   "signature_alg": "hmac-sha256",
   "payload": {
     "response": {
@@ -19,8 +19,8 @@
     }
   },
   "signed_context": {
-    "a2h_version": "0.3",
-    "callback_url": "https://deploybot.example/a2h/resume",
+    "ahcp_version": "0.3",
+    "callback_url": "https://deploybot.example/ahcp/resume",
     "id": "msg_01HZXASK0001",
     "in_reply_to": "msg_01HZXASK0001",
     "jti": "jti_01HZX7Q9Z3DEMOFIX",
@@ -30,7 +30,7 @@
     "resolved_at": "2026-06-04T15:48:30Z",
     "t": "1749050910"
   },
-  "canonical_jcs": "{\"a2h_version\":\"0.3\",\"callback_url\":\"https://deploybot.example/a2h/resume\",\"id\":\"msg_01HZXASK0001\",\"in_reply_to\":\"msg_01HZXASK0001\",\"jti\":\"jti_01HZX7Q9Z3DEMOFIX\",\"payload_sha256\":\"3073dec57c04075d0b6bfa17c300fa9600ad92fb13e485e410c8a95274ac47ed\",\"resolution\":\"answered\",\"resolution_id\":\"res_01HZXR3SOLVE\",\"resolved_at\":\"2026-06-04T15:48:30Z\",\"t\":\"1749050910\"}",
-  "header": "A2H-Signature: t=1749050910,jti=jti_01HZX7Q9Z3DEMOFIX,v1=_973adHXSOdFhGqNeHcEg_Sc6Iu8bqv9hp5jAj9DpLY",
-  "v1": "_973adHXSOdFhGqNeHcEg_Sc6Iu8bqv9hp5jAj9DpLY"
+  "canonical_jcs": "{\"ahcp_version\":\"0.3\",\"callback_url\":\"https://deploybot.example/ahcp/resume\",\"id\":\"msg_01HZXASK0001\",\"in_reply_to\":\"msg_01HZXASK0001\",\"jti\":\"jti_01HZX7Q9Z3DEMOFIX\",\"payload_sha256\":\"3073dec57c04075d0b6bfa17c300fa9600ad92fb13e485e410c8a95274ac47ed\",\"resolution\":\"answered\",\"resolution_id\":\"res_01HZXR3SOLVE\",\"resolved_at\":\"2026-06-04T15:48:30Z\",\"t\":\"1749050910\"}",
+  "header": "AHCP-Signature: t=1749050910,jti=jti_01HZX7Q9Z3DEMOFIX,v1=sGsoX7pEgPVFL24v4qocBp586SLQGWoh8Qt46LlSfPc",
+  "v1": "sGsoX7pEgPVFL24v4qocBp586SLQGWoh8Qt46LlSfPc"
 }

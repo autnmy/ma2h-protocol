@@ -1,10 +1,10 @@
-# Contributing to A2H
+# Contributing to AHCP
 
-Thanks for helping improve the Agent-to-Human Protocol. A2H is a specification — a Markdown spec
+Thanks for helping improve the Agent Human Coordination Protocol. AHCP is a specification — a Markdown spec
 (`spec/`), JSON Schemas (`schema/`), conformance vectors (`conformance/`), and a TypeScript reference
 implementation (`reference/`). This guide covers how changes are proposed and merged.
 
-A2H is **steward-governed** today (see [GOVERNANCE.md](GOVERNANCE.md)), with the stated intent to move to
+AHCP is **steward-governed** today (see [GOVERNANCE.md](GOVERNANCE.md)), with the stated intent to move to
 a vendor-neutral foundation. The process below is deliberately lightweight but mirrors the conventions of
 MCP (SEP), Rust (RFC), Python (PEP), IETF, and the OpenAPI / JSON Schema / CloudEvents communities, so it
 scales as governance opens up.
@@ -49,13 +49,13 @@ feature, or governance changes.
 
 ## Versioning & backward compatibility
 
-A2H versions the spec with SemVer intent:
+AHCP versions the spec with SemVer intent:
 - **PATCH** — editorial only.
 - **MINOR** — backward-compatible additions (new optional fields, new SHOULD/MAY, a new schema version path).
 - **MAJOR** — breaking changes.
 
 **Schema `$id` discipline.** Each published schema version has an immutable `$id`
-(`https://a2hprotocol.org/schema/vX.Y/...`). A **non-breaking** change keeps the existing `$id` / path; a
+(`https://ahcpprotocol.org/schema/vX.Y/...`). A **non-breaking** change keeps the existing `$id` / path; a
 **breaking** change mints a new version path (and only lands via a merged SCP). Every PR declares whether
 the `$id` / version path changes.
 
@@ -79,7 +79,7 @@ Editorial changes and added examples may skip this. (Adapted from MCP SEP-2484's
 
 ## Sign-off (DCO)
 
-A2H uses the [Developer Certificate of Origin](https://developercertificate.org) — not a CLA. Sign off every
+AHCP uses the [Developer Certificate of Origin](https://developercertificate.org) — not a CLA. Sign off every
 commit:
 
 ```

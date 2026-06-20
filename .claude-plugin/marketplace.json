@@ -1,18 +1,18 @@
 {
-  "name": "a2h",
+  "name": "ahcp",
   "metadata": {
-    "description": "Agent-native skills for the A2H (Agent-to-Human) Protocol — build app-specific notify / ask / task skills wired to your A2H Hub.",
+    "description": "Agent-native skills for AHCP (the Agent Human Coordination Protocol) — build app-specific notify / ask / task skills wired to your AHCP Hub.",
     "version": "0.1.0"
   },
   "owner": {
     "name": "Autonomy",
-    "url": "https://a2hprotocol.org"
+    "url": "https://ahcpprotocol.org"
   },
   "plugins": [
     {
-      "name": "a2h-skills",
-      "source": "./plugins/a2h-skills",
-      "description": "Agent-native A2H toolkit: 'implement' builds a conformant A2H Hub in your app (any stack); 'build-notify' / 'build-ask' / 'build-task' generate app-specific sender skills. Independent — use only what you need."
+      "name": "ahcp-skills",
+      "source": "./plugins/ahcp-skills",
+      "description": "Agent-native AHCP toolkit: 'implement' builds a conformant AHCP Hub in your app (any stack); 'build-notify' / 'build-ask' / 'build-task' generate app-specific sender skills. Independent — use only what you need."
     }
   ]
 }

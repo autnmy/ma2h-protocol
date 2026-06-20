@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2hprotocol.org/schema/v0.3/capability.schema.json",
-  "title": "A2H Capability Document (v0.3)",
-  "description": "Body of GET /.well-known/a2h. A Hub responding here is A2H-conformant. All fields beyond a2h_version are SHOULD.",
+  "$id": "https://ahcpprotocol.org/schema/v0.3/capability.schema.json",
+  "title": "AHCP Capability Document (v0.3)",
+  "description": "Body of GET /.well-known/ahcp. A Hub responding here is AHCP-conformant. All fields beyond ahcp_version are SHOULD.",
   "type": "object",
-  "required": ["a2h_version"],
+  "required": ["ahcp_version"],
   "properties": {
-    "a2h_version": { "type": "string", "pattern": "^0\\.\\d+$" },
+    "ahcp_version": { "type": "string", "pattern": "^0\\.\\d+$" },
     "max_body_bytes": { "type": "integer", "minimum": 1 },
     "max_part_bytes": { "type": "integer", "minimum": 1 },
     "max_context_parts": { "type": "integer", "minimum": 0 },

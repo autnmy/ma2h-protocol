@@ -1,6 +1,6 @@
 #!/usr/bin/env -S node --import tsx
-// A2H reference CLI — validate / sign / verify / run-vectors.
-// Run: npm run a2h -- <cmd> ...   or   node --import tsx bin/a2h.ts <cmd> ...
+// AHCP reference CLI — validate / sign / verify / run-vectors.
+// Run: npm run ahcp -- <cmd> ...   or   node --import tsx bin/ahcp.ts <cmd> ...
 
 import { readFileSync } from "node:fs";
 import {
@@ -45,7 +45,7 @@ function inferKind(doc: unknown): "message" | "response" | "capability" {
 
 function cmdValidate(positionals: string[], flags: Map<string, string>): void {
   const file = positionals[0];
-  if (!file) die("usage: a2h validate <file> [--as message|response|capability]");
+  if (!file) die("usage: ahcp validate <file> [--as message|response|capability]");
   const doc = JSON.parse(readFileSync(file, "utf8")) as unknown;
   const kind = (flags.get("as") ?? inferKind(doc)) as "message" | "response" | "capability";
   const res: ValidationResult =
@@ -66,7 +66,7 @@ function cmdValidate(positionals: string[], flags: Map<string, string>): void {
 function cmdSign(positionals: string[], flags: Map<string, string>): void {
   const file = positionals[0];
   const key = flags.get("key");
-  if (!file || !key) die("usage: a2h sign <signed_context.json> --key <key>");
+  if (!file || !key) die("usage: ahcp sign <signed_context.json> --key <key>");
   const sc = JSON.parse(readFileSync(file, "utf8")) as SignedContext;
   if (typeof sc.payload_sha256 !== "string") {
     die("signed_context missing payload_sha256 (required in v0.3; see spec §9.2)");
@@ -78,7 +78,7 @@ function cmdVerify(positionals: string[], flags: Map<string, string>): void {
   const file = positionals[0];
   const key = flags.get("key");
   const v1 = flags.get("v1");
-  if (!file || !key || !v1) die("usage: a2h verify <signed_context.json> --v1 <sig> --key <key>");
+  if (!file || !key || !v1) die("usage: ahcp verify <signed_context.json> --v1 <sig> --key <key>");
   const sc = JSON.parse(readFileSync(file, "utf8")) as SignedContext;
   if (typeof sc.payload_sha256 !== "string") {
     die("signed_context missing payload_sha256 (required in v0.3; see spec §9.2)");
@@ -104,16 +104,16 @@ function cmdVectors(): void {
 function cmdAbout(): void {
   console.log(
     [
-      "A2H — Agent-to-Human Protocol",
+      "AHCP — Agent Human Coordination Protocol",
       "",
       "A vendor-neutral protocol for an agent to reach a human and get a decision",
-      "back. The agent-to-human complement to A2A and MCP.",
+      "back. The agent↔human complement to A2A and MCP.",
       "",
-      "  MCP  →  agent ↔ tools",
-      "  A2A  →  agent ↔ agent",
-      "  A2H  →  agent ↔ human     ← this standard",
+      "  MCP   →  agent ↔ tools",
+      "  A2A   →  agent ↔ agent",
+      "  AHCP  →  agent ↔ human     ← this standard",
       "",
-      "verbs: notify · ask · task        https://a2hprotocol.org",
+      "verbs: notify · ask · task        https://ahcpprotocol.org",
     ].join("\n"),
   );
 }
@@ -131,12 +131,12 @@ function cmdVerbs(): void {
 function cmdDocs(): void {
   console.log(
     [
-      "spec         https://a2hprotocol.org/spec/v0.3.md",
-      "plugin       https://github.com/autnmy/a2h-protocol/tree/main/plugins/a2h-skills",
-      "reference    https://github.com/autnmy/a2h-protocol/tree/main/reference",
-      "schemas      https://a2hprotocol.org/schema/v0.3/message.schema.json",
-      "conformance  https://github.com/autnmy/a2h-protocol/tree/main/conformance",
-      "repo         https://github.com/autnmy/a2h-protocol",
+      "spec         https://ahcpprotocol.org/spec/v0.3.md",
+      "plugin       https://github.com/autnmy/ahcp-protocol/tree/main/plugins/ahcp-skills",
+      "reference    https://github.com/autnmy/ahcp-protocol/tree/main/reference",
+      "schemas      https://ahcpprotocol.org/schema/v0.3/message.schema.json",
+      "conformance  https://github.com/autnmy/ahcp-protocol/tree/main/conformance",
+      "repo         https://github.com/autnmy/ahcp-protocol",
     ].join("\n"),
   );
 }
@@ -188,16 +188,16 @@ switch (cmd) {
   default:
     console.log(
       [
-        "a2h — A2H reference CLI",
+        "ahcp — AHCP reference CLI",
         "",
-        "  a2h about                 what A2H is, in one screen",
-        "  a2h verbs                 the three message verbs",
-        "  a2h docs                  links to the spec, skill, schemas, repo",
-        "  a2h rules                 the trust rules that matter",
-        "  a2h validate <file> [--as message|response|capability]",
-        "  a2h sign <signed_context.json> --key <key>",
-        "  a2h verify <signed_context.json> --v1 <sig> --key <key>",
-        "  a2h run-vectors",
+        "  ahcp about                 what AHCP is, in one screen",
+        "  ahcp verbs                 the three message verbs",
+        "  ahcp docs                  links to the spec, skill, schemas, repo",
+        "  ahcp rules                 the trust rules that matter",
+        "  ahcp validate <file> [--as message|response|capability]",
+        "  ahcp sign <signed_context.json> --key <key>",
+        "  ahcp verify <signed_context.json> --v1 <sig> --key <key>",
+        "  ahcp run-vectors",
       ].join("\n"),
     );
     process.exit(cmd === undefined ? 0 : 1);

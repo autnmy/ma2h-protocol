@@ -21,10 +21,10 @@ function newHub(): Hub {
   return new Hub({ signingKey: SIGNING_KEY, now: () => T0 });
 }
 
-/** A valid v0.3 ask, with `a2h_version` overridden to exercise negotiation. */
+/** A valid v0.3 ask, with `ahcp_version` overridden to exercise negotiation. */
 function makeAsk(version: string, callback: Callback): A2hMessage {
   const base: A2hMessage = {
-    a2h_version: "0.3",
+    ahcp_version: "0.3",
     type: "ask",
     created_at: new Date(T0).toISOString(),
     agent: { id: "deploybot/dev-team", run_id: "run_1", runtime: "github-actions" },
@@ -40,7 +40,7 @@ function makeAsk(version: string, callback: Callback): A2hMessage {
       callback,
     },
   };
-  return { ...base, a2h_version: version as A2hMessage["a2h_version"] };
+  return { ...base, ahcp_version: version as A2hMessage["ahcp_version"] };
 }
 
 const isCode = (code: string) => (e: unknown): boolean => e instanceof HubError && e.code === code;
@@ -65,7 +65,7 @@ test("v0.3 PUSH is accepted (regression guard)", () => {
   assert.equal(ack.status, "open");
 });
 
-test("a malformed a2h_version is a schema validation_error, not version_not_supported", () => {
+test("a malformed ahcp_version is a schema validation_error, not version_not_supported", () => {
   // Negotiation only fires on a parseable MAJOR.MINOR; anything else falls through to the schema.
   assert.throws(() => newHub().submit(makeAsk("x", PULL)), isCode("validation_error"));
 });
@@ -75,7 +75,7 @@ test("a pre-0.3 ask missing `request` is a validation_error, not a TypeError (de
   // malformed ask/task lacking `request`/`action` must still yield a clean validation_error rather
   // than crash. (Regression for the pre-validation TypeError codex flagged.)
   const malformed = {
-    a2h_version: "0.2",
+    ahcp_version: "0.2",
     type: "ask",
     created_at: new Date(T0).toISOString(),
     agent: { id: "deploybot/dev-team", run_id: "run_1", runtime: "github-actions" },

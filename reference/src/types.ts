@@ -1,4 +1,4 @@
-// A2H domain types — strongly typed to spec/v0.3.md and schema/v0.3/*.
+// AHCP domain types — strongly typed to spec/v0.3.md and schema/v0.3/*.
 // The discriminated unions mirror the JSON Schema `oneOf` branches exactly, so
 // the type system enforces the same shape rules the schemas do.
 
@@ -53,7 +53,7 @@ export type Callback = { mode: "push"; url: string; auth?: CallbackAuth } | { mo
 
 export type RequestMode = "select" | "input" | "confirm";
 
-/** Flat JSON Schema for mode=input; properties MAY carry `x-a2h-sensitive`. */
+/** Flat JSON Schema for mode=input; properties MAY carry `x-ahcp-sensitive`. */
 export type InputSchema = JsonObject;
 
 export interface AskRequest {
@@ -75,7 +75,7 @@ export interface TaskAction {
 }
 
 interface BaseEnvelope {
-  a2h_version: A2hVersion;
+  ahcp_version: A2hVersion;
   created_at: string;
   agent: AgentDescriptor;
   title: string;
@@ -134,7 +134,7 @@ export interface ResponseDetail {
 }
 
 export interface A2hResponse {
-  a2h_version: A2hVersion;
+  ahcp_version: A2hVersion;
   in_reply_to: string;
   resolution_id: string;
   agent: ResponseAgent;
@@ -147,7 +147,7 @@ export interface A2hResponse {
 
 /** The exact fields bound by the detached Response signature (spec §9.2). */
 export interface SignedContext {
-  a2h_version: A2hVersion;
+  ahcp_version: A2hVersion;
   callback_url: string;
   id: string;
   in_reply_to: string;
@@ -171,7 +171,7 @@ export interface SubmitAck {
 export type GetMessageBody = A2hMessage & { id: string; status: Status; response?: A2hResponse };
 
 export interface Capability {
-  a2h_version: A2hVersion;
+  ahcp_version: A2hVersion;
   max_body_bytes?: number;
   max_part_bytes?: number;
   max_context_parts?: number;

@@ -1,6 +1,6 @@
 # Callback anti-pattern: the confused deputy
 
-**Do not do this.** A2H v0.1's worked example pointed an `ask` callback straight at a third-party API
+**Do not do this.** AHCP v0.1's worked example pointed an `ask` callback straight at a third-party API
 holding the agent's credential:
 
 ```jsonc
@@ -8,7 +8,7 @@ holding the agent's credential:
 "callback": {
   "mode": "push",
   "url": "https://api.github.com/repos/tmlayton/web-app/dispatches",
-  "auth": { "scheme": "bearer", "token_ref": "env:A2H_GH_DISPATCH_TOKEN" }
+  "auth": { "scheme": "bearer", "token_ref": "env:AHCP_GH_DISPATCH_TOKEN" }
 }
 ```
 
@@ -30,8 +30,8 @@ using its own credentials:
 ```jsonc
 "callback": {
   "mode": "push",
-  "url": "https://deploybot.example/a2h/resume",          // agent-owned, registered, verified
-  "auth": { "scheme": "hmac", "secret_ref": "env:A2H_CALLBACK_SECRET" }
+  "url": "https://deploybot.example/ahcp/resume",          // agent-owned, registered, verified
+  "auth": { "scheme": "hmac", "secret_ref": "env:AHCP_CALLBACK_SECRET" }
 }
 ```
 

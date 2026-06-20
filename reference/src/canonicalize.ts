@@ -1,4 +1,4 @@
-// RFC 8785 JSON Canonicalization Scheme (JCS) — the canonical serialization A2H signs
+// RFC 8785 JSON Canonicalization Scheme (JCS) — the canonical serialization AHCP signs
 // (spec §9.2): the flat `signed_context` AND the `payload_sha256` pre-image
 // `{ response, state }`, which (unlike signed_context) can carry numbers, arrays, and nesting.
 //

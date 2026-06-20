@@ -1,14 +1,14 @@
 {
   "id": "dp-003-payload-tamper-invalid",
   "class": "downstream-proof",
-  "description": "A man-in-the-middle flips response.value (hold→ship) leaving the signed metadata and the A2H-Signature header intact. The agent recomputes payload_sha256 over the RECEIVED payload; it diverges from the signed digest, so verification MUST fail. Proves the v0.3 fix for issue #7.",
+  "description": "A man-in-the-middle flips response.value (hold→ship) leaving the signed metadata and the AHCP-Signature header intact. The agent recomputes payload_sha256 over the RECEIVED payload; it diverges from the signed digest, so verification MUST fail. Proves the v0.3 fix for issue #7.",
   "ref": "spec §9.2",
   "obligation": "Verification MUST fail when response.value is tampered relative to the signed payload_sha256 (observed reason: signature mismatch).",
-  "test_key": "a2h-test-secret-key-0123456789ab",
+  "test_key": "ahcp-test-secret-key-0123456789ab",
   "signature_alg": "hmac-sha256",
   "signed_context": {
-    "a2h_version": "0.3",
-    "callback_url": "https://deploybot.example/a2h/resume",
+    "ahcp_version": "0.3",
+    "callback_url": "https://deploybot.example/ahcp/resume",
     "id": "msg_01HZXASK0001",
     "in_reply_to": "msg_01HZXASK0001",
     "jti": "jti_01HZX7Q9Z3DEMOFIX",
@@ -18,7 +18,7 @@
     "resolved_at": "2026-06-04T15:48:30Z",
     "t": "1749050910"
   },
-  "v1": "_973adHXSOdFhGqNeHcEg_Sc6Iu8bqv9hp5jAj9DpLY",
+  "v1": "sGsoX7pEgPVFL24v4qocBp586SLQGWoh8Qt46LlSfPc",
   "honest_payload": {
     "response": {
       "value": "hold",

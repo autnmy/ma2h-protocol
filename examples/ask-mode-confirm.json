@@ -1,5 +1,5 @@
 {
-  "a2h_version": "0.3",
+  "ahcp_version": "0.3",
   "type": "ask",
   "created_at": "2026-06-04T17:30:00Z",
   "agent": {
@@ -19,8 +19,8 @@
     "allowed_resolvers": ["human:alice"],
     "callback": {
       "mode": "push",
-      "url": "https://deploybot.example/a2h/resume",
-      "auth": { "scheme": "bearer", "token_ref": "env:A2H_RESUME_TOKEN" }
+      "url": "https://deploybot.example/ahcp/resume",
+      "auth": { "scheme": "bearer", "token_ref": "env:AHCP_RESUME_TOKEN" }
     }
   }
 }

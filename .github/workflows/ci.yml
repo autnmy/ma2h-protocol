@@ -16,6 +16,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate SKILL.md frontmatter
         run: ruby scripts/check-skill-frontmatter.rb
+      - name: Check frozen identifiers
+        run: bash scripts/check-frozen-identifiers.sh
       - uses: actions/setup-node@v4
         with:
           node-version: "20"

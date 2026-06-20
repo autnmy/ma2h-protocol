@@ -1,4 +1,4 @@
-<!-- A2H is a protocol spec. Editorial fixes and non-breaking clarifications can be opened directly with
+<!-- AHCP is a protocol spec. Editorial fixes and non-breaking clarifications can be opened directly with
      this template. Breaking changes, new features, or governance changes need a Spec Change Proposal
      (SCP) first — see CONTRIBUTING.md. -->
 

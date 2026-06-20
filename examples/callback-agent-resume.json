@@ -1,5 +1,5 @@
 {
-  "a2h_version": "0.3",
+  "ahcp_version": "0.3",
   "type": "ask",
   "created_at": "2026-06-04T19:00:00Z",
   "agent": {
@@ -23,8 +23,8 @@
     "allowed_resolvers": ["human:alice", "agent:deploybot/release-bot"],
     "callback": {
       "mode": "push",
-      "url": "https://deploybot.example/a2h/resume",
-      "auth": { "scheme": "hmac", "secret_ref": "env:A2H_CALLBACK_SECRET" }
+      "url": "https://deploybot.example/ahcp/resume",
+      "auth": { "scheme": "hmac", "secret_ref": "env:AHCP_CALLBACK_SECRET" }
     }
   }
 }

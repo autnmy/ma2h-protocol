@@ -1,5 +1,5 @@
 {
-  "a2h_version": "0.3",
+  "ahcp_version": "0.3",
   "type": "ask",
   "created_at": "2026-06-04T18:00:00Z",
   "agent": {
@@ -13,13 +13,13 @@
   "tags": ["input", "secret"],
   "idempotency_key": "payments-key-input",
   "sensitive": true,
-  "body": "Paste the new payment-provider API key. The field is marked `x-a2h-sensitive`, so the Hub excludes its value from export/telemetry; the agent receives it as a `secret_ref`, never as plaintext in its LLM context (spec §9.6).",
+  "body": "Paste the new payment-provider API key. The field is marked `x-ahcp-sensitive`, so the Hub excludes its value from export/telemetry; the agent receives it as a `secret_ref`, never as plaintext in its LLM context (spec §9.6).",
   "request": {
     "mode": "input",
     "schema": {
       "type": "object",
       "properties": {
-        "payment_api_key": { "type": "string", "x-a2h-sensitive": true }
+        "payment_api_key": { "type": "string", "x-ahcp-sensitive": true }
       },
       "required": ["payment_api_key"]
     },

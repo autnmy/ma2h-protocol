@@ -12,12 +12,12 @@ import { sealState } from "../src/state-seal.js";
 import type { A2hMessage, JsonObject } from "../src/types.js";
 
 const SIGNING_KEY = "hub-signing-key-0123456789abcdef0123456789abcdef";
-const RESUME_URL = "https://deploybot.example/a2h/resume";
+const RESUME_URL = "https://deploybot.example/ahcp/resume";
 const T0 = 1_750_000_000_000;
 
 function makeAsk(sealKey: Buffer, t: number): A2hMessage {
   return {
-    a2h_version: "0.3",
+    ahcp_version: "0.3",
     type: "ask",
     created_at: new Date(t).toISOString(),
     agent: { id: "deploybot/dev-team", run_id: "run_1", runtime: "github-actions" },
@@ -162,7 +162,7 @@ test("a cancel past expires_at loses to the default expiry, not cancelled (§7 e
 test("notify is delivered on acceptance and durably pull-checkable", () => {
   const hub = new Hub({ signingKey: SIGNING_KEY, now: () => T0 });
   const notify: A2hMessage = {
-    a2h_version: "0.3",
+    ahcp_version: "0.3",
     type: "notify",
     created_at: new Date(T0).toISOString(),
     agent: { id: "deploybot/dev-team", run_id: "digest_1", runtime: "cloud" },
@@ -245,7 +245,7 @@ test("AEAD seal still catches tampered state when the signature is valid (§9.3,
   const sig = parseSignatureHeader(d.signature);
   const reSigned = signResponse(
     buildSignedContext({
-      a2h_version: tampered.a2h_version,
+      ahcp_version: tampered.ahcp_version,
       callback_url: RESUME_URL,
       id: tampered.in_reply_to,
       in_reply_to: tampered.in_reply_to,

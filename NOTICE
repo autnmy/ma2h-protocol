@@ -1,19 +1,19 @@
-A2H — Agent-to-Human Protocol
+AHCP — Agent Human Coordination Protocol
 Copyright 2026 Autonomy LLC
 
-This product includes the A2H Protocol specification, schema, and examples,
+This product includes the AHCP Protocol specification, schema, and examples,
 stewarded by Autonomy LLC and licensed under the Apache License, Version 2.0
 (see the LICENSE file).
 
-A2H is an open standard. Autonomy LLC stewards it with the stated intent to
+AHCP is an open standard. Autonomy LLC stewards it with the stated intent to
 transfer governance to a vendor-neutral foundation (e.g., the Linux Foundation /
 Agentic AI Foundation, or the W3C AI Agent Protocol Community Group) once
 adoption warrants. See GOVERNANCE.md.
 
 "The Hub" — Autonomy LLC's hosted server and native triage application that
-implement A2H — is a separate, proprietary commercial product and is NOT covered
+implement AHCP — is a separate, proprietary commercial product and is NOT covered
 by the Apache-2.0 license in this repository.
 
 "A2A" and other referenced protocols are the property of their respective
-owners. A2H is an independent, complementary specification and is not affiliated
+owners. AHCP is an independent, complementary specification and is not affiliated
 with or endorsed by those projects. References are descriptive only.

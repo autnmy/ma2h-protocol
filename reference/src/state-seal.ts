@@ -9,7 +9,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import type { JsonObject } from "./types.js";
 
-const MAGIC = "A2HSEALv1"; // version tag; AES-256-GCM implied
+const MAGIC = "AHCPSEALv1"; // version tag; AES-256-GCM implied
 
 function requireKey(key: Buffer): void {
   if (key.length !== 32) {
@@ -17,7 +17,7 @@ function requireKey(key: Buffer): void {
   }
 }
 
-/** Encrypt-then-MAC a state object. Returns a compact `A2HSEALv1.<iv>.<ct>.<tag>` token. */
+/** Encrypt-then-MAC a state object. Returns a compact `AHCPSEALv1.<iv>.<ct>.<tag>` token. */
 export function sealState(state: JsonObject, key: Buffer): string {
   requireKey(key);
   const iv = randomBytes(12);

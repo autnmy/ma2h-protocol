@@ -46,7 +46,7 @@ export class HubError extends Error {
 export interface DeliveredPush {
   callback: Extract<Callback, { mode: "push" }>;
   response: A2hResponse;
-  /** The `A2H-Signature` header the agent verifies. */
+  /** The `AHCP-Signature` header the agent verifies. */
   signature: string;
 }
 
@@ -90,13 +90,13 @@ export class Hub {
    *   rejects, so a v0.3 Hub's push is only verifiable by a v0.3+ agent. **Pull is unaffected** —
    *   pull responses aren't signature-verified (§8.2) — so a pre-0.3 *pull* message is accepted.
    *
-   * A malformed `a2h_version` falls through to schema validation (a `validation_error`).
+   * A malformed `ahcp_version` falls through to schema validation (a `validation_error`).
    */
   private negotiateVersion(message: A2hMessage): void {
     // A non-object body (`null`, array, primitive) must reach schema validation and yield a
     // `validation_error` — never a raw TypeError here. (`typeof null === "object"`, so guard null too.)
     if (typeof message !== "object" || message === null) return;
-    const raw = (message as { a2h_version?: unknown }).a2h_version;
+    const raw = (message as { ahcp_version?: unknown }).ahcp_version;
     if (typeof raw !== "string") return;
 
     // Only a version matching the schema's recognized SHAPE is negotiated here; anything else (leading
@@ -109,7 +109,7 @@ export class Hub {
     if (nonZeroMajor) {
       throw new HubError(
         "version_not_supported",
-        `a2h_version "${raw}": major ${nonZeroMajor[1]} is not supported (this Hub implements ${HUB_VERSION}; §10)`,
+        `ahcp_version "${raw}": major ${nonZeroMajor[1]} is not supported (this Hub implements ${HUB_VERSION}; §10)`,
       );
     }
     // Push parity (§9.2 v0.3 break) — a schema-valid `0.x` below the implemented minor whose callback
@@ -118,7 +118,7 @@ export class Hub {
     if (zeroX && Number(zeroX[1]) < IMPLEMENTED_MINOR && this.callbackOf(message)?.mode === "push") {
       throw new HubError(
         "version_not_supported",
-        `a2h_version "${raw}": push callbacks require >= ${HUB_VERSION}. The pushed Response is signed with ` +
+        `ahcp_version "${raw}": push callbacks require >= ${HUB_VERSION}. The pushed Response is signed with ` +
           `the v0.3 payload-bound signature (§9.2), which a pre-0.3 agent cannot verify. Use a pull callback, or upgrade.`,
       );
     }
@@ -297,7 +297,7 @@ export class Hub {
     const callback = this.callbackOf(record.message);
     if (!callback || callback.mode !== "push") return; // pull mode: agent will GET
     const sc = buildSignedContext({
-      a2h_version: response.a2h_version,
+      ahcp_version: response.ahcp_version,
       callback_url: callback.url,
       id: record.id,
       in_reply_to: response.in_reply_to,

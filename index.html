@@ -3,28 +3,28 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>A2H — Agent-to-Human Protocol</title>
-<meta name="description" content="A vendor-neutral protocol for an AI agent to reach a human and get a decision back — notify, ask, task. The agent-to-human complement to MCP and A2A." />
-<link rel="canonical" href="https://a2hprotocol.org/" />
+<title>AHCP — Agent Human Coordination Protocol</title>
+<meta name="description" content="A vendor- and runtime-neutral protocol for human coordination across an agent fleet — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place." />
+<link rel="canonical" href="https://ahcpprotocol.org/" />
 <meta name="robots" content="index, follow, max-image-preview:large" />
 <meta name="theme-color" content="#0d0f13" />
 
 <!-- Open Graph -->
 <meta property="og:type" content="website" />
-<meta property="og:site_name" content="A2H Protocol" />
-<meta property="og:url" content="https://a2hprotocol.org/" />
-<meta property="og:title" content="A2H — Agent-to-Human Protocol" />
-<meta property="og:description" content="A vendor-neutral protocol for an agent to reach a human and get a decision back. notify · ask · task. The agent-to-human complement to MCP and A2A." />
-<meta property="og:image" content="https://a2hprotocol.org/og.png" />
+<meta property="og:site_name" content="AHCP" />
+<meta property="og:url" content="https://ahcpprotocol.org/" />
+<meta property="og:title" content="AHCP — Agent Human Coordination Protocol" />
+<meta property="og:description" content="Human coordination across an agent fleet — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place. Vendor- and runtime-neutral." />
+<meta property="og:image" content="https://ahcpprotocol.org/og.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="A2H — Agent-to-Human Protocol. MCP→tools, A2A→agent, A2H→human." />
+<meta property="og:image:alt" content="AHCP — Agent Human Coordination Protocol. Many agents coordinate with a human through one hub: notify, ask, task." />
 
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
-<meta name="twitter:title" content="A2H — Agent-to-Human Protocol" />
-<meta name="twitter:description" content="A vendor-neutral protocol for an agent to reach a human and get a decision back. notify · ask · task." />
-<meta name="twitter:image" content="https://a2hprotocol.org/og.png" />
+<meta name="twitter:title" content="AHCP — Agent Human Coordination Protocol" />
+<meta name="twitter:description" content="Human coordination across an agent fleet — many agents, one hub. notify · ask · task." />
+<meta name="twitter:image" content="https://ahcpprotocol.org/og.png" />
 
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -37,34 +37,34 @@
   "@graph": [
     {
       "@type": "WebSite",
-      "@id": "https://a2hprotocol.org/#website",
-      "url": "https://a2hprotocol.org/",
-      "name": "A2H — Agent-to-Human Protocol",
-      "description": "A vendor-neutral protocol for an AI agent to reach a human and get a decision back. notify, ask, task. The agent-to-human complement to MCP and A2A.",
+      "@id": "https://ahcpprotocol.org/#website",
+      "url": "https://ahcpprotocol.org/",
+      "name": "AHCP — Agent Human Coordination Protocol",
+      "description": "A vendor- and runtime-neutral protocol for human coordination across an agent fleet — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place.",
       "inLanguage": "en",
-      "publisher": { "@id": "https://a2hprotocol.org/#org" }
+      "publisher": { "@id": "https://ahcpprotocol.org/#org" }
     },
     {
       "@type": "Organization",
-      "@id": "https://a2hprotocol.org/#org",
+      "@id": "https://ahcpprotocol.org/#org",
       "name": "Autonomy",
-      "url": "https://a2hprotocol.org/",
+      "url": "https://ahcpprotocol.org/",
       "sameAs": ["https://github.com/autnmy"]
     },
     {
       "@type": "TechArticle",
-      "headline": "A2H — the Agent-to-Human Protocol",
-      "description": "A2H is a vendor-neutral protocol for an agent to reach a human and get a decision back. Three verbs — notify, ask, task — the agent-to-human complement to MCP (agent↔tools) and A2A (agent↔agent).",
-      "about": ["agent-to-human protocol", "human-in-the-loop", "AI agents", "MCP", "A2A", "agent inbox"],
-      "isPartOf": { "@id": "https://a2hprotocol.org/#website" },
-      "author": { "@id": "https://a2hprotocol.org/#org" },
+      "headline": "AHCP — the Agent Human Coordination Protocol",
+      "description": "AHCP is a vendor- and runtime-neutral protocol for human coordination across an agent fleet: many agents report to one hub through three verbs — notify, ask, task — and humans coordinate from one place, with each signed answer routed back to the originating agent.",
+      "about": ["agent human coordination protocol", "human-in-the-loop", "agent fleet", "coordination hub", "AI agents", "agent inbox"],
+      "isPartOf": { "@id": "https://ahcpprotocol.org/#website" },
+      "author": { "@id": "https://ahcpprotocol.org/#org" },
       "license": "https://www.apache.org/licenses/LICENSE-2.0"
     },
     {
       "@type": "SoftwareSourceCode",
-      "name": "A2H Protocol",
-      "description": "Open specification, JSON Schema, conformance vectors, and TypeScript reference implementation for the Agent-to-Human Protocol.",
-      "codeRepository": "https://github.com/autnmy/a2h-protocol",
+      "name": "AHCP",
+      "description": "Open specification, JSON Schema, conformance vectors, and TypeScript reference implementation for the Agent Human Coordination Protocol.",
+      "codeRepository": "https://github.com/autnmy/ahcp-protocol",
       "programmingLanguage": ["JSON Schema", "TypeScript"],
       "license": "https://www.apache.org/licenses/LICENSE-2.0"
     }
@@ -206,23 +206,26 @@
 </style>
 </head>
 <body>
-<main class="win" id="win" aria-label="A2H — Agent-to-Human Protocol">
-  <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="name">a2h — agent-to-human protocol</span><span></span></div>
+<main class="win" id="win" aria-label="AHCP — Agent Human Coordination Protocol">
+  <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="name">AHCP — Agent Human Coordination Protocol</span><span></span></div>
   <div class="screen" id="screen">
 
-    <section class="step" data-cmd="a2h about">
-      <div class="cmdline"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">a2h about</span></div>
+    <section class="step" data-cmd="ahcp about">
+      <div class="cmdline"><span class="p">~/ahcp</span> <span class="car">❯</span> <span class="cmd">ahcp about</span></div>
       <div class="out lead">
-        <h1 class="mark">A<span class="s">2</span>H<span class="vh"> — Agent-to-Human Protocol</span></h1>
-        <p class="tag">A vendor-neutral protocol for an agent to <b>reach a human and get a decision back</b>. The agent-to-human complement to A2A and MCP.</p>
-        <pre class="map"><b>MCP</b>  →  agent ↔ tools
-<b>A2A</b>  →  agent ↔ agent
-<b>A2H</b>  →  agent ↔ human     <span class="gr">← this standard</span></pre>
+        <h1 class="mark">AHCP<span class="vh"> — Agent Human Coordination Protocol</span></h1>
+        <p class="tag">A vendor- and runtime-neutral protocol for <b>human coordination across an agent fleet</b> — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place.</p>
+        <pre class="map">agent ┐
+agent ┤
+agent ┼──▶  <b>[ A<span style="color:var(--green)">H</span>CP hub ]</b>  ──▶  <b>human</b>
+agent ┤
+agent ┘
+       <span class="gr">◀──  signed answer routed back to the agent</span></pre>
       </div>
     </section>
 
-    <section class="step" data-cmd="a2h verbs">
-      <div class="cmdline"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">a2h verbs</span></div>
+    <section class="step" data-cmd="ahcp verbs">
+      <div class="cmdline"><span class="p">~/ahcp</span> <span class="car">❯</span> <span class="cmd">ahcp verbs</span></div>
       <div class="out">
         <h2 class="vh">The three verbs</h2>
         <dl class="verb">
@@ -234,7 +237,7 @@
     </section>
 
     <section class="step" data-cmd="npm run demo" data-stream="1">
-      <div class="cmdline"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">npm run demo</span><span class="cmt"> # you are the human in the loop</span></div>
+      <div class="cmdline"><span class="p">~/ahcp</span> <span class="car">❯</span> <span class="cmd">npm run demo</span><span class="cmt"> # you are the human in the loop</span></div>
       <div class="out">
         <h2 class="vh">A human-in-the-loop demo</h2>
         <div class="tl"><span class="cy">📬</span>  notify → "Daily deploy digest — web-app"   <span class="faint">[durable · status=delivered]</span></div>
@@ -250,30 +253,30 @@
       </div>
     </section>
 
-    <section class="step" data-cmd="a2h docs">
-      <div class="cmdline"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">a2h docs</span></div>
+    <section class="step" data-cmd="ahcp docs">
+      <div class="cmdline"><span class="p">~/ahcp</span> <span class="car">❯</span> <span class="cmd">ahcp docs</span></div>
       <div class="out">
         <h2 class="vh">Documentation</h2>
-        <nav class="links" aria-label="A2H documentation">
-          <a class="lk" href="https://github.com/autnmy/a2h-protocol/blob/main/spec/v0.2.md"><span class="k">spec</span><span class="d">the normative v0.2 specification</span></a>
-          <a class="lk" href="https://github.com/autnmy/a2h-protocol/tree/main/plugins/a2h-skills"><span class="k">plugin</span><span class="d">agent-native skills — implement a Hub, build notify/ask/task</span></a>
-          <a class="lk" href="https://github.com/autnmy/a2h-protocol/tree/main/reference"><span class="k">reference</span><span class="d">strict-TypeScript implementation + a2h CLI</span></a>
-          <a class="lk" href="/schema/v0.2/message.schema.json"><span class="k">schemas</span><span class="d">JSON Schema 2020-12 · dereferenceable here</span></a>
-          <a class="lk" href="https://github.com/autnmy/a2h-protocol/tree/main/conformance"><span class="k">conformance</span><span class="d">vectors + downstream proof obligations</span></a>
-          <a class="lk" href="https://github.com/autnmy/a2h-protocol"><span class="k">repo</span><span class="d">github.com/autnmy/a2h-protocol</span></a>
+        <nav class="links" aria-label="AHCP documentation">
+          <a class="lk" href="https://github.com/autnmy/ahcp-protocol/blob/main/spec/v0.3.md"><span class="k">spec</span><span class="d">the normative v0.3 specification</span></a>
+          <a class="lk" href="https://github.com/autnmy/ahcp-protocol/tree/main/plugins/ahcp-skills"><span class="k">plugin</span><span class="d">agent-native skills — implement a Hub, build notify/ask/task</span></a>
+          <a class="lk" href="https://github.com/autnmy/ahcp-protocol/tree/main/reference"><span class="k">reference</span><span class="d">strict-TypeScript implementation + ahcp CLI</span></a>
+          <a class="lk" href="/schema/v0.3/message.schema.json"><span class="k">schemas</span><span class="d">JSON Schema 2020-12 · dereferenceable here</span></a>
+          <a class="lk" href="https://github.com/autnmy/ahcp-protocol/tree/main/conformance"><span class="k">conformance</span><span class="d">vectors + downstream proof obligations</span></a>
+          <a class="lk" href="https://github.com/autnmy/ahcp-protocol"><span class="k">repo</span><span class="d">github.com/autnmy/ahcp-protocol</span></a>
         </nav>
       </div>
     </section>
 
-    <section class="step" data-cmd="a2h skills">
-      <div class="cmdline"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">a2h skills</span></div>
+    <section class="step" data-cmd="ahcp skills">
+      <div class="cmdline"><span class="p">~/ahcp</span> <span class="car">❯</span> <span class="cmd">ahcp skills</span></div>
       <div class="out">
         <h2 class="vh">Agent-native skills</h2>
-        <p class="tag">Adopt A2H from your agent — <b>install the plugin, then build</b>:</p>
-        <pre class="map"><span class="faint">/plugin marketplace add</span> autnmy/a2h-protocol
-<span class="faint">/plugin install</span> a2h-skills@a2h</pre>
+        <p class="tag">Adopt AHCP from your agent — <b>install the plugin, then build</b>:</p>
+        <pre class="map"><span class="faint">/plugin marketplace add</span> autnmy/ahcp-protocol
+<span class="faint">/plugin install</span> ahcp-skills@ahcp</pre>
         <dl class="verb toolkit">
-          <dt>implement</dt><dd>build a conformant A2H <b>Hub</b> in your app — any language or framework</dd>
+          <dt>implement</dt><dd>build a conformant AHCP <b>Hub</b> in your app — any language or framework</dd>
           <dt>build-notify</dt><dd>generate your app's <b>notify</b> sender skill</dd>
           <dt>build-ask</dt><dd>generate your app's <b>ask</b> sender skill</dd>
           <dt>build-task</dt><dd>generate your app's <b>task</b> sender skill</dd>
@@ -281,8 +284,8 @@
       </div>
     </section>
 
-    <section class="step" data-cmd="a2h rules">
-      <div class="cmdline"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">a2h rules</span></div>
+    <section class="step" data-cmd="ahcp rules">
+      <div class="cmdline"><span class="p">~/ahcp</span> <span class="car">❯</span> <span class="cmd">ahcp rules</span></div>
       <div class="out">
         <h2 class="vh">Trust rules</h2>
         <ul class="rules">
@@ -297,7 +300,7 @@
   </div>
   <div class="cue gone" id="cue" aria-hidden="true"><span class="cuebtn" id="cuebtn" role="button" tabindex="-1">press <kbd>↵</kbd> or scroll <span class="chev">⌄</span></span></div>
   <div class="status">
-    <span class="seg"><span class="pill">A2H</span> <span>v0.2 · draft</span></span>
+    <span class="seg"><span class="pill">AHCP</span> <span>v0.3 · draft</span></span>
     <span class="seg"><span class="hide-sm">stewarded by Autonomy</span> <span class="sep">·</span> Apache-2.0</span>
   </div>
 </main>
@@ -321,12 +324,12 @@
   var OUTPUTS = {};
   stepEls.forEach(function(s){ var out=s.querySelector('.out'); OUTPUTS[s.getAttribute('data-cmd')] = out ? out.innerHTML : ''; });
   var HELP = [
-    'a2h about        what A2H is, in one screen',
-    'a2h verbs        the three message verbs',
-    'a2h docs         links to the spec, skill, schemas, repo',
-    'a2h rules        the trust rules that matter',
-    'a2h skills       install the plugin — implement a Hub, build verb skills',
-    'a2h run-vectors  run the conformance vectors',
+    'ahcp about        what AHCP is, in one screen',
+    'ahcp verbs        the three message verbs',
+    'ahcp docs         links to the spec, skill, schemas, repo',
+    'ahcp rules        the trust rules that matter',
+    'ahcp skills       install the plugin — implement a Hub, build verb skills',
+    'ahcp run-vectors  run the conformance vectors',
     'npm run demo     replay the human-in-the-loop demo',
     'clear            clear the screen'
   ].map(function(l){ return '<div class="tl"><span class="faint">'+esc(l)+'</span></div>'; }).join('');
@@ -386,7 +389,7 @@
   function onKey(e){ if(e.key==='Enter'){ e.preventDefault(); submit(); } }
   function addPrompt(gap){
     var row = el('row'); if(gap) row.style.marginTop = gap+'px';
-    row.innerHTML = '<span class="p">~/a2h</span> <span class="car">❯</span> <span class="in" contenteditable="true" spellcheck="false" autocapitalize="off" autocorrect="off"></span><span class="cur"></span>';
+    row.innerHTML = '<span class="p">~/ahcp</span> <span class="car">❯</span> <span class="in" contenteditable="true" spellcheck="false" autocapitalize="off" autocorrect="off"></span><span class="cur"></span>';
     screen.appendChild(row); autoscroll();
     current = row.querySelector('.in');
     current.addEventListener('keydown', onKey);
@@ -396,10 +399,10 @@
   function resolve(t){
     if(!t) return null;
     if(t==='clear') return { clear:true };
-    if(t==='help' || t==='a2h' || t==='a2h help' || t==='a2h --help') return { html:HELP };
+    if(t==='help' || t==='ahcp' || t==='ahcp help' || t==='ahcp --help') return { html:HELP };
     if(OUTPUTS.hasOwnProperty(t)) return { html:OUTPUTS[t] };
-    if(t==='a2h run-vectors' || t==='a2h vectors') return { html:'<div class="tl"><span class="cy">8 passed</span> · 0 failed · <span class="faint">1 skipped</span></div>' };
-    if(/^a2h (validate|sign|verify)\b/.test(t)) return { html:'<div class="tl"><span class="faint">usage:</span> '+esc(t.split(' ').slice(0,2).join(' '))+' … run it in the reference → github.com/autnmy/a2h-protocol</div>' };
+    if(t==='ahcp run-vectors' || t==='ahcp vectors') return { html:'<div class="tl"><span class="cy">8 passed</span> · 0 failed · <span class="faint">1 skipped</span></div>' };
+    if(/^ahcp (validate|sign|verify)\b/.test(t)) return { html:'<div class="tl"><span class="faint">usage:</span> '+esc(t.split(' ').slice(0,2).join(' '))+' … run it in the reference → github.com/autnmy/ahcp-protocol</div>' };
     return { html:'<div class="tl"><span class="am">command not found:</span> '+esc(t)+'</div>' };
   }
   async function submit(){
@@ -415,7 +418,7 @@
   }
   function startInteractive(){
     removeCue();
-    screen.appendChild(el('tl', '<span class="faint"># your turn — try: a2h rules · a2h docs · npm run demo · help</span>'));
+    screen.appendChild(el('tl', '<span class="faint"># your turn — try: ahcp rules · ahcp docs · npm run demo · help</span>'));
     addPrompt(40);
   }
   document.getElementById('win').addEventListener('click', function(e){

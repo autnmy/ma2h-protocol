@@ -1,5 +1,5 @@
 {
-  "a2h_version": "0.3",
+  "ahcp_version": "0.3",
   "in_reply_to": "msg_01HZXCONF1MSG",
   "resolution_id": "res_01HZXDECLINE",
   "agent": { "id": "deploybot/dev-team", "run_id": "run_01HZXCONF1" },

@@ -1,12 +1,12 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2hprotocol.org/schema/v0.2/response.schema.json",
-  "title": "A2H Response (v0.2)",
+  "$id": "https://ahcpprotocol.org/schema/v0.2/response.schema.json",
+  "title": "AHCP Response (v0.2)",
   "description": "Hub->Agent response envelope for a resolved ask/task. Pushed (signed, see spec 9.2) or embedded in the GET body. `resolution` is a flat union; per-verb validity (ask: answered|declined|cancelled|expired; task: completed|dismissed|expired) is Hub-enforced + covered by a conformance vector.",
   "type": "object",
-  "required": ["a2h_version", "in_reply_to", "resolution_id", "agent", "resolution"],
+  "required": ["ahcp_version", "in_reply_to", "resolution_id", "agent", "resolution"],
   "properties": {
-    "a2h_version": { "type": "string", "pattern": "^0\\.\\d+$" },
+    "ahcp_version": { "type": "string", "pattern": "^0\\.\\d+$" },
     "in_reply_to": { "type": "string", "minLength": 1 },
     "resolution_id": { "type": "string", "minLength": 1, "description": "Hub-assigned, opaque, random; identical across every channel and retry. Agent dedups on (in_reply_to, resolution_id)." },
     "agent": {

@@ -1,7 +1,7 @@
-# @a2h/reference
+# @ahcp/reference
 
 A **vendor-neutral** reference implementation and conformance harness for the
-[A2H — Agent-to-Human Protocol](../spec/v0.2.md). Apache-2.0.
+[AHCP — Agent Human Coordination Protocol](../spec/v0.3.md). Apache-2.0.
 
 This is the standard demonstrating itself: a readable, dependency-light implementation that any party can
 read, run, or mirror. **It is not tied to any Hub product** — it is the neutral yardstick that
@@ -22,7 +22,7 @@ Strict TypeScript (`tsc --noEmit` clean under `exactOptionalPropertyTypes`,
 | `src/lifecycle.ts` | §7 atomic compare-and-set | ✅ |
 | `src/hub.ts` + `src/agent.ts` | §7/§8/§9 in-memory Hub + client; full resume round-trip | ✅ |
 | `src/conformance.ts` | runs the conformance vectors (schema + dp-001 signature) | ✅ |
-| `bin/a2h.ts` | CLI: validate / sign / verify / run-vectors | ✅ |
+| `bin/ahcp.ts` | CLI: validate / sign / verify / run-vectors | ✅ |
 
 The `test/roundtrip.test.ts` suite demonstrates the §2.1 ephemeral resume flow end to end
 (exit → human-resolve → signed push → re-invoke → verify → open state → resume), plus first-terminal-wins,
@@ -37,9 +37,9 @@ npm run typecheck                               # tsc --noEmit (strict)
 npm run vectors                                 # execute the conformance vectors
 
 # CLI
-npm run a2h -- validate ../examples/ask-dev-team-decision.json
-npm run a2h -- sign <signed_context.json> --key <key>
-npm run a2h -- verify <signed_context.json> --v1 <sig> --key <key>
+npm run ahcp -- validate ../examples/ask-dev-team-decision.json
+npm run ahcp -- sign <signed_context.json> --key <key>
+npm run ahcp -- verify <signed_context.json> --v1 <sig> --key <key>
 ```
 
 `npm run vectors` executes the `schema-validation` and `downstream-proof` (signature) vectors and reports

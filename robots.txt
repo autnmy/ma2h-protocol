@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://a2hprotocol.org/sitemap.xml
+Sitemap: https://ahcpprotocol.org/sitemap.xml

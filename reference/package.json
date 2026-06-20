@@ -1,7 +1,7 @@
 {
-  "name": "@a2h/reference",
+  "name": "@ahcp/reference",
   "version": "0.3.0",
-  "description": "Vendor-neutral reference implementation and conformance harness for the A2H (Agent-to-Human) Protocol. Not affiliated with any specific Hub product.",
+  "description": "Vendor-neutral reference implementation and conformance harness for AHCP (the Agent Human Coordination Protocol). Not affiliated with any specific Hub product.",
   "license": "Apache-2.0",
   "type": "module",
   "private": true,
@@ -10,11 +10,11 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
     "build": "tsc",
-    "a2h": "node --import tsx bin/a2h.ts",
-    "vectors": "node --import tsx bin/a2h.ts run-vectors",
+    "ahcp": "node --import tsx bin/ahcp.ts",
+    "vectors": "node --import tsx bin/ahcp.ts run-vectors",
     "demo": "node --import tsx demo/playground.ts"
   },
-  "bin": { "a2h": "bin/a2h.ts" },
+  "bin": { "ahcp": "bin/ahcp.ts" },
   "dependencies": {
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1"

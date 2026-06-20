@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://a2hprotocol.org/schema/v0.3/submit-ack.schema.json",
-  "title": "A2H Submit Ack (v0.3)",
+  "$id": "https://ahcpprotocol.org/schema/v0.3/submit-ack.schema.json",
+  "title": "AHCP Submit Ack (v0.3)",
   "description": "Body of the 202 Accepted returned by POST /v1/messages.",
   "type": "object",
   "required": ["id", "status", "poll_url"],
