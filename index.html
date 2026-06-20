@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>AHCP — Agent Human Coordination Protocol</title>
-<meta name="description" content="A vendor-neutral protocol for an AI agent to reach a human and get a decision back — notify, ask, task. The agent↔human complement to MCP and A2A." />
+<meta name="description" content="A vendor- and runtime-neutral protocol for human coordination across an agent fleet — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place." />
 <link rel="canonical" href="https://a2hprotocol.org/" />
 <meta name="robots" content="index, follow, max-image-preview:large" />
 <meta name="theme-color" content="#0d0f13" />
@@ -14,16 +14,16 @@
 <meta property="og:site_name" content="AHCP" />
 <meta property="og:url" content="https://a2hprotocol.org/" />
 <meta property="og:title" content="AHCP — Agent Human Coordination Protocol" />
-<meta property="og:description" content="A vendor-neutral protocol for an agent to reach a human and get a decision back. notify · ask · task. The agent↔human complement to MCP and A2A." />
+<meta property="og:description" content="Human coordination across an agent fleet — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place. Vendor- and runtime-neutral." />
 <meta property="og:image" content="https://a2hprotocol.org/og.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="AHCP — Agent Human Coordination Protocol. MCP→tools, A2A→agent, AHCP→human." />
+<meta property="og:image:alt" content="AHCP — Agent Human Coordination Protocol. Many agents coordinate with a human through one hub: notify, ask, task." />
 
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="AHCP — Agent Human Coordination Protocol" />
-<meta name="twitter:description" content="A vendor-neutral protocol for an agent to reach a human and get a decision back. notify · ask · task." />
+<meta name="twitter:description" content="Human coordination across an agent fleet — many agents, one hub. notify · ask · task." />
 <meta name="twitter:image" content="https://a2hprotocol.org/og.png" />
 
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -40,7 +40,7 @@
       "@id": "https://a2hprotocol.org/#website",
       "url": "https://a2hprotocol.org/",
       "name": "AHCP — Agent Human Coordination Protocol",
-      "description": "A vendor-neutral protocol for an AI agent to reach a human and get a decision back. notify, ask, task. The agent↔human complement to MCP and A2A.",
+      "description": "A vendor- and runtime-neutral protocol for human coordination across an agent fleet — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place.",
       "inLanguage": "en",
       "publisher": { "@id": "https://a2hprotocol.org/#org" }
     },
@@ -54,8 +54,8 @@
     {
       "@type": "TechArticle",
       "headline": "AHCP — the Agent Human Coordination Protocol",
-      "description": "AHCP is a vendor-neutral protocol for an agent to reach a human and get a decision back. Three verbs — notify, ask, task — the agent↔human complement to MCP (agent↔tools) and A2A (agent↔agent).",
-      "about": ["agent human coordination protocol", "human-in-the-loop", "AI agents", "MCP", "A2A", "agent inbox"],
+      "description": "AHCP is a vendor- and runtime-neutral protocol for human coordination across an agent fleet: many agents report to one hub through three verbs — notify, ask, task — and humans coordinate from one place, with each signed answer routed back to the originating agent.",
+      "about": ["agent human coordination protocol", "human-in-the-loop", "agent fleet", "coordination hub", "AI agents", "agent inbox"],
       "isPartOf": { "@id": "https://a2hprotocol.org/#website" },
       "author": { "@id": "https://a2hprotocol.org/#org" },
       "license": "https://www.apache.org/licenses/LICENSE-2.0"
@@ -214,10 +214,13 @@
       <div class="cmdline"><span class="p">~/a2h</span> <span class="car">❯</span> <span class="cmd">a2h about</span></div>
       <div class="out lead">
         <h1 class="mark">AHCP<span class="vh"> — Agent Human Coordination Protocol</span></h1>
-        <p class="tag">A vendor-neutral protocol for an agent to <b>reach a human and get a decision back</b>. The agent↔human complement to A2A and MCP.</p>
-        <pre class="map"><b>MCP</b>   →  agent ↔ tools
-<b>A2A</b>   →  agent ↔ agent
-<b>AHCP</b>  →  agent ↔ human     <span class="gr">← this standard</span></pre>
+        <p class="tag">A vendor- and runtime-neutral protocol for <b>human coordination across an agent fleet</b> — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place.</p>
+        <pre class="map">agent ┐
+agent ┤
+agent ┼──▶  <b>[ A<span style="color:var(--green)">H</span>CP hub ]</b>  ──▶  <b>human</b>
+agent ┤
+agent ┘
+       <span class="gr">◀──  signed answer routed back to the agent</span></pre>
       </div>
     </section>
 

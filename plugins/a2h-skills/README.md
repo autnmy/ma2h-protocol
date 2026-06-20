@@ -1,7 +1,7 @@
 # a2h-skills
 
 **The agent-native toolkit for [AHCP](https://a2hprotocol.org)** — the Agent Human Coordination
-Protocol: a vendor-neutral way for an agent to reach a human and get a decision back (`notify` · `ask` · `task`).
+Protocol: a vendor-neutral way for an agent fleet to coordinate with a human (`notify` · `ask` · `task`).
 
 There are two sides to AHCP, and this plugin has a skill for each:
 

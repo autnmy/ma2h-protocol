@@ -1,6 +1,6 @@
 {
   "name": "a2h-skills",
-  "description": "The agent-native AHCP toolkit: 'implement' builds a conformant AHCP Hub in your app (any language/framework, graded against the conformance vectors); 'build-notify' / 'build-ask' / 'build-task' generate app-specific verb skills your agents invoke to reach a human. Skills are independent — use only what you need.",
+  "description": "The agent-native AHCP toolkit: 'implement' builds a conformant AHCP Hub in your app (any language/framework, graded against the conformance vectors); 'build-notify' / 'build-ask' / 'build-task' generate app-specific verb skills your agents invoke to coordinate with a human. Skills are independent — use only what you need.",
   "version": "0.1.0",
   "author": {
     "name": "Autonomy",

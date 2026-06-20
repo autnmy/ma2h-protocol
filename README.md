@@ -9,15 +9,19 @@
 different runtimes, machines, models, and environments — needs one consistent way to reach a person:
 to inform them, to ask them for a decision, or to hand them a real-world task. AHCP defines that
 interface as a hub-and-spoke model: heterogeneous agents POST three kinds of message — `notify`, `ask`,
-`task` — to a central **Hub** that a human triages from one place, and answers route back to the
+`task` — to a central **Hub** where humans coordinate from one place, and answers route back to the
 originating (often ephemeral or already-exited) agent via **push** webhook or **pull** polling.
 
-It is the agent↔human complement to the protocols that standardize the other coordination axes:
+The shape is many-to-one: a fleet of agents converges on a single hub, and every signed answer routes
+back to the originating agent — even one that has already exited.
 
 ```
-   MCP  →  agent ↔ tools
-   A2A  →  agent ↔ agent
-   AHCP →  agent ↔ human     ← this specification
+   agent ┐
+   agent ┤
+   agent ┼──▶  [ AHCP hub ]  ──▶  human
+   agent ┤
+   agent ┘
+          ◀──  signed answer routed back to the agent
 ```
 
 ## The problem
@@ -128,8 +132,8 @@ verify messages against the schemas.
 
 ## The name
 
-**AHCP — Agent Human Coordination Protocol.** It names the agent↔human coordination axis and slots into
-the family implementers already recognize alongside A2A (agent↔agent) and MCP (agent↔tools).
+**AHCP — Agent Human Coordination Protocol.** The name says what it is: the coordination layer between
+an agent fleet and the humans who supervise it.
 
 ## Stewardship & governance
 
