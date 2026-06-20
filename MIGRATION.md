@@ -39,10 +39,10 @@ The website and the schema identifier namespace moved from `a2hprotocol.org` to 
   `/.well-known/a2h`, `x-a2h-sensitive`, the message/response shapes, and the signature algorithm are all
   identical. An implementation that validates against a **bundled local copy** of the schema needs no
   change.
-- If your implementation **fetches schemas by their `$id` URL** at `a2hprotocol.org`, update the host to
-  `ahcpprotocol.org` (or rely on the redirect below).
-- **`a2hprotocol.org` 301-redirects to `ahcpprotocol.org`**, so old pinned schema/spec URLs continue to
-  resolve during the transition.
+- If your implementation **fetches schemas by their `$id` URL**, use the `ahcpprotocol.org` host.
+- There are **no external consumers yet**, so this is a clean cutover — no migration burden on anyone.
+  Keeping `a2hprotocol.org` as a `301` redirect to `ahcpprotocol.org` is optional insurance for any stray
+  old link, not a compatibility requirement.
 
 ## What did NOT change (still frozen)
 

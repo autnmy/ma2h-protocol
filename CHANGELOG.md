@@ -124,8 +124,8 @@ found in the v0.1 design review. v0.1 was an unadopted draft, so this is the rig
 ### Notes
 - Terminology disambiguated: `status` (lifecycle) vs `resolution` (terminal outcome) vs `state` (opaque
   agent blob).
-- The security/concurrency controls are **specified** here; closure is proven against the reference Hub
-  (OH HAI), which is downstream of this spec (see §12).
+- The security/concurrency controls are **specified** here; closure is proven against a conformant
+  reference Hub, which is downstream of this spec (see §12).
 
 ## 0.1 (2026-06-03) — Draft, superseded
 

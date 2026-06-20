@@ -34,7 +34,7 @@ and the product competes on merit like any other implementation.
 
 ## 4. Change process
 
-Substantive changes follow a lightweight proposal flow — an **AHCP Enhancement Proposal (AEP)**, modeled on
+Substantive changes follow a lightweight proposal flow — a **Spec Change Proposal (SCP)**, modeled on
 MCP's SEP process and IETF Internet-Drafts:
 
 1. Open an issue describing the problem and the proposed change.

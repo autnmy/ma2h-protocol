@@ -1,6 +1,6 @@
 ---
 name: build-ask
-description: Scaffold a custom, app-specific "ask" skill so this app's agents can ask a human a decision via an AHCP Hub and get the signed answer routed back. Use when an implementer wants to add AHCP ask to their app, let agents request a human decision (approve/select/input), or wire the decision leg of their app to OH HAI / an AHCP Hub.
+description: Scaffold a custom, app-specific "ask" skill so this app's agents can ask a human a decision via an AHCP Hub and get the signed answer routed back. Use when an implementer wants to add AHCP ask to their app, let agents request a human decision (approve/select/input), or wire the decision leg of their app to an AHCP Hub.
 ---
 
 # Build an AHCP `ask` skill for this app

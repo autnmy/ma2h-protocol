@@ -1,6 +1,6 @@
 ---
 name: build-task
-description: Scaffold a custom, app-specific "task" skill so this app's agents can ask a human to perform a manual, out-of-band action via an AHCP Hub and learn when it's done. Use when an implementer wants to add AHCP task to their app, hand a human a checklist or manual step (rotate a key, flip a setting), or wire the action leg of their app to OH HAI / an AHCP Hub.
+description: Scaffold a custom, app-specific "task" skill so this app's agents can ask a human to perform a manual, out-of-band action via an AHCP Hub and learn when it's done. Use when an implementer wants to add AHCP task to their app, hand a human a checklist or manual step (rotate a key, flip a setting), or wire the action leg of their app to an AHCP Hub.
 ---
 
 # Build an AHCP `task` skill for this app

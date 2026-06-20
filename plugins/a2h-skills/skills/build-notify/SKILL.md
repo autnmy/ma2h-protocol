@@ -1,6 +1,6 @@
 ---
 name: build-notify
-description: Scaffold a custom, app-specific "notify" skill so this app's agents can send fire-and-forget AHCP notifications (digests, status, FYIs) to a human via an AHCP Hub. Use when an implementer wants to add AHCP notify to their app, give their agents a way to post notifications, or wire their app to OH HAI / an AHCP Hub.
+description: Scaffold a custom, app-specific "notify" skill so this app's agents can send fire-and-forget AHCP notifications (digests, status, FYIs) to a human via an AHCP Hub. Use when an implementer wants to add AHCP notify to their app, give their agents a way to post notifications, or wire their app to an AHCP Hub.
 ---
 
 # Build an AHCP `notify` skill for this app

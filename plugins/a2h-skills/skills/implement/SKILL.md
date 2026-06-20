@@ -5,7 +5,7 @@ description: >-
   presents them to a human for triage, and signs + routes the response back to the (often-exited) agent.
   Stack-agnostic: works in any language or framework (Node, Python, Go, Ruby, Rust, …). Use when
   implementing the AHCP protocol, building an AHCP Hub, or adding an agent-to-human inbox endpoint to your
-  app. Triggers: "implement AHCP", "build an AHCP hub", "add an agent inbox to my app", "make my app speak AHCP".
+  app. Triggers: "implement AHCP", "implement A2H", "build an AHCP hub", "build an A2H hub", "add an agent inbox to my app", "make my app speak AHCP", "make my app speak A2H".
 ---
 
 # Implement an AHCP Hub in this app

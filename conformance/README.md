@@ -11,7 +11,7 @@ Every vector declares a `class`:
 |---------|----------|---------------------------|
 | `schema-validation` | wire shape: an `input` validates (or is an intentional negative) against a named schema | **Yes** — pure JSON Schema |
 | `prose-audit` | a normative MUST is present and correctly scoped in the spec text | No — human sign-off during spec review |
-| `downstream-proof` | a security/concurrency control behaves correctly | No — only against a conformant Hub (the OH HAI reference Hub) |
+| `downstream-proof` | a security/concurrency control behaves correctly | No — only against a conformant Hub implementation |
 
 The security- and concurrency-critical requirements are **`downstream-proof`** by nature — a JSON Schema
 cannot check a signature scheme, an SSRF guard, or a race. The spec specifies candidate controls; closure
