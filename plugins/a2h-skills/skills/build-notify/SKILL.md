@@ -20,7 +20,7 @@ only for what's missing:
 - **App name / slug** → names the generated skill (e.g. `acme-notify`).
 - **Hub base URL** (e.g. `https://hub.acme.com`). Limits can be discovered at `GET {HUB}/.well-known/a2h`.
 - **Auth** — the Hub's **advertised scheme** (capability `auth_schemes`: `bearer` or `apikey`), the
-  credential (env var name like `AHCP_TOKEN`, a secret manager, etc.), and the header to send for it.
+  credential (env var name like `A2H_TOKEN`, a secret manager, etc.), and the header to send for it.
   **Never hardcode** the credential in the generated skill.
 - **Agent identity** — how to fill `agent.id` / `agent.run_id` / `agent.runtime` / `agent.project` from
   the app's runtime.

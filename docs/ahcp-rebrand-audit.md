@@ -33,6 +33,14 @@ Content that reads as internal notes or product marketing rather than protocol d
 | `README.md:47,54` | "spec/v0.2.md … (current)" and provenance link to `spec/v0.2.md §11`. | **REWRITE → spec/v0.3.md.** v0.3 is the current draft; provenance moved to §11 of v0.3. |
 | `index.html:258` | "the normative v0.2 specification" + link to `spec/v0.2.md`. | **REWRITE → v0.3.** |
 | `README.md:56–61` | Repo-layout block points at `schema/v0.2/`. | **REWRITE → schema/v0.3/** (current), or list both with v0.3 marked current. |
+| `reference/README.md:4` | Current-spec link targets `../spec/v0.2.md` while the reference implementation is `@a2h/reference@0.3.0` (v0.3 behavior). | **REWRITE → ../spec/v0.3.md.** The reference impl is v0.3, so this pointer was genuinely stale. |
+
+**Deliberately NOT changed (version-pinned, not stale):** the plugin skill templates
+(`plugins/a2h-skills/skills/*/SKILL.md`) reference `spec/v0.2.md` / `schema/v0.2/` **and** instruct
+generated agents to send `a2h_version: "0.2"`. Those skills are internally consistent at v0.2; bumping
+only their spec links to v0.3 would create a mismatch, and bumping the emitted `a2h_version` is a
+behavioral/version change forbidden by this rename's constraints. Re-targeting the skills to v0.3 is a
+deliberate future decision (recorded as residual review work), not a naming fix.
 
 No `a2h_version` value, schema, or normative content is changed by these fixes — they correct stale
 pointers only.

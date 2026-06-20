@@ -1,7 +1,7 @@
 # @a2h/reference
 
 A **vendor-neutral** reference implementation and conformance harness for the
-[AHCP — Agent Human Coordination Protocol](../spec/v0.2.md). Apache-2.0.
+[AHCP — Agent Human Coordination Protocol](../spec/v0.3.md). Apache-2.0.
 
 This is the standard demonstrating itself: a readable, dependency-light implementation that any party can
 read, run, or mirror. **It is not tied to any Hub product** — it is the neutral yardstick that

@@ -8,7 +8,7 @@ holding the agent's credential:
 "callback": {
   "mode": "push",
   "url": "https://api.github.com/repos/tmlayton/web-app/dispatches",
-  "auth": { "scheme": "bearer", "token_ref": "env:AHCP_GH_DISPATCH_TOKEN" }
+  "auth": { "scheme": "bearer", "token_ref": "env:A2H_GH_DISPATCH_TOKEN" }
 }
 ```
 
