@@ -43,7 +43,7 @@ and the round-tripped `state`. Absent members are serialized as `null` in the fi
 With test key `ahcp-test-secret-key-0123456789ab`:
 
 ```
-AHCP-Signature: t=1749050910,jti=jti_01HZX7Q9Z3DEMOFIX,v1=_973adHXSOdFhGqNeHcEg_Sc6Iu8bqv9hp5jAj9DpLY
+AHCP-Signature: t=1749050910,jti=jti_01HZX7Q9Z3DEMOFIX,v1=sGsoX7pEgPVFL24v4qocBp586SLQGWoh8Qt46LlSfPc
 ```
 
 ## 5. What the agent does on receipt

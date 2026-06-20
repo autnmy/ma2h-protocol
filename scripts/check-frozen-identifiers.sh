@@ -17,7 +17,12 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 CANON_DOMAIN="ahcpprotocol.org"
-FROZEN_WIRE_TOKENS=("ahcp_version" "AHCP-Signature" "AHCP_CALLBACK_SECRET" "x-ahcp-sensitive")
+# The CURRENT (active) normative surface. Scoping here is deliberate: grepping all of spec/ + schema/
+# lets historical v0.1/v0.2 files satisfy a token even after the live v0.3 contract is renamed.
+CURRENT_SPEC="spec/v0.3.md"
+CURRENT_SCHEMA_DIR="schema/v0.3"
+# Wire identifiers that MUST remain present in the current spec + schema (a rename breaks interop).
+FROZEN_WIRE_TOKENS=("ahcp_version" "AHCP-Signature" "AHCP_CALLBACK_SECRET" "x-ahcp-sensitive" ".well-known/ahcp")
 # Retired identity that must never reappear on the wire surface.
 FORBIDDEN_TOKENS=("a2hprotocol.org" "a2h_version" "A2H-Signature" "A2H_CALLBACK_SECRET" "x-a2h-sensitive" "A2HSEALv1" ".well-known/a2h")
 WIRE_PATHS=("schema/" "reference/src/" "examples/" "conformance/vectors/")
@@ -39,11 +44,16 @@ done
 grep -q "const BASE = \"https://$CANON_DOMAIN/schema/" reference/src/envelope.ts \
   || err "reference/src/envelope.ts BASE must be https://$CANON_DOMAIN/schema/... (it resolves \$refs)"
 
-# 3) Frozen wire identifiers still present (a rename would break interop + conformance vectors).
+# 3) Frozen wire identifiers still present on the CURRENT surface (scoped so historical specs/schemas
+#    can't mask a rename of the live v0.3 interoperability contract).
 for tok in "${FROZEN_WIRE_TOKENS[@]}"; do
-  grep -rq -- "$tok" spec/ schema/ \
-    || err "frozen wire identifier '$tok' not found in spec/ or schema/ — was it renamed?"
+  grep -rq -- "$tok" "$CURRENT_SPEC" "$CURRENT_SCHEMA_DIR" \
+    || err "frozen wire identifier '$tok' missing from the current surface ($CURRENT_SPEC / $CURRENT_SCHEMA_DIR/) — was it renamed?"
 done
+# State-seal magic lives in the reference implementation, not spec/schema. Renaming it silently breaks
+# every sealed resume token, so it is frozen too.
+grep -q "AHCPSEALv1" reference/src/state-seal.ts \
+  || err "state-seal magic 'AHCPSEALv1' missing from reference/src/state-seal.ts — was it renamed?"
 
 # 4) The retired `a2h` identity must not reappear on the wire surface.
 for tok in "${FORBIDDEN_TOKENS[@]}"; do
