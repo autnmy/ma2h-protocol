@@ -4,7 +4,7 @@
   "title": "MA2H Presence (v0.4)",
   "description": "Body of GET /v1/agents/{agent_id}/presence (spec §15). A derived, best-effort reachability signal for an agent:<id>, from its existing poll/long-poll/SSE activity. Owner-only: readable only by the human whose account the agent belongs to; a non-owned agent reads as `unknown`.",
   "type": "object",
-  "required": ["agent_id", "state"],
+  "required": ["agent_id", "state", "freshness_seconds"],
   "properties": {
     "agent_id": { "type": "string", "minLength": 1, "description": "The queried `agent.id` (without the `agent:` actor prefix)." },
     "state": { "enum": ["online", "offline", "unknown"], "description": "online: now - last_seen <= freshness window; offline: seen but stale; unknown: never seen (distinct from offline)." },

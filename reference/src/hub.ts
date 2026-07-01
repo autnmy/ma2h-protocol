@@ -130,6 +130,11 @@ export class Hub {
   private readonly mailboxes = new Map<string, DirectiveRecord[]>();
   /** Receipt track for ask/task responses (spec §14.2), keyed by message id. */
   private readonly deliveries = new Map<string, Delivery>();
+  /** Receipt track for directives (spec §14.2), keyed by directive id — kept separate from `deliveries`
+   * so a `/v1/inbox/ack` retry can never surface a response-leg ack (the two ack APIs stay disjoint). */
+  private readonly directiveDeliveries = new Map<string, Delivery>();
+  /** Receipt id → owning human, for the owner-only receipt read (spec §14.4). */
+  private readonly deliveryOwners = new Map<string, string>();
   /** Per-`agent.id` last authenticated poll/subscription activity for presence (spec §15.1). */
   private readonly lastSeen = new Map<string, number>();
   /** `agent.id` → owning human (spec §15.3). Presence is readable only by the owner. */
@@ -424,6 +429,9 @@ export class Hub {
     if (d?.state === "acknowledged") return;
     if (d?.state === "delivered-to-agent") return;
     this.deliveries.set(id, { state: "delivered-to-agent", delivered_at: new Date(nowMs).toISOString() });
+    // Record the receipt owner (the human who owns the submitting agent) for the owner-only read (§14.4).
+    const owner = this.presenceOwners.get(this.store.get(id)?.message.agent.id ?? "");
+    if (owner !== undefined) this.deliveryOwners.set(id, owner);
   }
 
   /**
@@ -457,7 +465,7 @@ export class Hub {
       state: "acknowledged",
       ...(existing.delivered_at !== undefined ? { delivered_at: existing.delivered_at } : {}),
       acknowledged_at: ack.acked_at,
-      ack,
+      ack: structuredClone(ack), // store a clone so a caller mutating the returned ack can't alter it
     });
     return ack;
   }
@@ -554,7 +562,8 @@ export class Hub {
     // Store a deep copy so a later mutation of the caller's input object cannot alter the durable record.
     box.push({ directive: structuredClone(directive), invisibleUntilMs: 0, acked: false });
     this.mailboxes.set(key, box);
-    this.deliveries.set(id, { state: "queued" }); // receipt track begins (§14.2)
+    this.directiveDeliveries.set(id, { state: "queued" }); // receipt track begins (§14.2)
+    this.deliveryOwners.set(id, input.from); // the human who sent it owns the receipt (§14.4)
     // Best-effort webhook push mirrors §8.3; modelled via onDeliver is out of scope here — pull is the
     // source of truth (§8.7), which the reference exercises. Production Hubs add the push per §13.2.
     return { id };
@@ -585,7 +594,7 @@ export class Hub {
       rec.invisibleUntilMs = t + this.visibilityMs;
       if (rec.deliveredAtMs === undefined) {
         rec.deliveredAtMs = t; // receipt track: queued → delivered (§14.2)
-        this.deliveries.set(rec.directive.id, { state: "delivered", delivered_at: new Date(t).toISOString() });
+        this.directiveDeliveries.set(rec.directive.id, { state: "delivered", delivered_at: new Date(t).toISOString() });
       }
       // Hand the caller a deep COPY: the mailbox record is the durable source of truth (§8.7), so a
       // consumer that mutates the delivered directive (in-process, where there is no HTTP serialization
@@ -622,11 +631,12 @@ export class Hub {
         rec.ack = this.buildAck(rec.directive.id, principal, t, opts?.note);
         // Persist the receipt BEFORE the record is compacted out below — else the human-facing ack is
         // lost the moment ackInbox returns and no status view could show the directive was acknowledged.
-        this.deliveries.set(rec.directive.id, {
+        // Store a CLONE so a caller mutating the returned ack cannot alter the immutable stored receipt.
+        this.directiveDeliveries.set(rec.directive.id, {
           state: "acknowledged",
           delivered_at: new Date(rec.deliveredAtMs).toISOString(),
           acknowledged_at: rec.ack.acked_at,
-          ack: rec.ack,
+          ack: structuredClone(rec.ack),
         });
         acks.push(rec.ack);
         done.add(rec.directive.id);
@@ -634,12 +644,12 @@ export class Hub {
       }
     }
     // Idempotent retry (§14.1): the mailbox record is compacted after the first ack, so a re-ack of the
-    // same id returns the existing immutable receipt from `deliveries` — bound to THIS principal via the
-    // ack's `by`, so a foreign caller can't fetch another agent's receipt.
+    // same id returns the existing immutable receipt — from the DIRECTIVE store only (never a response-leg
+    // ack), bound to THIS principal via the ack's `by`, and returned as a clone.
     for (const id of wanted) {
       if (done.has(id)) continue;
-      const d = this.deliveries.get(id);
-      if (d?.state === "acknowledged" && d.ack?.by === `agent:${principal}`) acks.push(d.ack);
+      const d = this.directiveDeliveries.get(id);
+      if (d?.state === "acknowledged" && d.ack?.by === `agent:${principal}`) acks.push(structuredClone(d.ack));
     }
     // Compact acked records out of the mailbox (the receipt lives on in `deliveries`).
     this.mailboxes.set(
@@ -650,11 +660,15 @@ export class Hub {
   }
 
   /**
-   * Read a message/directive receipt track (spec §14.2), by id — the human's authenticated pull path for a
-   * pulled ack (distinct from the submitter-bound message GET). Owner-only in production (§14.4 / §15.3).
+   * Read a message/directive receipt track (spec §14.2), by id — the human's **owner-authenticated** pull
+   * path for a pulled ack (§14.4), distinct from the submitter-bound message GET. `caller` is the requesting
+   * human; a caller that does not own the receipt gets `undefined` (never another owner's notes/timing).
+   * Returns a clone so the stored receipt stays immutable.
    */
-  getDelivery(id: string): Delivery | undefined {
-    return this.deliveries.get(id);
+  getDelivery(id: string, caller: string): Delivery | undefined {
+    if (this.deliveryOwners.get(id) !== caller) return undefined;
+    const d = this.directiveDeliveries.get(id) ?? this.deliveries.get(id);
+    return d ? structuredClone(d) : undefined;
   }
 
   /** Detached §9.7 signature for one directive delivery (fresh `t`/`jti`). */
@@ -678,7 +692,7 @@ export class Hub {
     rec.acked = true; // dropped: never delivered again (no Response — §13.3)
     // Advance the receipt track to a terminal `expired` so `getDelivery` stops reporting `queued` forever
     // for a directive the Hub has dropped (§13.3 / §14.2).
-    this.deliveries.set(rec.directive.id, { state: "expired" });
+    this.directiveDeliveries.set(rec.directive.id, { state: "expired" });
     return true;
   }
 }

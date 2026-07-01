@@ -30,7 +30,7 @@
       },
       "allOf": [
         { "if": { "properties": { "state": { "const": "acknowledged" } }, "required": ["state"] }, "then": { "required": ["ack", "acknowledged_at"] } },
-        { "if": { "properties": { "state": { "const": "delivered-to-agent" } }, "required": ["state"] }, "then": { "not": { "required": ["ack"] } } }
+        { "if": { "properties": { "state": { "const": "delivered-to-agent" } }, "required": ["state"] }, "then": { "not": { "anyOf": [{ "required": ["ack"] }, { "required": ["acknowledged_at"] }] } } }
       ]
     }
   }

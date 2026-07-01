@@ -125,12 +125,12 @@ test("directive receipt persists after the mailbox record is compacted (§14.2)"
   const now = { t: T0 };
   const hub = newHub(now);
   const { id } = hub.sendDirective({ from: "human:alice", to: `agent:${AGENT}` as DirectiveTo, title: "hold" });
-  assert.equal(hub.getDelivery(id)?.state, "queued");
+  assert.equal(hub.getDelivery(id, "human:alice")?.state, "queued");
   hub.drainInbox(AGENT);
-  assert.equal(hub.getDelivery(id)?.state, "delivered");
+  assert.equal(hub.getDelivery(id, "human:alice")?.state, "delivered");
   hub.ackInbox(AGENT, [id], { note: "on it" });
   // The mailbox record is gone, but the human-facing receipt survives.
-  const d = hub.getDelivery(id);
+  const d = hub.getDelivery(id, "human:alice");
   assert.equal(d?.state, "acknowledged");
   assert.equal(d?.ack?.note, "on it");
   assert.equal(hub.drainInbox(AGENT).length, 0, "the acked directive is not redelivered");
@@ -157,7 +157,7 @@ test("acking an un-drained (queued) directive is a no-op — no fabricated recei
   const res = hub.ackInbox(AGENT, [id], { note: "sneaky" });
   assert.equal(res.acked, 0);
   assert.equal(res.acks.length, 0);
-  assert.equal(hub.getDelivery(id)?.state, "queued", "still only queued — no acknowledged receipt");
+  assert.equal(hub.getDelivery(id, "human:alice")?.state, "queued", "still only queued — no acknowledged receipt");
   assert.equal(hub.drainInbox(AGENT).length, 1, "and it is still deliverable");
 });
 
@@ -170,10 +170,10 @@ test("an expired directive's receipt advances to `expired`, not a stuck `queued`
     title: "stale",
     expires_at: new Date(T0 + 1_000).toISOString(),
   });
-  assert.equal(hub.getDelivery(id)?.state, "queued");
+  assert.equal(hub.getDelivery(id, "human:alice")?.state, "queued");
   now.t = T0 + 5_000; // past expiry
   hub.drainInbox(AGENT); // the drain sweeps the expired record
-  assert.equal(hub.getDelivery(id)?.state, "expired");
+  assert.equal(hub.getDelivery(id, "human:alice")?.state, "expired");
 });
 
 test("pushed-ack signature (§14.4) verifies; a tampered note fails", () => {
@@ -194,4 +194,27 @@ test("pushed-ack signature (§14.4) verifies; a tampered note fails", () => {
   const res = verifyAck(scOf(tampered), sig.v1, { key: KEY, now: now.t });
   assert.equal(res.ok, false);
   assert.equal(res.ok === false && res.reason, "signature mismatch");
+});
+
+test("inbox-ack never surfaces a response-leg ack — the two ack APIs stay disjoint (§14.3)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const { id: msgId } = hub.submit(ask());
+  hub.resolve(msgId, { actor: "human:you", resolution: "answered", value: "ship" });
+  hub.get(msgId, AGENT);
+  hub.ackMessage(msgId, AGENT); // this message is now acknowledged by agent:AGENT
+  // A /v1/inbox/ack with the msg_ id (never in the mailbox) must be a pure no-op, not return the response ack.
+  const res = hub.ackInbox(AGENT, [msgId]);
+  assert.equal(res.acked, 0);
+  assert.deepEqual(res.acks, []);
+});
+
+test("receipt reads are owner-only: a non-owner gets undefined (§14.4)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const { id } = hub.sendDirective({ from: "human:alice", to: `agent:${AGENT}` as DirectiveTo, title: "hold" });
+  hub.drainInbox(AGENT);
+  hub.ackInbox(AGENT, [id], { note: "on it" });
+  assert.equal(hub.getDelivery(id, "human:alice")?.state, "acknowledged", "the owner reads the receipt");
+  assert.equal(hub.getDelivery(id, "human:eve"), undefined, "a non-owner reads nothing");
 });
