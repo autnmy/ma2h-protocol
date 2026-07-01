@@ -85,6 +85,16 @@ test("first-ack-wins: a repeat ack returns the existing ack (§14.1)", () => {
   assert.deepEqual(second, first, "the first ack is immutable");
 });
 
+test("the Hub stamps the authoritative resolution_id on a response-leg ack (§14.1)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const { id } = hub.submit(ask());
+  hub.resolve(id, { actor: "human:you", resolution: "answered", value: "ship" });
+  const stored = hub.get(id, AGENT); // the message's real resolution_id
+  const ack = hub.ackMessage(id, AGENT);
+  assert.equal(ack.resolution_id, stored?.response?.resolution_id, "ack carries the message's real resolution_id");
+});
+
 test("directive-leg ack: the mailbox consume folds the receipt with an optional note (§14.3)", () => {
   const now = { t: T0 };
   const hub = newHub(now);
@@ -96,6 +106,21 @@ test("directive-leg ack: the mailbox consume folds the receipt with an optional 
   assert.equal(acks[0]!.in_reply_to, id);
   assert.equal(acks[0]!.by, `agent:${AGENT}`);
   assert.equal(acks[0]!.note, "got it, on it");
+});
+
+test("directive receipt persists after the mailbox record is compacted (§14.2)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const { id } = hub.sendDirective({ from: "human:alice", to: `agent:${AGENT}` as DirectiveTo, title: "hold" });
+  assert.equal(hub.getDirectiveDelivery(id)?.state, "queued");
+  hub.drainInbox(AGENT);
+  assert.equal(hub.getDirectiveDelivery(id)?.state, "delivered");
+  hub.ackInbox(AGENT, [id], { note: "on it" });
+  // The mailbox record is gone, but the human-facing receipt survives.
+  const d = hub.getDirectiveDelivery(id);
+  assert.equal(d?.state, "acknowledged");
+  assert.equal(d?.ack?.note, "on it");
+  assert.equal(hub.drainInbox(AGENT).length, 0, "the acked directive is not redelivered");
 });
 
 test("pushed-ack signature (§14.4) verifies; a tampered note fails", () => {

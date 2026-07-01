@@ -8,7 +8,11 @@
   "properties": {
     "agent_id": { "type": "string", "minLength": 1, "description": "The queried `agent.id` (without the `agent:` actor prefix)." },
     "state": { "enum": ["online", "offline", "unknown"], "description": "online: now - last_seen <= freshness window; offline: seen but stale; unknown: never seen (distinct from offline)." },
-    "last_seen": { "type": "string", "format": "date-time", "description": "Most recent authenticated poll/subscription activity. Absent when state is `unknown`." },
+    "last_seen": { "type": "string", "format": "date-time", "description": "Most recent authenticated poll/subscription activity. Present iff state is online/offline; absent for `unknown`." },
     "freshness_seconds": { "type": "integer", "minimum": 1, "description": "The window after which last_seen reads `offline` (advertised as capability presence.freshness_seconds)." }
-  }
+  },
+  "allOf": [
+    { "if": { "properties": { "state": { "const": "unknown" } }, "required": ["state"] }, "then": { "not": { "required": ["last_seen"] } } },
+    { "if": { "properties": { "state": { "enum": ["online", "offline"] } }, "required": ["state"] }, "then": { "required": ["last_seen"] } }
+  ]
 }

@@ -17,10 +17,10 @@
     },
     "delivery": {
       "type": "object",
-      "description": "Additive receipt track (v0.4, spec §14.2), orthogonal to `status`/`response`. Present on a Hub offering the ack primitive; the human reads it to see whether the agent got and acknowledged the answer.",
+      "description": "Additive receipt track (v0.4, spec §14.2), orthogonal to `status`/`response`. Present on a Hub offering the ack primitive; the human reads it to see whether the agent got and acknowledged the answer. GET /v1/messages/{id} is the agent->human (ask/task) leg, so only the response-leg states appear here (the directive-only `queued`/`delivered` belong to the mailbox, §13).",
       "required": ["state"],
       "properties": {
-        "state": { "enum": ["queued", "delivered", "delivered-to-agent", "acknowledged"] },
+        "state": { "enum": ["delivered-to-agent", "acknowledged"] },
         "delivered_at": { "type": "string", "format": "date-time", "description": "When the receiving party got the message (directive drained, or Response push-2xx / agent GET)." },
         "acknowledged_at": { "type": "string", "format": "date-time" },
         "ack": {

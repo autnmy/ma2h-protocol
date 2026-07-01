@@ -4,9 +4,11 @@
 
 import { readFileSync } from "node:fs";
 import {
+  validateAck,
   validateCapability,
   validateInboundMessage,
   validateMessage,
+  validatePresence,
   validateResponse,
   type ValidationResult,
 } from "../src/envelope.js";
@@ -34,12 +36,14 @@ function die(message: string): never {
   process.exit(1);
 }
 
-type ValidateKind = "message" | "response" | "capability" | "directive";
+type ValidateKind = "message" | "response" | "capability" | "directive" | "ack" | "presence";
 
 function inferKind(doc: unknown): ValidateKind {
   if (doc && typeof doc === "object") {
     const o = doc as Record<string, unknown>;
     if (o["type"] === "directive") return "directive";
+    if (o["type"] === "ack") return "ack";
+    if ("state" in o && "agent_id" in o) return "presence";
     if (typeof o["type"] === "string" && ["notify", "ask", "task"].includes(o["type"])) return "message";
     if ("in_reply_to" in o && "resolution" in o) return "response";
     if ("callback_auth_schemes" in o || "max_body_bytes" in o || "auth_schemes" in o) return "capability";
@@ -49,7 +53,7 @@ function inferKind(doc: unknown): ValidateKind {
 
 function cmdValidate(positionals: string[], flags: Map<string, string>): void {
   const file = positionals[0];
-  if (!file) die("usage: ma2h validate <file> [--as message|response|capability|directive]");
+  if (!file) die("usage: ma2h validate <file> [--as message|response|capability|directive|ack|presence]");
   const doc = JSON.parse(readFileSync(file, "utf8")) as unknown;
   const kind = (flags.get("as") ?? inferKind(doc)) as ValidateKind;
   const res: ValidationResult =
@@ -59,7 +63,11 @@ function cmdValidate(positionals: string[], flags: Map<string, string>): void {
         ? validateCapability(doc)
         : kind === "directive"
           ? validateInboundMessage(doc)
-          : validateMessage(doc);
+          : kind === "ack"
+            ? validateAck(doc)
+            : kind === "presence"
+              ? validatePresence(doc)
+              : validateMessage(doc);
   if (res.valid) {
     console.log(`✓ valid ${kind}: ${file}`);
     return;
@@ -203,7 +211,7 @@ switch (cmd) {
         "  ma2h verbs                 the three message verbs",
         "  ma2h docs                  links to the spec, skill, schemas, repo",
         "  ma2h rules                 the trust rules that matter",
-        "  ma2h validate <file> [--as message|response|capability|directive]",
+        "  ma2h validate <file> [--as message|response|capability|directive|ack|presence]",
         "  ma2h sign <signed_context.json> --key <key>",
         "  ma2h verify <signed_context.json> --v1 <sig> --key <key>",
         "  ma2h run-vectors",

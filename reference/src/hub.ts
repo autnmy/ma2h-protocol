@@ -132,6 +132,8 @@ export class Hub {
   private readonly deliveries = new Map<string, Delivery>();
   /** Per-`agent.id` last authenticated poll/subscription activity for presence (spec §15.1). */
   private readonly lastSeen = new Map<string, number>();
+  /** `agent.id` → owning human (spec §15.3). Presence is readable only by the owner. */
+  private readonly presenceOwners = new Map<string, string>();
   private readonly signingKey: string;
   private readonly baseUrl: string;
   private readonly now: () => number;
@@ -395,8 +397,10 @@ export class Hub {
       t: Math.floor(this.now() / 1000),
     });
     const { header } = signResponse(sc, { key: this.signingKey });
-    this.markDeliveredToAgent(record.id, this.now()); // receipt track: a push 2xx is delivered-to-agent (§14.2)
     this.onDeliver({ callback, response, signature: header });
+    // receipt track: mark delivered-to-agent ONLY after the push succeeds (onDeliver didn't throw).
+    // A failed push must not claim receipt — the agent gets it via the pull GET fallback instead (§14.2).
+    this.markDeliveredToAgent(record.id, this.now());
   }
 
   // ---- Acknowledgment / receipt (spec §14) + presence (spec §15) ----
@@ -428,7 +432,7 @@ export class Hub {
    * MUST be terminal (a resolution exists) — acking an `open` message is refused. First-ack-wins: a repeat
    * returns the existing ack. Returns the ack envelope (the human reads it via §14.4).
    */
-  ackMessage(id: string, principal: string, opts?: { note?: string; resolution_id?: string; now?: number }): Ack {
+  ackMessage(id: string, principal: string, opts?: { note?: string; now?: number }): Ack {
     const record = this.store.get(id);
     if (!record || record.message.agent.id !== principal) {
       throw new HubError("not_found", `unknown message: ${id}`);
@@ -439,7 +443,10 @@ export class Hub {
     const existing = this.deliveries.get(id);
     if (existing?.state === "acknowledged" && existing.ack) return existing.ack; // first-ack-wins, idempotent
     const t = opts?.now ?? this.now();
-    const ack = this.buildAck(id, principal, t, opts?.note, opts?.resolution_id ?? record.resolution_id ?? undefined);
+    // The Hub attests the ack, so it stamps the AUTHORITATIVE resolution_id (the message's one terminal
+    // resolution) — never a client-supplied value, which a buggy/malicious agent could use to make the
+    // receipt claim a different resolution.
+    const ack = this.buildAck(id, principal, t, opts?.note, record.resolution_id ?? undefined);
     this.deliveries.set(id, {
       state: "acknowledged",
       ...(existing?.delivered_at ? { delivered_at: existing.delivered_at } : { delivered_at: ack.acked_at }),
@@ -471,23 +478,31 @@ export class Hub {
     this.lastSeen.set(principal, nowMs);
   }
 
+  /** Register an agent's owning human (models per-account provisioning for presence authz, §15.3). */
+  setAgentOwner(agentId: string, owner: string): void {
+    this.presenceOwners.set(agentId, owner);
+  }
+
   /**
    * Presence read (spec §15.3): derive `online`/`offline`/`unknown` for an agent from its `last_seen`.
-   * NOTE: §15.3 requires this be **owner-only** (per-account) — the reference is single-tenant and has no
-   * human-account model, so owner-only authz is a downstream-proof obligation the Hub discharges; the
-   * derivation + states are exercised here.
+   * **Owner-only:** `caller` is the requesting human; an agent not owned by `caller` reads as `unknown`
+   * with NO `last_seen`, so a non-owner never learns another agent's activity timing.
    */
-  getPresence(agentId: string, nowMs?: number): Presence {
+  getPresence(agentId: string, caller: string, nowMs?: number): Presence {
+    const freshness_seconds = this.presenceFreshnessSeconds;
+    if (this.presenceOwners.get(agentId) !== caller) {
+      return { agent_id: agentId, state: "unknown", freshness_seconds };
+    }
     const t = nowMs ?? this.now();
     const seen = this.lastSeen.get(agentId);
     let state: PresenceState;
     if (seen === undefined) state = "unknown";
-    else state = t - seen <= this.presenceFreshnessSeconds * 1000 ? "online" : "offline";
+    else state = t - seen <= freshness_seconds * 1000 ? "online" : "offline";
     return {
       agent_id: agentId,
       state,
       ...(seen !== undefined ? { last_seen: new Date(seen).toISOString() } : {}),
-      freshness_seconds: this.presenceFreshnessSeconds,
+      freshness_seconds,
     };
   }
 
@@ -533,6 +548,7 @@ export class Hub {
     // Store a deep copy so a later mutation of the caller's input object cannot alter the durable record.
     box.push({ directive: structuredClone(directive), invisibleUntilMs: 0, acked: false });
     this.mailboxes.set(key, box);
+    this.deliveries.set(id, { state: "queued" }); // receipt track begins (§14.2)
     // Best-effort webhook push mirrors §8.3; modelled via onDeliver is out of scope here — pull is the
     // source of truth (§8.7), which the reference exercises. Production Hubs add the push per §13.2.
     return { id };
@@ -561,7 +577,10 @@ export class Hub {
       if (this.expireDirective(rec, t)) continue;
       if (rec.invisibleUntilMs > t) continue;
       rec.invisibleUntilMs = t + this.visibilityMs;
-      if (rec.deliveredAtMs === undefined) rec.deliveredAtMs = t; // receipt track: queued → delivered (§14.2)
+      if (rec.deliveredAtMs === undefined) {
+        rec.deliveredAtMs = t; // receipt track: queued → delivered (§14.2)
+        this.deliveries.set(rec.directive.id, { state: "delivered", delivered_at: new Date(t).toISOString() });
+      }
       // Hand the caller a deep COPY: the mailbox record is the durable source of truth (§8.7), so a
       // consumer that mutates the delivered directive (in-process, where there is no HTTP serialization
       // boundary) MUST NOT corrupt what a later redelivery re-signs over.
@@ -592,16 +611,29 @@ export class Hub {
       if (!rec.acked && wanted.has(rec.directive.id)) {
         rec.acked = true;
         rec.ack = this.buildAck(rec.directive.id, principal, t, opts?.note);
+        // Persist the receipt BEFORE the record is compacted out below — else the human-facing ack is
+        // lost the moment ackInbox returns and no status view could show the directive was acknowledged.
+        this.deliveries.set(rec.directive.id, {
+          state: "acknowledged",
+          ...(rec.deliveredAtMs !== undefined ? { delivered_at: new Date(rec.deliveredAtMs).toISOString() } : {}),
+          acknowledged_at: rec.ack.acked_at,
+          ack: rec.ack,
+        });
         acks.push(rec.ack);
         acked++;
       }
     }
-    // Compact acked records out of the mailbox.
+    // Compact acked records out of the mailbox (the receipt lives on in `deliveries`).
     this.mailboxes.set(
       principal,
       box.filter((r) => !r.acked),
     );
     return { acked, acks };
+  }
+
+  /** Read a directive's receipt track (spec §14.2), by directive id. Owner-only in production (§13/§15.3). */
+  getDirectiveDelivery(directiveId: string): Delivery | undefined {
+    return this.deliveries.get(directiveId);
   }
 
   /** Detached §9.7 signature for one directive delivery (fresh `t`/`jti`). */
