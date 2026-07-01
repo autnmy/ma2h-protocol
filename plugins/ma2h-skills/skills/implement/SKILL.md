@@ -15,7 +15,13 @@ endpoint that **receives** `notify` / `ask` / `task` from agents, presents them 
 **signs + routes the response** back to the agent. This is the protocol implementation, the receiver.
 
 You are **not** building the sender side here. Agents *calling* a Hub is a separate concern — once this Hub
-is up, run `build-notify` / `build-ask` / `build-task` to wire an app's agents to send to it.
+is up, run `build-notify` / `build-ask` / `build-task` to wire an app's agents to send to it, and
+`build-inbox` to wire an agent to drain the human→agent directives this Hub delivers.
+
+**v0.4 adds an optional inbound leg** (human→agent **directives**, §13). It is **additive and OPTIONAL**:
+build the agent→human core (§2–§5) first; add the inbound leg (§6) only if this Hub should let a human send
+an instruction to a specific agent. A Hub that omits it stays fully conformant and simply does not advertise
+`inbound` in its capability document.
 
 **You bring the protocol; the implementer brings the stack.** Do not assume a language or framework — read
 the project (its language, web framework, datastore, auth, deploy target) and map the protocol onto it.
@@ -24,8 +30,8 @@ Your definition of done is **conformance**, not a copied reference implementatio
 ## 0. Ground yourself in the spec
 
 Read these before writing code — they are the source of truth:
-- **Spec:** <https://ma2h.org/spec/v0.3.md> (§5 verbs · §6 response · §7 lifecycle · §8 transport · §9 security)
-- **Schemas:** <https://ma2h.org/schema/v0.3/message.schema.json> · `response.schema.json` · `capability.schema.json` · `submit-ack.schema.json` · `get-message.schema.json`
+- **Spec:** <https://ma2h.org/spec/v0.4.md> (§5 verbs · §6 response · §7 lifecycle · §8 transport · §9 security · **§13 inbound directives**)
+- **Schemas:** <https://ma2h.org/schema/v0.4/message.schema.json> · `response.schema.json` · `capability.schema.json` · `submit-ack.schema.json` · `get-message.schema.json` · `inbound-message.schema.json` *(v0.4 directive)*
 - **Reference impl** (the crypto/lifecycle, to mirror — see §3): <https://github.com/autnmy/ma2h-protocol/tree/main/reference>
 - **Conformance vectors** (your tests): <https://github.com/autnmy/ma2h-protocol/tree/main/conformance>
 
@@ -89,19 +95,52 @@ cap total attempts + duration (and advertise it), apply the SSRF controls on eve
 retry exhaustion keep the resolution **pull-available** — it is never lost. Keep the human-facing rendering
 separate from the API.
 
-## 6. Prove conformance — then you're done
+## 6. (Optional) The inbound leg — human → agent directives (v0.4, §13)
+
+Add this only if a human should be able to **send a message to a specific agent** through this Hub. It is
+**additive** — it changes nothing above. A Hub-attested `human:<id>` authors a **directive** addressed to
+one `agent:<id>`; the agent drains it from a **durable per-agent mailbox** and verifies a detached Hub
+signature (the inbound mirror of §9.2). Reuse the crypto you already built (§4) — same RFC 8785 JCS, same
+detached-signature framing, same `jti`.
+
+**Two agent-facing endpoints** (bearer-authenticated; the credential's `agent.id` selects the mailbox):
+
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/v1/inbox` | drain up to `?max=N` pending directives (FIFO), each paired with its `MA2H-Signature`; supports `?wait=<seconds>` long-poll like `GET /v1/messages/{id}` |
+| POST | `/v1/inbox/ack` | `{ "ids": [...] }` — consume (remove) processed directives; idempotent |
+
+Plus a **human-facing authoring action** (Hub-internal, like `/…/resolve` — *not* a normative agent wire
+path): the human picks an agent and composes a directive; the Hub attests `from`, assigns `id`, and enqueues
+it. And advertise the leg in the capability document.
+
+**Inbound Hub MUSTs** (§8.7, §9.7, §13 — the `dp-005`/`dp-006`/`dp-007` vectors are the bar):
+
+- [ ] **`from` is Hub-attested** (`^(human|system):.+$`) from the authoring session, never a request field — exactly as `actor` is attested (§9.1). **`to`** is the addressed `agent:<id>`; the Hub assigns `id`. Reject a directive whose `ma2h_version` minor is `< 4`, or a past `expires_at` (`422`), at author time.
+- [ ] **Durable, FIFO, per-`agent.id` mailbox.** Delivery is **at-least-once**: a drained directive is invisible for a visibility window, then **redelivered** if unacked; **ack** removes it. Isolation: a principal drains/acks **only its own** mailbox (a foreign id is indistinguishable from unknown) — the §9.1 submitter-binding, applied to the inbox.
+- [ ] **Sign every delivery (§9.7).** Detached signature over JCS of `inbound_signed_context = { from, id, jti, ma2h_version, payload_sha256, t, to }`, where `payload_sha256` = lowercase-hex SHA-256 of JCS(`{ "directive": <title/body/priority/tags/context present> }`). **Re-sign per delivery** with a fresh `t`/`jti` so a directive resting in the mailbox stays inside the agent's replay window. Binding `to` stops cross-agent replay.
+- [ ] **Retention/expiry (§13.3).** Keep an unacked directive drainable until acked or `expires_at`/`inbound.retention_days` passes, then **drop** it (no Response leg — a directive is the `notify` mirror). Un-acked directives + pending directive-webhook obligations **survive restart** (§3.1).
+- [ ] **Optional webhook.** MAY push each signed directive to a pre-registered, **§9.4-verified** agent callback with the same §8.3 at-least-once retry rules; the mailbox stays the source of truth.
+- [ ] **Advertise** an `inbound` object in `GET /.well-known/ma2h`: `{ enabled, poll_url, ack_url, max_batch, visibility_timeout_seconds, retention_days, signature_algs, webhook_supported }`. A Hub without the leg **omits** it.
+
+The agent side (verify the §9.7 signature, validate shape, confirm `to` is itself, dedup on `id`, ack after
+durable processing) is scaffolded by **`build-inbox`** — not your job here.
+
+## 7. Prove conformance — then you're done
 
 Run the **conformance vectors** against the implementation and add Hub scenario tests for each invariant
 (idempotency dedup, first-terminal-wins, signed-callback round-trip + verify, SSRF refusal, fail-closed
-authz, body sanitization). Wire them into CI. **You are not done until they pass.** That is the bar — in
-any language.
+authz, body sanitization; and if you built §6: directive signing/verify `dp-005`, tamper/cross-agent-replay
+`dp-006`, and mailbox at-least-once/consume/isolation `dp-007`). Wire them into CI. **You are not done until
+they pass.** That is the bar — in any language.
 
-## 7. Hand off
+## 8. Hand off
 
 Tell the implementer: the Hub is up at `<base-url>` with `<auth>`. **To let agents send to it, run
-`build-notify` / `build-ask` / `build-task`** in the apps whose agents should reach this Hub.
+`build-notify` / `build-ask` / `build-task`**; if you built the inbound leg (§6), **run `build-inbox`** in
+the apps whose agents should drain human→agent directives from this Hub.
 
 ## References
-- MA2H: <https://ma2h.org> · Spec: <https://ma2h.org/spec/v0.3.md>
-- Schemas: <https://ma2h.org/schema/v0.3/message.schema.json>
+- MA2H: <https://ma2h.org> · Spec: <https://ma2h.org/spec/v0.4.md>
+- Schemas: <https://ma2h.org/schema/v0.4/message.schema.json>
 - Reference impl + conformance: <https://github.com/autnmy/ma2h-protocol/tree/main/reference> · <https://github.com/autnmy/ma2h-protocol/tree/main/conformance>

@@ -127,9 +127,12 @@ function cmdAbout(): void {
 function cmdVerbs(): void {
   console.log(
     [
-      "notify   FYI / summary / status. No response.            — a daily digest",
-      "ask      A decision the human makes; answer routes back.  — ship / hold",
-      "task     A manual action a human performs out-of-band.    — rotate a key",
+      "notify    FYI / summary / status. No response.            — a daily digest",
+      "ask       A decision the human makes; answer routes back.  — ship / hold",
+      "task      A manual action a human performs out-of-band.    — rotate a key",
+      "",
+      "directive (v0.4, inbound) A human → one agent; the agent  — freeze deploys",
+      "          drains its mailbox and acts. No response leg.",
     ].join("\n"),
   );
 }

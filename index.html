@@ -233,6 +233,7 @@ agent ┘
           <dt>ask</dt><dd>A decision the human makes; the answer <b>routes back</b> to the (often exited) agent. <span class="faint">— ship / hold</span></dd>
           <dt>task</dt><dd>A manual action a human performs <b>out-of-band</b>, then marks done. <span class="faint">— rotate a key</span></dd>
         </dl>
+        <p class="tag" style="margin-top:14px">…and, as of <b>v0.4</b>, the mirror: a human sends a <b>directive</b> to one agent, which drains it from a durable mailbox — signed, verified, at-least-once. <span class="faint">— "freeze deploys until the incident clears"</span></p>
       </div>
     </section>
 
@@ -259,7 +260,7 @@ agent ┘
         <h2 class="vh">Documentation</h2>
         <nav class="links" aria-label="MA2H documentation">
           <a class="lk" href="https://github.com/autnmy/ma2h-protocol/blob/main/spec/v0.4.md"><span class="k">spec</span><span class="d">the normative v0.4 specification</span></a>
-          <a class="lk" href="https://github.com/autnmy/ma2h-protocol/tree/main/plugins/ma2h-skills"><span class="k">plugin</span><span class="d">agent-native skills — implement a Hub, build notify/ask/task</span></a>
+          <a class="lk" href="https://github.com/autnmy/ma2h-protocol/tree/main/plugins/ma2h-skills"><span class="k">plugin</span><span class="d">agent-native skills — implement a Hub, build notify/ask/task + inbox</span></a>
           <a class="lk" href="https://github.com/autnmy/ma2h-protocol/tree/main/reference"><span class="k">reference</span><span class="d">strict-TypeScript implementation + ma2h CLI</span></a>
           <a class="lk" href="/schema/v0.4/message.schema.json"><span class="k">schemas</span><span class="d">JSON Schema 2020-12 · dereferenceable here</span></a>
           <a class="lk" href="https://github.com/autnmy/ma2h-protocol/tree/main/conformance"><span class="k">conformance</span><span class="d">vectors + downstream proof obligations</span></a>
@@ -280,6 +281,7 @@ agent ┘
           <dt>build-notify</dt><dd>generate your app's <b>notify</b> sender skill</dd>
           <dt>build-ask</dt><dd>generate your app's <b>ask</b> sender skill</dd>
           <dt>build-task</dt><dd>generate your app's <b>task</b> sender skill</dd>
+          <dt>build-inbox</dt><dd>generate your agent's <b>inbox-drain</b> skill — receive human→agent directives <span class="faint">(v0.4)</span></dd>
         </dl>
       </div>
     </section>

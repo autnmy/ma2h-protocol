@@ -1,7 +1,7 @@
 {
   "name": "ma2h-skills",
-  "description": "The agent-native MA2H toolkit: 'implement' builds a conformant MA2H Hub in your app (any language/framework, graded against the conformance vectors); 'build-notify' / 'build-ask' / 'build-task' generate app-specific verb skills your agents invoke to coordinate with a human. Skills are independent — use only what you need.",
-  "version": "0.1.0",
+  "description": "The agent-native MA2H toolkit: 'implement' builds a conformant MA2H Hub in your app (any language/framework, graded against the conformance vectors); 'build-notify' / 'build-ask' / 'build-task' generate app-specific sender skills your agents invoke to reach a human; 'build-inbox' generates the agent-side skill to drain the mailbox and act on human->agent directives (the v0.4 inbound leg). Skills are independent — use only what you need.",
+  "version": "0.2.0",
   "author": {
     "name": "Autonomy",
     "url": "https://ma2h.org"
@@ -9,5 +9,5 @@
   "homepage": "https://ma2h.org",
   "repository": "https://github.com/autnmy/ma2h-protocol",
   "license": "Apache-2.0",
-  "keywords": ["ma2h", "mash", "multi-agent-to-human", "human-in-the-loop", "notify", "ask", "task", "skill-generator"]
+  "keywords": ["ma2h", "mash", "multi-agent-to-human", "human-in-the-loop", "notify", "ask", "task", "directive", "inbox", "skill-generator"]
 }

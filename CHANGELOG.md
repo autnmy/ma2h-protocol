@@ -34,6 +34,12 @@ stays backward-compatible with 0.3 agent→human envelopes. See
   segment in the demo. `spec/v0.4.md` + `schema/v0.4/` are a full snapshot (the agent→human schemas
   re-`$id`'d to the v0.4 path, unchanged shape; `capability` extended; `inbound-message.schema.json` added);
   historical `spec/v0.3.md` + `schema/v0.3/` remain the v0.3 snapshot.
+- **`ma2h-skills` plugin (v0.2.0)** — new **`build-inbox`** skill scaffolds an app-specific agent-side
+  mailbox-drain skill (verify §9.7 signature, validate shape, addressee check, dedup, ack) for the inbound
+  leg; **`implement`** gains an optional §6 covering the inbox transport, directive signing, and mailbox
+  MUSTs; the `build-notify`/`build-ask`/`build-task` sender templates and all skill spec/schema links move
+  to v0.4. README, plugin/marketplace manifests, `reference/README`, the `ma2h verbs` CLI, and the
+  `ma2h.org` site (`index.html`) updated for the inbound leg.
 
 ### Changed
 - **Push-parity threshold anchored at the signature-break minor (3), not "implemented minor" (v0.4).** The

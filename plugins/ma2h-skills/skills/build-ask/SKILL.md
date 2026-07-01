@@ -85,7 +85,7 @@ description: Ask a human a decision via <APP>'s MA2H Hub and route the signed an
 - **Endpoint:** `POST <HUB_URL>/v1/messages`  ·  **Auth:** the Hub's advertised scheme (capability `auth_schemes`) — `Authorization: Bearer $<AUTH_ENV>` for `bearer`, or the API-key header for `apikey`
 
 **Envelope** (`type: "ask"`):
-- `ma2h_version`: `"0.3"`, `created_at`: ISO now
+- `ma2h_version`: `"0.4"`, `created_at`: ISO now
 - `agent`: `{ "id": "<AGENT_ID>", "run_id": "<RUN_ID>", "runtime": "<RUNTIME>", "project": "<PROJECT>" }`  *(every value is a JSON string — keep the quotes)*
 - `title`, `body` (Markdown), `priority?`, `tags?`
 - **`idempotency_key`** (REQUIRED): stable per logical request (e.g. a hash of the decision context).
@@ -145,6 +145,6 @@ platform's ed25519 primitive, **not** that helper (it returns `alg not implement
 ````
 
 ## References
-- Spec: <https://ma2h.org/spec/v0.3.md> (§5 verbs, §6 response, §7 lifecycle, §9 security)
-- Schemas: <https://ma2h.org/schema/v0.3/message.schema.json> · <https://ma2h.org/schema/v0.3/response.schema.json>
+- Spec: <https://ma2h.org/spec/v0.4.md> (§5 verbs, §6 response, §7 lifecycle, §9 security)
+- Schemas: <https://ma2h.org/schema/v0.4/message.schema.json> · <https://ma2h.org/schema/v0.4/response.schema.json>
 - Reference impl (verify/seal): <https://github.com/autnmy/ma2h-protocol/tree/main/reference>

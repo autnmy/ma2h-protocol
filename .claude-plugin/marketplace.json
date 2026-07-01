@@ -1,8 +1,8 @@
 {
   "name": "ma2h",
   "metadata": {
-    "description": "Agent-native skills for MA2H (the Multi-agent to Human Protocol) — build app-specific notify / ask / task skills wired to your MA2H Hub.",
-    "version": "0.1.0"
+    "description": "Agent-native skills for MA2H (the Multi-agent to Human Protocol) — implement a Hub, build app-specific notify / ask / task sender skills, and build an inbox-drain skill for human->agent directives (v0.4), all wired to your MA2H Hub.",
+    "version": "0.2.0"
   },
   "owner": {
     "name": "Autonomy",
@@ -12,7 +12,7 @@
     {
       "name": "ma2h-skills",
       "source": "./plugins/ma2h-skills",
-      "description": "Agent-native MA2H toolkit: 'implement' builds a conformant MA2H Hub in your app (any stack); 'build-notify' / 'build-ask' / 'build-task' generate app-specific sender skills. Independent — use only what you need."
+      "description": "Agent-native MA2H toolkit: 'implement' builds a conformant MA2H Hub in your app (any stack); 'build-notify' / 'build-ask' / 'build-task' generate app-specific sender skills; 'build-inbox' generates the agent-side skill to drain human->agent directives (v0.4 inbound leg). Independent — use only what you need."
     }
   ]
 }
