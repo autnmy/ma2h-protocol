@@ -14,6 +14,7 @@ import {
   verifyResponse,
 } from "./signing.js";
 import { openState } from "./state-seal.js";
+import { validateInboundMessage } from "./envelope.js";
 import type { A2hResponse, DirectiveTo, InboundDirective, JsonObject, Resolution } from "./types.js";
 
 export interface ParsedSignature {
@@ -66,7 +67,17 @@ export interface AgentOptions {
 }
 
 export type DirectiveResult =
-  | { acted: true; directive: InboundDirective }
+  | {
+      acted: true;
+      directive: InboundDirective;
+      /**
+       * Record this directive's `id` in the dedup cache (spec §13.4). The caller MUST invoke it only
+       * AFTER it has durably processed the directive (verify -> act -> `commit()` -> ack), so a crash
+       * mid-processing leaves the directive un-acked and safely redeliverable rather than suppressed as
+       * a duplicate. The `jti` signature-replay guard is committed inside `receiveDirective` regardless.
+       */
+      commit: () => void;
+    }
   | { acted: false; reason: string };
 
 export class Agent {
@@ -175,6 +186,13 @@ export class Agent {
     });
     if (!verified.ok) return { acted: false, reason: `signature: ${verified.reason}` };
 
+    // Untrusted-until-verified extends to SHAPE: `payload_sha256` binds only the content fields, so an
+    // on-path injector (or a buggy Hub) can append a forbidden `request`/`action`/`state` field without
+    // breaking the signature. Validate the received directive against the schema (§13.1 forbids those)
+    // and refuse cross-type data rather than passing it downstream.
+    const shape = validateInboundMessage(directive);
+    if (!shape.valid) return { acted: false, reason: `invalid directive: ${shape.errors.join("; ")}` };
+
     // §13.4: confirm this directive is addressed to THIS agent. The signature binds `to`, so a valid
     // signature proves the Hub intended a specific addressee — but only the recipient checking
     // `to === self` stops a directive validly signed for agent:X from being acted on by agent:Y (the
@@ -187,16 +205,16 @@ export class Agent {
     if (this.seenDirectiveJti.has(sig.jti)) {
       return { acted: false, reason: "replay: jti already seen" };
     }
-    // Redelivery (fresh jti, same id — §8.7 at-least-once) is caught here by the id-dedup.
+    // Redelivery (fresh jti, same id — §8.7 at-least-once) is caught here by the id-dedup, but ONLY
+    // once the caller has committed a prior successful processing (see `commit` below).
     if (this.seenDirectives.has(directive.id)) {
       return { acted: false, reason: "duplicate delivery (already acted)" };
     }
-    // Commit both caches only once we will actually act. NOTE (§13.4): in this minimal reference the
-    // dedup is committed synchronously on accept; a production consumer records the id only AFTER it
-    // has durably processed the directive and before it acks, so a crash mid-processing leaves the
-    // directive un-acked and safely redeliverable (verify -> act -> record id -> ack).
+    // Commit the jti now — the same signed bytes must never be re-accepted. Defer the `id` dedup to the
+    // returned `commit()`, which the caller invokes AFTER durable processing (§13.4), so a crash before
+    // processing completes leaves the directive un-acked and redeliverable rather than suppressed.
     this.seenDirectiveJti.add(sig.jti);
-    this.seenDirectives.add(directive.id);
-    return { acted: true, directive };
+    const id = directive.id;
+    return { acted: true, directive, commit: () => this.seenDirectives.add(id) };
   }
 }

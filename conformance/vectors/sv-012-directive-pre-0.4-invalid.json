@@ -1,0 +1,17 @@
+{
+  "id": "sv-012-directive-pre-0.4-invalid",
+  "class": "schema-validation",
+  "description": "A directive whose `ma2h_version` is below 0.4 is rejected — the directive/inbound leg is introduced in v0.4, so a pre-0.4 recipient would not know the §9.7 signature/addressee semantics. The inbound schema requires a minor >= 4.",
+  "ref": "spec §13.1, §10",
+  "target": "inbound-message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.3",
+    "type": "directive",
+    "id": "dir_01HZXDIR0005",
+    "from": "human:alice",
+    "to": "agent:deploybot/dev-team",
+    "created_at": "2026-06-30T12:00:00Z",
+    "title": "A directive cannot claim a pre-0.4 version"
+  }
+}

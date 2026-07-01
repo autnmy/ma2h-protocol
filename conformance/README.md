@@ -82,4 +82,5 @@ or load all six schemas into any Draft 2020-12 validator and check each vector's
     Hub + its consuming agent (not executable from a JSON fixture — see the reference `inbound.test.ts`).
 
 The **schema-validation** class also gains the inbound envelope: `sv-008` (valid directive), `sv-009`
-(missing `to`), `sv-010` (a non-`human`/`system` `from`), `sv-011` (cross-type `request` rejected).
+(missing `to`), `sv-010` (a non-`human`/`system` `from`), `sv-011` (cross-type `request` rejected), `sv-012`
+(a pre-0.4 `ma2h_version` rejected — directives are a v0.4 feature).

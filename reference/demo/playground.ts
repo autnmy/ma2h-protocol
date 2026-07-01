@@ -116,6 +116,8 @@ async function main(): Promise<void> {
   const dr = agent.receiveDirective(delivery.directive, delivery.signature);
   if (dr.acted) {
     console.log(`🤖  Agent drained it, verified the §9.7 signature ✓ → "${dr.directive.title}"`);
+    // ... the agent durably processes the directive here ...
+    dr.commit(); // record the id for dedup ONLY after processing (verify -> act -> commit -> ack)
     hub.ackInbox("deploy-bot/ci", [dr.directive.id]);
     console.log("      acked (consumed) — the Hub will not redeliver it\n");
   } else {

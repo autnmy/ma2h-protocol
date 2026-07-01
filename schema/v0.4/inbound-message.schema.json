@@ -6,7 +6,7 @@
   "type": "object",
   "required": ["ma2h_version", "type", "id", "from", "to", "created_at", "title"],
   "properties": {
-    "ma2h_version": { "type": "string", "pattern": "^0\\.(0|[1-9]\\d*)$" },
+    "ma2h_version": { "type": "string", "pattern": "^0\\.([4-9]|[1-9]\\d+)$", "description": "Directives are a v0.4 feature; the minor MUST be >= 4 (a pre-0.4 recipient would not know the \u00a79.7 signature/addressee semantics)." },
     "type": { "const": "directive" },
     "id": { "type": "string", "minLength": 1, "description": "Hub-assigned canonical directive id. The agent's at-most-once dedup key." },
     "from": { "type": "string", "pattern": "^(human|system):.+$", "description": "Hub-attested author (never request-supplied). `human:<id>` in v0.4; `system:<id>` reserved for Hub-originated directives." },

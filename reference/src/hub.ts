@@ -394,9 +394,16 @@ export class Hub {
     };
     const v = validateInboundMessage(directive);
     if (!v.valid) throw new HubError("validation_error", `invalid directive: ${v.errors.join("; ")}`);
+    // §13.1: `expires_at` MUST be in the future at author time. Enqueuing an already-expired directive
+    // would hand the caller a success `id` for a directive no agent can ever drain (the next drain drops
+    // it), so reject it up front — the inbound mirror of the §8.5 `422 invalid_field` for a past expiry.
+    if (directive.expires_at !== undefined && Date.parse(directive.expires_at) <= this.now()) {
+      throw new HubError("invalid_field", `expires_at ${directive.expires_at} is not in the future (§13.1)`);
+    }
     const key = Hub.mailboxKey(input.to);
     const box = this.mailboxes.get(key) ?? [];
-    box.push({ directive, invisibleUntilMs: 0, acked: false });
+    // Store a deep copy so a later mutation of the caller's input object cannot alter the durable record.
+    box.push({ directive: structuredClone(directive), invisibleUntilMs: 0, acked: false });
     this.mailboxes.set(key, box);
     // Best-effort webhook push mirrors §8.3; modelled via onDeliver is out of scope here — pull is the
     // source of truth (§8.7), which the reference exercises. Production Hubs add the push per §13.2.
@@ -425,7 +432,10 @@ export class Hub {
       if (this.expireDirective(rec, t)) continue;
       if (rec.invisibleUntilMs > t) continue;
       rec.invisibleUntilMs = t + this.visibilityMs;
-      out.push({ directive: rec.directive, signature: this.signDirective(rec.directive, t) });
+      // Hand the caller a deep COPY: the mailbox record is the durable source of truth (§8.7), so a
+      // consumer that mutates the delivered directive (in-process, where there is no HTTP serialization
+      // boundary) MUST NOT corrupt what a later redelivery re-signs over.
+      out.push({ directive: structuredClone(rec.directive), signature: this.signDirective(rec.directive, t) });
     }
     return out;
   }

@@ -6,7 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { Hub } from "../src/hub.js";
+import { Hub, HubError } from "../src/hub.js";
 import { Agent } from "../src/agent.js";
 import { computeDirectivePayloadSha256 } from "../src/signing.js";
 import type { DirectiveTo } from "../src/types.js";
@@ -65,12 +65,29 @@ test("dedup: the agent acts at most once on a redelivered directive", () => {
   const d1 = hub.drainInbox(AGENT_A)[0]!;
   const r1 = agent.receiveDirective(d1.directive, d1.signature, now.t);
   assert.ok(r1.acted, "first delivery acted");
+  if (r1.acted) r1.commit(); // record the id only after (modelled) durable processing
 
   now.t += 61_000;
   const d2 = hub.drainInbox(AGENT_A)[0]!; // redelivered (fresh signature)
   assert.notEqual(d2.signature, d1.signature, "each delivery is re-signed (fresh t/jti)");
   const r2 = agent.receiveDirective(d2.directive, d2.signature, now.t);
-  assert.equal(r2.acted, false, "redelivery deduped by directive id");
+  assert.equal(r2.acted, false, "a committed directive is deduped on redelivery by its id");
+});
+
+test("deferred dedup: WITHOUT commit(), a redelivery is re-acted (at-least-once tolerance, §13.4)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const agent = newAgent();
+  hub.sendDirective({ from: "human:alice", to: TO_A, title: "hold" });
+
+  const d1 = hub.drainInbox(AGENT_A)[0]!;
+  const r1 = agent.receiveDirective(d1.directive, d1.signature, now.t);
+  assert.ok(r1.acted, "first delivery acted");
+  // The caller "crashes" before commit()/ack — the id is NOT recorded.
+  now.t += 61_000;
+  const d2 = hub.drainInbox(AGENT_A)[0]!; // redelivered (fresh jti)
+  const r2 = agent.receiveDirective(d2.directive, d2.signature, now.t);
+  assert.ok(r2.acted, "an uncommitted directive is re-acted on redelivery, not silently dropped");
 });
 
 test("ack consumes: an acked directive is not redelivered", () => {
@@ -223,6 +240,46 @@ test("tamper: a `from` (author) spoofed in transit fails signature verification 
   const res = agent.receiveDirective(spoofed, d!.signature, now.t);
   assert.equal(res.acted, false);
   assert.equal(res.acted === false && res.reason, "signature: signature mismatch");
+});
+
+test("injection: a forbidden cross-type field added in transit is rejected despite a valid signature", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const agent = newAgent();
+  hub.sendDirective({ from: "human:alice", to: TO_A, title: "hold" });
+  const [d] = hub.drainInbox(AGENT_A);
+  // `state` is not in payload_sha256, so an on-path injector can append it without breaking the
+  // signature. The agent MUST validate the shape (§13.1 forbids request/action/state) and refuse.
+  const injected = { ...d!.directive, state: { exfil: "arbitrary" } };
+  const res = agent.receiveDirective(injected, d!.signature, now.t);
+  assert.equal(res.acted, false);
+  assert.match(res.acted === false ? res.reason : "", /invalid directive/);
+});
+
+test("sendDirective rejects an expires_at that is not in the future (§13.1)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  assert.throws(
+    () =>
+      hub.sendDirective({
+        from: "human:alice",
+        to: TO_A,
+        title: "stale",
+        expires_at: new Date(T0 - 1_000).toISOString(),
+      }),
+    (e: unknown) => e instanceof HubError && e.code === "invalid_field",
+  );
+});
+
+test("drainInbox returns a copy: mutating a delivery does not corrupt the durable mailbox record", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  hub.sendDirective({ from: "human:alice", to: TO_A, title: "original" });
+  const [d1] = hub.drainInbox(AGENT_A);
+  (d1!.directive as { title: string }).title = "tampered by a buggy consumer";
+  now.t += 61_000;
+  const [d2] = hub.drainInbox(AGENT_A); // redelivery re-signs over the STORED record
+  assert.equal(d2!.directive.title, "original", "the mailbox record is unaffected by a mutated delivery");
 });
 
 test("§9.7 digest binds content only: expires_at/sensitive are unbound (same payload_sha256)", () => {
