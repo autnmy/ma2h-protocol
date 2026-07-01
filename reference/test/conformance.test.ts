@@ -6,7 +6,7 @@ test("all executable conformance vectors meet their declared expectation", () =>
   const report = runVectors();
   const failures = report.results.filter((r) => r.status === "fail");
   assert.equal(report.failed, 0, `failures: ${JSON.stringify(failures, null, 2)}`);
-  assert.ok(report.passed >= 9, `expected >= 9 executable passes, got ${report.passed}`);
+  assert.ok(report.passed >= 16, `expected >= 16 executable passes, got ${report.passed}`);
 });
 
 test("the dp-001 signature vector is exercised and passes", () => {
@@ -27,5 +27,19 @@ test("the dp-004 numeric-payload vector is exercised and passes", () => {
   const report = runVectors();
   const dp = report.results.find((r) => r.id.startsWith("dp-004"));
   assert.ok(dp, "dp-004 vector present");
+  assert.equal(dp.status, "pass");
+});
+
+test("the dp-005 inbound-signature vector is exercised and passes", () => {
+  const report = runVectors();
+  const dp = report.results.find((r) => r.id.startsWith("dp-005"));
+  assert.ok(dp, "dp-005 vector present");
+  assert.equal(dp.status, "pass");
+});
+
+test("the dp-006 inbound-tamper vector is exercised and passes", () => {
+  const report = runVectors();
+  const dp = report.results.find((r) => r.id.startsWith("dp-006"));
+  assert.ok(dp, "dp-006 vector present");
   assert.equal(dp.status, "pass");
 });

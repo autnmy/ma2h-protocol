@@ -27,12 +27,12 @@ async function main(): Promise<void> {
   const buildSha = "abc123def";
   const pushes: DeliveredPush[] = [];
   const hub = new Hub({ signingKey: HUB_KEY, onDeliver: (p) => { pushes.push(p); } });
-  const agent = new Agent({ callbackUrl: RESUME_URL, callbackKey: HUB_KEY, sealKey });
+  const agent = new Agent({ callbackUrl: RESUME_URL, callbackKey: HUB_KEY, sealKey, agentId: "agent:deploy-bot/ci" });
 
   console.log("\n=== MA2H playground — you are the human in the loop ===\n");
 
   const notify: A2hMessage = {
-    ma2h_version: "0.3",
+    ma2h_version: "0.4",
     type: "notify",
     created_at: new Date().toISOString(),
     agent: { id: "deploy-bot/ci", run_id: "digest_1", runtime: "github-actions", project: "demo" },
@@ -44,7 +44,7 @@ async function main(): Promise<void> {
   console.log(`📬  notify → "${notify.title}"  [durable · status=${nAck.status}]\n`);
 
   const ask: A2hMessage = {
-    ma2h_version: "0.3",
+    ma2h_version: "0.4",
     type: "ask",
     created_at: new Date().toISOString(),
     agent: { id: "deploy-bot/ci", run_id: "ship_1", runtime: "github-actions", project: "demo" },
@@ -96,6 +96,35 @@ async function main(): Promise<void> {
   const replay = agent.onResume(push.response, push.signature);
   const tail = replay.acted ? "" : ` (${replay.reason})`;
   console.log(`🛡️  Replaying the same signed Response → acted=${String(replay.acted)}${tail}\n`);
+
+  // --- v0.4 inbound leg: now YOU send the agent a directive ---
+  console.log("=== v0.4 inbound leg — you send the agent a directive ===\n");
+  const { id: dirId } = hub.sendDirective({
+    from: "human:you",
+    to: "agent:deploy-bot/ci",
+    title: "Freeze deploys until the incident clears",
+    body: "Prod incident in progress — hold all deploys until I say otherwise.",
+    priority: "urgent",
+  });
+  console.log(`✉️   you → agent:deploy-bot/ci  "Freeze deploys…"  [durable mailbox · id=${dirId.slice(0, 12)}…]`);
+
+  const [delivery] = hub.drainInbox("deploy-bot/ci");
+  if (!delivery) {
+    console.log("(no directive drained — unexpected)");
+    return;
+  }
+  const dr = agent.receiveDirective(delivery.directive, delivery.signature);
+  if (dr.acted) {
+    console.log(`🤖  Agent drained it, verified the §9.7 signature ✓ → "${dr.directive.title}"`);
+    hub.ackInbox("deploy-bot/ci", [dr.directive.id]);
+    console.log("      acked (consumed) — the Hub will not redeliver it\n");
+  } else {
+    console.log(`🤖  Agent refused the directive: ${dr.reason}\n`);
+  }
+
+  const dup = agent.receiveDirective(delivery.directive, delivery.signature);
+  const dupTail = dup.acted ? "" : ` (${dup.reason})`;
+  console.log(`🛡️  Same directive re-presented → acted=${String(dup.acted)}${dupTail}\n`);
 }
 
 main().catch((e: unknown) => {

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.4/capability.schema.json",
+  "title": "MA2H Capability Document (v0.4)",
+  "description": "Body of GET /.well-known/ma2h. A Hub responding here is MA2H-conformant. All fields beyond ma2h_version are SHOULD.",
+  "type": "object",
+  "required": ["ma2h_version"],
+  "properties": {
+    "ma2h_version": { "type": "string", "pattern": "^0\\.(0|[1-9]\\d*)$" },
+    "max_body_bytes": { "type": "integer", "minimum": 1 },
+    "max_part_bytes": { "type": "integer", "minimum": 1 },
+    "max_context_parts": { "type": "integer", "minimum": 0 },
+    "auth_schemes": { "type": "array", "items": { "enum": ["bearer", "apikey"] } },
+    "callback_auth_schemes": { "type": "array", "items": { "enum": ["hmac", "bearer", "apikey"] } },
+    "signature_algs": { "type": "array", "items": { "enum": ["hmac-sha256", "ed25519"] } },
+    "rate_limit": {
+      "type": "object",
+      "properties": {
+        "requests_per_minute": { "type": "integer", "minimum": 0 },
+        "inbox_depth": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "retention_days": { "type": "integer", "minimum": 1 },
+    "replay_window_seconds": { "type": "integer", "minimum": 1 },
+    "inbound": {
+      "type": "object",
+      "description": "Human->agent inbound leg (v0.4, spec §13). Absent on a v0.3-only Hub or a Hub that does not offer inbound directives.",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean", "description": "True iff this Hub delivers human->agent directives." },
+        "poll_url": { "type": "string", "format": "uri", "description": "GET drain endpoint (spec §8.7); the agent's bearer credential selects the mailbox." },
+        "ack_url": { "type": "string", "format": "uri", "description": "POST consume/ack endpoint (spec §8.7)." },
+        "max_batch": { "type": "integer", "minimum": 1, "description": "Max directives returned by one drain." },
+        "visibility_timeout_seconds": { "type": "integer", "minimum": 1, "description": "How long a drained-but-unacked directive stays invisible before redelivery (at-least-once)." },
+        "retention_days": { "type": "integer", "minimum": 1, "description": "How long an unacked directive stays deliverable before the Hub drops it." },
+        "signature_algs": { "type": "array", "items": { "enum": ["hmac-sha256", "ed25519"] }, "description": "Algs the Hub signs directive deliveries with (spec §9.7)." },
+        "webhook_supported": { "type": "boolean", "description": "True iff the Hub can push directives to a pre-registered, §9.4-verified agent callback." }
+      }
+    }
+  }
+}

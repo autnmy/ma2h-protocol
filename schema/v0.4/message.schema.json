@@ -1,0 +1,142 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.4/message.schema.json",
+  "title": "MA2H Message (v0.4)",
+  "description": "Agent->Hub message envelope. Discriminated on `type`; cross-type fields are forbidden per branch. `id` is Hub-assigned and is NOT an input.",
+  "type": "object",
+  "required": ["ma2h_version", "type", "created_at", "agent", "title"],
+  "properties": {
+    "ma2h_version": { "type": "string", "pattern": "^0\\.(0|[1-9]\\d*)$" },
+    "type": { "enum": ["notify", "ask", "task"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "agent": { "$ref": "#/$defs/agent" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "body": { "type": "string", "contentMediaType": "text/markdown", "description": "Human-readable Markdown detail. Untrusted: the Hub sanitizes to a no-raw-HTML profile before rendering (spec §9.6). Length is capability-advertised via max_body_bytes, not constrained here." },
+    "priority": { "enum": ["low", "normal", "high", "urgent"], "default": "normal" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "context": { "type": "array", "items": { "$ref": "#/$defs/part" } },
+    "state": { "type": "object", "description": "Opaque, agent-owned, agent-integrity-sealed resume blob. Hub MUST NOT inspect or log.", "additionalProperties": true },
+    "client_ref": { "type": "string", "description": "Opaque correlation label. Never a dedup key. Not exposed to resolvers." },
+    "idempotency_key": { "type": "string", "description": "Dedup key, scope (agent.id, idempotency_key). REQUIRED for ask/task." },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "sensitive": { "type": "boolean", "description": "Message-level sensitivity; excludes value(s) from export/telemetry." },
+    "request": { "$ref": "#/$defs/request" },
+    "action": { "$ref": "#/$defs/action" }
+  },
+  "oneOf": [
+    {
+      "title": "notify",
+      "properties": { "type": { "const": "notify" } },
+      "required": ["type"],
+      "not": { "anyOf": [{ "required": ["request"] }, { "required": ["action"] }] }
+    },
+    {
+      "title": "ask",
+      "properties": { "type": { "const": "ask" } },
+      "required": ["type", "request", "idempotency_key"],
+      "not": { "required": ["action"] }
+    },
+    {
+      "title": "task",
+      "properties": { "type": { "const": "task" } },
+      "required": ["type", "action", "idempotency_key"],
+      "not": { "required": ["request"] }
+    }
+  ],
+  "$defs": {
+    "agent": {
+      "type": "object",
+      "required": ["id", "run_id", "runtime"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "runtime": { "enum": ["github-actions", "cli", "cloud", "desktop", "openclaw", "other"] },
+        "project": { "type": "string" },
+        "labels": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    },
+    "part": {
+      "oneOf": [
+        { "type": "object", "required": ["kind", "text"], "properties": { "kind": { "const": "text" }, "text": { "type": "string" }, "metadata": { "type": "object" } } },
+        { "type": "object", "required": ["kind", "data"], "properties": { "kind": { "const": "data" }, "data": { "type": "object" }, "metadata": { "type": "object" } } },
+        { "type": "object", "required": ["kind", "file"], "properties": { "kind": { "const": "file" }, "file": { "type": "object", "required": ["uri"], "properties": { "uri": { "type": "string", "format": "uri" }, "name": { "type": "string" }, "mime_type": { "type": "string" } } }, "metadata": { "type": "object" } } }
+      ]
+    },
+    "responseOption": {
+      "type": "object",
+      "required": ["value", "label"],
+      "properties": {
+        "value": { "type": "string" },
+        "label": { "type": "string" },
+        "description": { "type": "string" }
+      }
+    },
+    "request": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": { "enum": ["select", "input", "confirm"] },
+        "options": { "type": "array", "items": { "$ref": "#/$defs/responseOption" } },
+        "schema": {
+          "type": "object",
+          "description": "Flat JSON Schema for mode=input (string/number/boolean/enum). Properties MAY carry `x-ma2h-sensitive: true`."
+        },
+        "permissions": {
+          "type": "object",
+          "properties": {
+            "allow_accept": { "type": "boolean" },
+            "allow_edit": { "type": "boolean" },
+            "allow_respond": { "type": "boolean" },
+            "allow_ignore": { "type": "boolean" }
+          }
+        },
+        "default_on_expire": {
+          "type": ["string", "object", "null"],
+          "description": "For select: MUST be a member of options[].value (Hub-enforced + conformance vector). For input: an object validating against `schema`, or null."
+        },
+        "allowed_resolvers": { "type": "array", "items": { "type": "string", "pattern": "^(human|agent|system):.+$" } },
+        "callback": { "$ref": "#/$defs/callback" }
+      },
+      "allOf": [
+        { "if": { "properties": { "mode": { "const": "select" } } }, "then": { "required": ["options"], "properties": { "options": { "minItems": 1 } } } },
+        { "if": { "properties": { "mode": { "const": "input" } } }, "then": { "required": ["schema"] } },
+        { "if": { "properties": { "mode": { "const": "confirm" } } }, "then": { "properties": { "options": { "minItems": 2, "maxItems": 2 } } } }
+      ]
+    },
+    "action": {
+      "type": "object",
+      "required": ["instructions"],
+      "properties": {
+        "instructions": { "type": "string" },
+        "checklist": { "type": "array", "items": { "type": "object", "required": ["text"], "properties": { "text": { "type": "string" }, "done": { "type": "boolean", "default": false } } } },
+        "verification": { "type": "string" },
+        "allowed_resolvers": { "type": "array", "items": { "type": "string", "pattern": "^(human|agent|system):.+$" } },
+        "callback": { "$ref": "#/$defs/callback" }
+      }
+    },
+    "callback": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": { "enum": ["push", "pull"] },
+        "url": { "type": "string", "format": "uri" },
+        "auth": {
+          "type": "object",
+          "required": ["scheme"],
+          "properties": {
+            "scheme": { "enum": ["hmac", "bearer", "apikey"] },
+            "secret_ref": { "type": "string" },
+            "token_ref": { "type": "string" }
+          },
+          "allOf": [
+            { "if": { "properties": { "scheme": { "const": "hmac" } } }, "then": { "required": ["secret_ref"], "not": { "required": ["token_ref"] } } },
+            { "if": { "properties": { "scheme": { "enum": ["bearer", "apikey"] } } }, "then": { "required": ["token_ref"], "not": { "required": ["secret_ref"] } } }
+          ]
+        }
+      },
+      "allOf": [
+        { "if": { "properties": { "mode": { "const": "push" } } }, "then": { "required": ["url"] } }
+      ]
+    }
+  }
+}

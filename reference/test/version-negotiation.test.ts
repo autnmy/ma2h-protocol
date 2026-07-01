@@ -91,9 +91,17 @@ test("a non-object body (null) is a validation_error, not a TypeError (pre-valid
 });
 
 test("a malformed dotted version (00.2) is a validation_error regardless of callback mode", () => {
-  // The negotiation parse matches the schema's shape (^0\.\d+$ / canonical non-zero major), so a
-  // malformed version falls through to schema validation consistently — the error code must NOT
+  // The negotiation parse matches the schema's shape (^0\.(0|[1-9]\d*)$ / canonical non-zero major),
+  // so a malformed version falls through to schema validation consistently — the error code must NOT
   // depend on push vs pull (the inconsistency codex flagged).
   assert.throws(() => newHub().submit(makeAsk("00.2", PUSH)), isCode("validation_error"));
   assert.throws(() => newHub().submit(makeAsk("00.2", PULL)), isCode("validation_error"));
+});
+
+test("a leading-zero MINOR (0.03) is a validation_error, not silently treated as minor 3 for push", () => {
+  // Regression for the push-parity bypass: `0.03` is a non-canonical spelling of 0.3. It must NOT
+  // match the parity gate's canonical `^0\.(0|[1-9]\d*)$` and slip a push past as "minor 3" — it
+  // falls through to the tightened schema pattern and is rejected as a validation_error (both modes).
+  assert.throws(() => newHub().submit(makeAsk("0.03", PUSH)), isCode("validation_error"));
+  assert.throws(() => newHub().submit(makeAsk("0.03", PULL)), isCode("validation_error"));
 });

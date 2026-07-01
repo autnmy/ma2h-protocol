@@ -4,6 +4,43 @@ All notable changes to the MA2H (Multi-agent to Human Protocol) specification.
 
 ## Unreleased
 
+### Added (v0.4 — the human→agent inbound leg, §13)
+**Additive and backward-compatible.** v0.4 introduces the **directive**: a Hub-attested `human:<id>` sends an
+instruction/FYI addressed to one `agent:<id>`, and the agent drains it from a **durable per-agent mailbox**
+using the same pull-first / webhook-optional mechanism the v0.3 response leg already uses. **No v0.3 wire
+format changes** — every v0.3 leg (notify/ask/task + responses) is byte-for-byte unchanged, and a 0.4 Hub
+stays backward-compatible with 0.3 agent→human envelopes. See
+[MIGRATION.md](MIGRATION.md#v03--v04-the-inbound-leg).
+
+- **`directive` message type** (§13.1) + `schema/v0.4/inbound-message.schema.json` — a Hub-attested `from`
+  (`^(human|system):.+$`) addressed `to` an `agent:<id>`; no `request`/`action`/`state` (inbound ask/task
+  deferred; a directive is the one-way `notify` mirror).
+- **Mailbox transport** (§8.7) — `GET /v1/inbox` (drain, FIFO, long-poll-capable) + `POST /v1/inbox/ack`
+  (consume), authenticated by the agent's existing bearer credential scoped to `agent.id`. Delivery is
+  **at-least-once** with visibility-timeout redelivery, explicit consume/ack, and `id` dedup; an optional
+  webhook reuses the §8.3 retry rules and §9.4 SSRF controls, with the mailbox as the source of truth.
+- **Directive signature** (§9.7) — the §9.2-symmetric detached signature over
+  `inbound_signed_context = { from, id, jti, ma2h_version, payload_sha256, t, to }`, RE-SIGNED per delivery
+  with a fresh `t`/`jti` (so an old mailbox directive stays in-window). `payload_sha256` binds the
+  instruction content; `to` binds against cross-agent replay; the agent MUST verify on **both** channels.
+- **Discovery** (§8.0) — the `capability` document gains an optional `inbound` object; a v0.3-only Hub
+  omits it.
+- **Durability** (§3.1) — un-acked directives and pending directive-webhook obligations survive Hub restart.
+- **Conformance** — `sv-008..011` (directive envelope: valid / missing `to` / bad `from` / cross-type), the
+  `dp-005` deterministic directive-signature fixture, `dp-006` tamper/cross-agent-replay rejection, and the
+  `dp-007` mailbox-semantics obligation; `pa-001` gains the inbound MUSTs.
+- **Reference** — Hub mailbox (`sendDirective`/`drainInbox`/`ackInbox`), agent `receiveDirective`
+  (verify + dedup), inbound signing/verify, new schema + validator, `inbound.test.ts`, and an inbound-leg
+  segment in the demo. `spec/v0.4.md` + `schema/v0.4/` are a full snapshot (the agent→human schemas
+  re-`$id`'d to the v0.4 path, unchanged shape; `capability` extended; `inbound-message.schema.json` added);
+  historical `spec/v0.3.md` + `schema/v0.3/` remain the v0.3 snapshot.
+
+### Changed
+- **Push-parity threshold anchored at the signature-break minor (3), not "implemented minor" (v0.4).** The
+  reference Hub still rejects a **pre-0.3** push, but now continues to accept a **0.3** push against a 0.4
+  Hub — 0.3 and 0.4 share the payload-bound §9.2 signature. Tying the threshold to the implemented minor
+  would have wrongly rejected 0.3 push once the Hub advanced to 0.4; spec §10 states the anchor explicitly.
+
 ### Changed (breaking, pre-1.0)
 - **Renamed to MA2H — Multi-agent to Human Protocol ("Mash").** The lineage is **A2H → AHCP → MA2H**: the
   intermediate name (AHCP) collided with an existing protocol, so — still with no external adopters — the

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.4/response.schema.json",
+  "title": "MA2H Response (v0.4)",
+  "description": "Hub->Agent response envelope for a resolved ask/task. Pushed (signed, see spec 9.2) or embedded in the GET body. `resolution` is a flat union; per-verb validity (ask: answered|declined|cancelled|expired; task: completed|dismissed|expired) is Hub-enforced + covered by a conformance vector.",
+  "type": "object",
+  "required": ["ma2h_version", "in_reply_to", "resolution_id", "agent", "resolution"],
+  "properties": {
+    "ma2h_version": { "type": "string", "pattern": "^0\\.(0|[1-9]\\d*)$" },
+    "in_reply_to": { "type": "string", "minLength": 1 },
+    "resolution_id": { "type": "string", "minLength": 1, "description": "Hub-assigned, opaque, random; identical across every channel and retry. Agent dedups on (in_reply_to, resolution_id)." },
+    "agent": {
+      "type": "object",
+      "description": "responseAgent: routing identity only (runtime NOT required on the return leg).",
+      "required": ["id", "run_id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "resolution": { "enum": ["answered", "declined", "cancelled", "expired", "completed", "dismissed"] },
+    "defaulted": { "type": "boolean", "default": false, "description": "True iff the resolution came from default_on_expire (then actor MUST be system:default_on_expire)." },
+    "response": {
+      "type": "object",
+      "description": "Present for ask; for task present only to carry comment/checklist (no value); never for notify.",
+      "required": ["actor", "resolved_at"],
+      "properties": {
+        "value": {
+          "description": "ask only: chosen option value (string, select/confirm) or the input object (input). Absent for task.",
+          "type": ["string", "object"]
+        },
+        "edited": { "type": "boolean", "default": false },
+        "actor": { "type": "string", "pattern": "^(human|agent|system):.+$", "description": "Hub-attested identity. Never request-supplied." },
+        "resolved_at": { "type": "string", "format": "date-time" },
+        "comment": { "type": "string" }
+      }
+    },
+    "state": { "type": "object", "description": "Opaque agent blob round-tripped verbatim. UNTRUSTED until the agent verifies integrity it applied (spec 9.3).", "additionalProperties": true }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "defaulted": { "const": true } }, "required": ["defaulted"] },
+      "then": {
+        "properties": {
+          "resolution": { "const": "expired" },
+          "response": { "properties": { "actor": { "const": "system:default_on_expire" } } }
+        }
+      }
+    }
+  ]
+}

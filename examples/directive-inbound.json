@@ -1,0 +1,12 @@
+{
+  "ma2h_version": "0.4",
+  "type": "directive",
+  "id": "dir_01HZXDIR0001",
+  "from": "human:alice",
+  "to": "agent:deploybot/dev-team",
+  "created_at": "2026-06-30T12:00:00Z",
+  "title": "Pause deploys until the incident is resolved",
+  "body": "We are mid-incident on prod. Hold all deploys until I say otherwise.",
+  "priority": "urgent",
+  "tags": ["incident", "deploy-freeze"]
+}

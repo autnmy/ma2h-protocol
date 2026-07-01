@@ -1,4 +1,4 @@
-# MA2H Conformance Vectors (v0.3)
+# MA2H Conformance Vectors (v0.4)
 
 These vectors let an implementer prove conformance. **Read this first** — it states what the vectors can
 and cannot verify, so green ≠ false confidence (spec §12).
@@ -39,12 +39,12 @@ Hub must reproduce (e.g., the signature vector `dp-001`).
 
 ```bash
 pnpm dlx ajv-cli@5 validate \
-  -s schema/v0.3/<target> \
-  -r "schema/v0.3/*.schema.json" \
+  -s schema/v0.4/<target> \
+  -r "schema/v0.4/*.schema.json" \
   -d <input.json>
 ```
 
-or load all five schemas into any Draft 2020-12 validator and check each vector's `input` against its
+or load all six schemas into any Draft 2020-12 validator and check each vector's `input` against its
 `target`, asserting the declared `expect`.
 
 ## Downstream proof obligations (the Hub must discharge)
@@ -71,3 +71,15 @@ or load all five schemas into any Draft 2020-12 validator and check each vector'
    pinned RFC 8785 JCS bytes and `payload_sha256`. A non-JS signer whose number formatting diverges from
    ECMAScript `Number::toString` fails this, catching a cross-language digest mismatch before deployment
    (§9.2 / RFC 8785 §3.2.2.3; issue #10).
+8. **Inbound directive signature** (`dp-005`) — the §9.7 directive signature: reproduce `v1` from
+   JCS(`inbound_signed_context`) + HMAC-SHA256, and recompute `payload_sha256` from the `directive` (the
+   mirror of `dp-001` for the human→agent leg; v0.4).
+9. **Inbound tamper rejection** (`dp-006`) — the agent reconstructs the context from the directive it
+   received; an altered `to` (cross-agent redirect), `from`, or `body` fails verification with a signature
+   mismatch, so a directive signed for one agent cannot be replayed into another's mailbox (§9.7 / §13.5).
+10. **Mailbox delivery semantics** (`dp-007`) — at-least-once + explicit consume/ack + `id` dedup +
+    submitter-bound isolation + durability across restart (§8.7 / §13). Behavioural; proven against the
+    Hub + its consuming agent (not executable from a JSON fixture — see the reference `inbound.test.ts`).
+
+The **schema-validation** class also gains the inbound envelope: `sv-008` (valid directive), `sv-009`
+(missing `to`), `sv-010` (a non-`human`/`system` `from`), `sv-011` (cross-type `request` rejected).

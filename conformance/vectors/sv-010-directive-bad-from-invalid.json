@@ -1,0 +1,17 @@
+{
+  "id": "sv-010-directive-bad-from-invalid",
+  "class": "schema-validation",
+  "description": "A directive whose `from` is an `agent:` identity is rejected — v0.4 directives are authored by a Hub-attested human (or system), never an agent (§9.1 / §13.1).",
+  "ref": "spec §9.1, §13.1",
+  "target": "inbound-message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.4",
+    "type": "directive",
+    "id": "dir_01HZXDIR0003",
+    "from": "agent:other/bot",
+    "to": "agent:deploybot/dev-team",
+    "created_at": "2026-06-30T12:00:00Z",
+    "title": "Impersonated author"
+  }
+}

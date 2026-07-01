@@ -19,9 +19,9 @@ cd "$(dirname "$0")/.."
 
 CANON_DOMAIN="ma2h.org"
 # The CURRENT (active) normative surface. Scoping here is deliberate: grepping all of spec/ + schema/
-# lets historical v0.1/v0.2 files satisfy a token even after the live v0.3 contract is renamed.
-CURRENT_SPEC="spec/v0.3.md"
-CURRENT_SCHEMA_DIR="schema/v0.3"
+# lets historical v0.1/v0.2/v0.3 files satisfy a token even after the live v0.4 contract is renamed.
+CURRENT_SPEC="spec/v0.4.md"
+CURRENT_SCHEMA_DIR="schema/v0.4"
 # Wire identifiers that MUST remain present in the current spec + schema (a rename breaks interop).
 FROZEN_WIRE_TOKENS=("ma2h_version" "MA2H-Signature" "MA2H_CALLBACK_SECRET" "x-ma2h-sensitive" ".well-known/ma2h")
 # Retired identities (a2h, then ahcp) that must never reappear on the wire surface.

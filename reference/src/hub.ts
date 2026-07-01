@@ -5,26 +5,45 @@
 // behaviour the spec requires. "Push delivery" is modelled as an in-process
 // `onDeliver` callback rather than an HTTP POST.
 
-import { newJti, newMessageId, newResolutionId } from "./ids.js";
+import { newDirectiveId, newJti, newMessageId, newResolutionId } from "./ids.js";
 import { applyResolution, type MessageRecord } from "./lifecycle.js";
-import { buildSignedContext, computePayloadSha256, signResponse } from "./signing.js";
-import { validateMessage } from "./envelope.js";
+import {
+  buildInboundSignedContext,
+  buildSignedContext,
+  computeDirectivePayloadSha256,
+  computePayloadSha256,
+  signInbound,
+  signResponse,
+} from "./signing.js";
+import { validateInboundMessage, validateMessage } from "./envelope.js";
 import type {
   A2hMessage,
   A2hResponse,
   Actor,
   AskMessage,
   Callback,
+  DirectiveFrom,
+  DirectiveTo,
+  InboundDelivery,
+  InboundDirective,
   JsonObject,
+  Part,
+  Priority,
   Resolution,
   Status,
   SubmitAck,
   TaskMessage,
 } from "./types.js";
 
-/** Versions this reference Hub implements (spec §10) — major 0, up to minor 3. */
-const IMPLEMENTED_MINOR = 3;
-const HUB_VERSION = "0.3";
+/** Highest version this reference Hub implements (spec §10) — major 0, up to minor 4. */
+const HUB_VERSION = "0.4";
+/**
+ * The minor at which the §9.2 signature began binding `payload_sha256` (v0.3). Push parity is anchored
+ * HERE, not at IMPLEMENTED_MINOR: 0.3 and 0.4 share the payload-bound signature, so a v0.4 Hub still
+ * accepts a 0.3 push (and still rejects a pre-0.3 push whose agent reconstructs the old context). Tying
+ * the threshold to IMPLEMENTED_MINOR would wrongly reject 0.3 push against a 0.4 Hub (§10).
+ */
+const PAYLOAD_BOUND_SINCE_MINOR = 3;
 
 export class HubError extends Error {
   constructor(
@@ -55,6 +74,29 @@ export interface HubOptions {
   baseUrl?: string;
   now?: () => number;
   onDeliver?: (push: DeliveredPush) => void;
+  /** Directive-delivery visibility window (spec §8.7). Default 60s. */
+  visibilityTimeoutSeconds?: number;
+}
+
+/** Fields a human (via the Hub) supplies to author a directive (spec §13.1). `id`/`from` are Hub-set. */
+export interface SendDirectiveInput {
+  /** Hub-attested author — the Hub derives this from the operator session (spec §9.1); trusted here. */
+  from: DirectiveFrom;
+  to: DirectiveTo;
+  title: string;
+  body?: string;
+  priority?: Priority;
+  tags?: string[];
+  context?: Part[];
+  expires_at?: string;
+}
+
+/** A directive resting in a mailbox (spec §8.7, §13). */
+interface DirectiveRecord {
+  directive: InboundDirective;
+  /** Hidden from drains until now >= this (visibility window). 0 = immediately deliverable. */
+  invisibleUntilMs: number;
+  acked: boolean;
 }
 
 export interface ResolveInput {
@@ -68,16 +110,20 @@ export type GetResult = (A2hMessage & { id: string; status: Status; response?: A
 
 export class Hub {
   private readonly store = new Map<string, MessageRecord>();
+  /** Per-`agent.id` mailbox of pending directives (spec §8.7, §13). FIFO = array order. */
+  private readonly mailboxes = new Map<string, DirectiveRecord[]>();
   private readonly signingKey: string;
   private readonly baseUrl: string;
   private readonly now: () => number;
   private readonly onDeliver: ((push: DeliveredPush) => void) | undefined;
+  private readonly visibilityMs: number;
 
   constructor(opts: HubOptions) {
     this.signingKey = opts.signingKey;
     this.baseUrl = opts.baseUrl ?? "https://hub.example";
     this.now = opts.now ?? ((): number => Date.now());
     this.onDeliver = opts.onDeliver;
+    this.visibilityMs = (opts.visibilityTimeoutSeconds ?? 60) * 1000;
   }
 
   /**
@@ -112,14 +158,19 @@ export class Hub {
         `ma2h_version "${raw}": major ${nonZeroMajor[1]} is not supported (this Hub implements ${HUB_VERSION}; §10)`,
       );
     }
-    // Push parity (§9.2 v0.3 break) — a schema-valid `0.x` below the implemented minor whose callback
-    // is push. Match `^0\.\d+$` exactly so every valid pre-0.3 (incl. a leading-zero minor) is caught.
-    const zeroX = /^0\.(\d+)$/.exec(raw);
-    if (zeroX && Number(zeroX[1]) < IMPLEMENTED_MINOR && this.callbackOf(message)?.mode === "push") {
+    // Push parity (§9.2 v0.3 break) — a `0.x` with a CANONICAL minor (no leading zeros) below the
+    // payload-bound minor whose callback is push. Anchored at PAYLOAD_BOUND_SINCE_MINOR (3), NOT the
+    // implemented minor — else a 0.4 Hub would wrongly reject a 0.3 push, which shares the same
+    // payload-bound signature and stays compatible. A NON-canonical minor (e.g. `0.03`) matches
+    // neither this nor `nonZeroMajor`, so it falls through to schema validation — which now rejects it
+    // (`^0\.(0|[1-9]\d*)$`) as a `validation_error` rather than treating `0.03` as minor 3 and letting
+    // a push slip past the parity gate.
+    const zeroX = /^0\.(0|[1-9]\d*)$/.exec(raw);
+    if (zeroX && Number(zeroX[1]) < PAYLOAD_BOUND_SINCE_MINOR && this.callbackOf(message)?.mode === "push") {
       throw new HubError(
         "version_not_supported",
-        `ma2h_version "${raw}": push callbacks require >= ${HUB_VERSION}. The pushed Response is signed with ` +
-          `the v0.3 payload-bound signature (§9.2), which a pre-0.3 agent cannot verify. Use a pull callback, or upgrade.`,
+        `ma2h_version "${raw}": push callbacks require >= 0.${PAYLOAD_BOUND_SINCE_MINOR}. The pushed Response is signed ` +
+          `with the v0.3 payload-bound signature (§9.2), which a pre-0.3 agent cannot verify. Use a pull callback, or upgrade.`,
       );
     }
   }
@@ -311,5 +362,117 @@ export class Hub {
     });
     const { header } = signResponse(sc, { key: this.signingKey });
     this.onDeliver({ callback, response, signature: header });
+  }
+
+  // ---- Inbound leg — human → agent directives (spec §8.7, §13) ----
+
+  /** The mailbox key (`agent.id`) for an `agent:<id>` address. */
+  private static mailboxKey(to: DirectiveTo): string {
+    return to.slice("agent:".length);
+  }
+
+  /**
+   * Enqueue a human→agent directive (spec §13). The Hub attests `from` (here supplied by the trusted
+   * caller standing in for the operator session), assigns the `id`, and appends to the addressee's
+   * durable, FIFO mailbox. Returns the assigned id. No Response is ever emitted for a directive (§13.3).
+   */
+  sendDirective(input: SendDirectiveInput): { id: string } {
+    const id = newDirectiveId();
+    const directive: InboundDirective = {
+      ma2h_version: HUB_VERSION,
+      type: "directive",
+      id,
+      from: input.from,
+      to: input.to,
+      created_at: new Date(this.now()).toISOString(),
+      title: input.title,
+      ...(input.body !== undefined ? { body: input.body } : {}),
+      ...(input.priority !== undefined ? { priority: input.priority } : {}),
+      ...(input.tags !== undefined ? { tags: input.tags } : {}),
+      ...(input.context !== undefined ? { context: input.context } : {}),
+      ...(input.expires_at !== undefined ? { expires_at: input.expires_at } : {}),
+    };
+    const v = validateInboundMessage(directive);
+    if (!v.valid) throw new HubError("validation_error", `invalid directive: ${v.errors.join("; ")}`);
+    const key = Hub.mailboxKey(input.to);
+    const box = this.mailboxes.get(key) ?? [];
+    box.push({ directive, invisibleUntilMs: 0, acked: false });
+    this.mailboxes.set(key, box);
+    // Best-effort webhook push mirrors §8.3; modelled via onDeliver is out of scope here — pull is the
+    // source of truth (§8.7), which the reference exercises. Production Hubs add the push per §13.2.
+    return { id };
+  }
+
+  /**
+   * Drain up to `max` pending directives for the authenticated `principal` (its `agent.id` — the mailbox
+   * key; §9.1 binds the mailbox to the credential, never a request field). FIFO on first delivery; each
+   * returned directive is re-signed with a fresh `t`/`jti` (§9.7 per-delivery signing) and marked
+   * in-flight for the visibility window, so an un-acked directive is redelivered later (at-least-once).
+   */
+  drainInbox(principal: string, opts?: { max?: number; now?: number }): InboundDelivery[] {
+    const box = this.mailboxes.get(principal);
+    if (!box) return [];
+    const t = opts?.now ?? this.now();
+    // Coerce `max` defensively: a non-finite value (e.g. a NaN from parsing `?max=abc`) MUST NOT
+    // silently disable the cap — `out.length >= NaN` is always false, which would drain the whole
+    // mailbox. Fall back to unbounded only for an explicitly absent max.
+    const rawMax = opts?.max;
+    const max = rawMax === undefined ? Number.POSITIVE_INFINITY : Number.isFinite(rawMax) && rawMax >= 0 ? Math.floor(rawMax) : 0;
+    const out: InboundDelivery[] = [];
+    for (const rec of box) {
+      if (out.length >= max) break;
+      if (rec.acked) continue;
+      if (this.expireDirective(rec, t)) continue;
+      if (rec.invisibleUntilMs > t) continue;
+      rec.invisibleUntilMs = t + this.visibilityMs;
+      out.push({ directive: rec.directive, signature: this.signDirective(rec.directive, t) });
+    }
+    return out;
+  }
+
+  /**
+   * Consume (ack) processed directives for `principal` (spec §8.7). Removes matching records from the
+   * caller's OWN mailbox only; ids not in it are no-ops (and reveal nothing about other mailboxes).
+   * Idempotent. Returns how many were acked by this call.
+   */
+  ackInbox(principal: string, ids: string[]): { acked: number } {
+    const box = this.mailboxes.get(principal);
+    if (!box) return { acked: 0 };
+    const wanted = new Set(ids);
+    let acked = 0;
+    for (const rec of box) {
+      if (!rec.acked && wanted.has(rec.directive.id)) {
+        rec.acked = true;
+        acked++;
+      }
+    }
+    // Compact acked records out of the mailbox.
+    this.mailboxes.set(
+      principal,
+      box.filter((r) => !r.acked),
+    );
+    return { acked };
+  }
+
+  /** Detached §9.7 signature for one directive delivery (fresh `t`/`jti`). */
+  private signDirective(directive: InboundDirective, nowMs: number): string {
+    const sc = buildInboundSignedContext({
+      from: directive.from,
+      id: directive.id,
+      jti: newJti(),
+      ma2h_version: directive.ma2h_version,
+      payload_sha256: computeDirectivePayloadSha256(directive),
+      t: Math.floor(nowMs / 1000),
+      to: directive.to,
+    });
+    return signInbound(sc, { key: this.signingKey }).header;
+  }
+
+  /** Mark a directive acked (dropped) if past its `expires_at` (spec §13.3). Returns true if expired. */
+  private expireDirective(rec: DirectiveRecord, nowMs: number): boolean {
+    if (rec.directive.expires_at === undefined) return false;
+    if (nowMs <= Date.parse(rec.directive.expires_at)) return false;
+    rec.acked = true; // dropped: never delivered again (no Response — §13.3)
+    return true;
   }
 }

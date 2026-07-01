@@ -22,15 +22,16 @@ const AjvCtor = (ajvMod.default ?? ajvMod) as { new (opts?: Record<string, unkno
 const formatsMod = require("ajv-formats") as { default?: unknown };
 const addFormats = (formatsMod.default ?? formatsMod) as (ajv: AjvLike) => unknown;
 
-const SCHEMA_DIR = new URL("../../schema/v0.3/", import.meta.url);
+const SCHEMA_DIR = new URL("../../schema/v0.4/", import.meta.url);
 const SCHEMA_FILES = [
   "message.schema.json",
   "response.schema.json",
   "submit-ack.schema.json",
   "get-message.schema.json",
   "capability.schema.json",
+  "inbound-message.schema.json",
 ] as const;
-const BASE = "https://ma2h.org/schema/v0.3/";
+const BASE = "https://ma2h.org/schema/v0.4/";
 
 const ajv: AjvLike = new AjvCtor({ strict: false, allErrors: true });
 addFormats(ajv);
@@ -58,3 +59,7 @@ export const validateResponse = (data: unknown): ValidationResult =>
 
 export const validateCapability = (data: unknown): ValidationResult =>
   runValidator(BASE + "capability.schema.json", data);
+
+/** Validate a human→agent directive envelope (spec §13.1, v0.4). */
+export const validateInboundMessage = (data: unknown): ValidationResult =>
+  runValidator(BASE + "inbound-message.schema.json", data);

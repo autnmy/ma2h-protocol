@@ -160,6 +160,51 @@ export interface SignedContext {
   t: string;
 }
 
+// ---- Inbound leg — human → agent directives (spec §13, v0.4) ----
+
+/** Hub-attested directive author: `human:<id>` in v0.4 (`system:<id>` reserved). */
+export type DirectiveFrom = `${"human" | "system"}:${string}`;
+/** Addressed agent: `agent:<id>` — the mailbox routing key. */
+export type DirectiveTo = `agent:${string}`;
+
+/**
+ * The delivered human→agent directive (spec §13.1). `id`/`from` are Hub-assigned/attested; the agent
+ * validates against inbound-message.schema.json, verifies the §9.7 signature, and dedups on `id`.
+ */
+export interface InboundDirective {
+  ma2h_version: A2hVersion;
+  type: "directive";
+  id: string;
+  from: DirectiveFrom;
+  to: DirectiveTo;
+  created_at: string;
+  title: string;
+  body?: string;
+  priority?: Priority;
+  tags?: string[];
+  context?: Part[];
+  expires_at?: string;
+  sensitive?: boolean;
+}
+
+/** The exact fields bound by the detached directive signature (spec §9.7). */
+export interface InboundSignedContext {
+  from: DirectiveFrom;
+  id: string;
+  jti: string;
+  ma2h_version: A2hVersion;
+  /** Lowercase-hex SHA-256 of JCS({ directive: <content> }) (spec §9.7). */
+  payload_sha256: string;
+  t: string;
+  to: DirectiveTo;
+}
+
+/** One drained (or pushed) directive plus its `MA2H-Signature` header (spec §8.7). */
+export interface InboundDelivery {
+  directive: InboundDirective;
+  signature: string;
+}
+
 // ---- Transport bodies (spec §8) ----
 export interface SubmitAck {
   id: string;
@@ -181,6 +226,17 @@ export interface Capability {
   rate_limit?: { requests_per_minute?: number; inbox_depth?: number };
   retention_days?: number;
   replay_window_seconds?: number;
+  /** Human→agent inbound leg (spec §8.0, §13). Absent on a v0.3-only Hub. */
+  inbound?: {
+    enabled: boolean;
+    poll_url?: string;
+    ack_url?: string;
+    max_batch?: number;
+    visibility_timeout_seconds?: number;
+    retention_days?: number;
+    signature_algs?: Array<"hmac-sha256" | "ed25519">;
+    webhook_supported?: boolean;
+  };
 }
 
 export interface A2hError {

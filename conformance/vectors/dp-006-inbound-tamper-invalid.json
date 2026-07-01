@@ -1,0 +1,36 @@
+{
+  "id": "dp-006-inbound-tamper-invalid",
+  "class": "downstream-proof",
+  "description": "Directive tamper proof (v0.4, §9.7): the agent reconstructs inbound_signed_context from the directive it RECEIVED (recomputing payload_sha256 and re-reading the bound from/id/to). The honest directive reproduces the signed context and verifies; a directive whose `to` is redirected to another agent (or whose body/from is altered) diverges the context, so verification MUST fail with a signature mismatch — a directive signed for one agent cannot be replayed into another's mailbox.",
+  "ref": "spec §9.7, §13.5",
+  "obligation": "Honest directive verifies against v1; a tampered `to`/`from`/`body` fails with `signature mismatch` (not an incidental window/key/jti rejection).",
+  "test_key": "ma2h-test-secret-key-0123456789ab",
+  "signature_alg": "hmac-sha256",
+  "jti": "jti_01HZXDIRDEMOFIX",
+  "t": "1782043200",
+  "v1": "Bh6zPUfvl_p3SJdgxCPEPgEKZ9VyvXbl8yRKDGzufSk",
+  "honest_directive": {
+    "ma2h_version": "0.4",
+    "type": "directive",
+    "id": "dir_01HZXDIR0001",
+    "from": "human:alice",
+    "to": "agent:deploybot/dev-team",
+    "created_at": "2026-06-30T12:00:00Z",
+    "title": "Pause deploys until the incident is resolved",
+    "body": "We are mid-incident on prod. Hold all deploys until I say otherwise.",
+    "priority": "urgent",
+    "tags": ["incident", "deploy-freeze"]
+  },
+  "tampered_directive": {
+    "ma2h_version": "0.4",
+    "type": "directive",
+    "id": "dir_01HZXDIR0001",
+    "from": "human:alice",
+    "to": "agent:victim/other-bot",
+    "created_at": "2026-06-30T12:00:00Z",
+    "title": "Pause deploys until the incident is resolved",
+    "body": "We are mid-incident on prod. Hold all deploys until I say otherwise.",
+    "priority": "urgent",
+    "tags": ["incident", "deploy-freeze"]
+  }
+}

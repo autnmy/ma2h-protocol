@@ -1,6 +1,6 @@
 # MA2H — Multi-agent to Human Protocol
 
-> **Status:** Draft · **Version:** 0.3 · **Steward:** Autonomy · **License:** Apache-2.0
+> **Status:** Draft · **Version:** 0.4 · **Steward:** Autonomy · **License:** Apache-2.0
 > A vendor- and runtime-neutral protocol that standardizes how autonomous agents coordinate with a human.
 
 ## Overview
@@ -14,6 +14,11 @@ originating (often ephemeral or already-exited) agent via **push** webhook or **
 
 The shape is many-to-one: a fleet of agents converges on a single hub, and every signed answer routes
 back to the originating agent — even one that has already exited.
+
+As of **v0.4**, the hub is bidirectional: a human can also send a **directive** — an instruction or FYI —
+addressed to one specific agent, which the agent drains from a durable per-agent mailbox (signed, verified,
+at-least-once) using the same pull-first / webhook-optional mechanism as the return leg. This is additive
+and backward-compatible — every v0.3 leg is unchanged. See [`spec/v0.4.md` §13](spec/v0.4.md).
 
 ```
    agent ┐
@@ -116,24 +121,26 @@ vocabulary:
 - **LangGraph** — `HumanInterruptConfig` permission flags.
 - **CHEQ** (IETF draft) — keeping human-entered secrets out of the agent's LLM context.
 
-See [`spec/v0.3.md` §11](spec/v0.3.md) for full provenance.
+See [`spec/v0.4.md` §11](spec/v0.4.md) for full provenance.
 
 ## Repository layout
 
 ```
 README.md                          ← you are here
-MIGRATION.md                       ← the rename to MA2H (A2H → AHCP → MA2H) + identifier map
+MIGRATION.md                       ← the rename to MA2H (A2H → AHCP → MA2H) + the v0.3 → v0.4 upgrade
 CHANGELOG.md                       ← version history and migration notes
-spec/v0.3.md                       ← the normative specification (current draft)
+spec/v0.4.md                       ← the normative specification (current draft; adds the §13 inbound leg)
+spec/v0.3.md                       ← superseded draft (kept for history)
 spec/v0.2.md                       ← superseded draft (kept for history)
 spec/v0.1.md                       ← superseded draft (kept for history)
-schema/v0.3/
+schema/v0.4/
   message.schema.json              ← request leg (agent → Hub)
   response.schema.json             ← return leg (Hub → agent)
+  inbound-message.schema.json      ← inbound leg (Hub → agent): the human→agent directive (v0.4)
   submit-ack.schema.json           ← 202 ack body
   get-message.schema.json          ← GET /v1/messages/{id} body
-  capability.schema.json           ← GET /.well-known/ma2h discovery doc
-examples/                          ← concrete envelopes (notify/ask/task + responses + the resume callback)
+  capability.schema.json           ← GET /.well-known/ma2h discovery doc (+ the inbound capability)
+examples/                          ← concrete envelopes (notify/ask/task + responses + directive + resume callback)
 conformance/                       ← vector format, the verification classes, starter vectors
 reference/                         ← @ma2h/reference — vendor-neutral TypeScript reference impl + `ma2h` CLI
 plugins/ma2h-skills/                ← installable plugin: implement a Hub + build notify/ask/task skills
@@ -141,7 +148,7 @@ plugins/ma2h-skills/                ← installable plugin: implement a Hub + bu
 
 ## Conformance
 
-An implementation is conformant if it satisfies the normative requirements in `spec/v0.3.md` and the
+An implementation is conformant if it satisfies the normative requirements in `spec/v0.4.md` and the
 proof obligations in `conformance/`. The `reference/` TypeScript implementation and the vectors in
 `conformance/vectors/` define the interoperability baseline; the `ma2h` CLI can validate, sign, and
 verify messages against the schemas.

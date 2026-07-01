@@ -1,0 +1,16 @@
+{
+  "id": "sv-009-directive-missing-to-invalid",
+  "class": "schema-validation",
+  "description": "A directive with no `to` is rejected — an unaddressed directive has no mailbox to route to.",
+  "ref": "spec §13.1",
+  "target": "inbound-message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.4",
+    "type": "directive",
+    "id": "dir_01HZXDIR0002",
+    "from": "human:alice",
+    "created_at": "2026-06-30T12:00:00Z",
+    "title": "Missing addressee"
+  }
+}

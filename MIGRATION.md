@@ -64,3 +64,27 @@ as a *plain-English description of direction* — e.g. "MA2H standardizes how ag
 There are no external adopters, so there is nothing to migrate in production. If you have a local
 experiment built against A2H or AHCP, rename the identifiers per the table above and re-pull
 `@ma2h/reference`. There is no dual-running or deprecation window — `a2h` and `ahcp` are simply gone.
+
+## v0.3 → v0.4 (the inbound leg)
+
+v0.4 is a **version bump, not a rename** — and it is **additive and backward-compatible** (a MINOR bump
+under major `0`). It adds the **human→agent** leg (the [`directive`](spec/v0.4.md); §13) alongside the
+unchanged v0.3 agent→human legs. Unlike the renames above, **nothing is removed or changed on the existing
+wire**:
+
+- Every v0.3 leg — `notify` / `ask` / `task` and their Responses — is **byte-for-byte unchanged**. A 0.4
+  Hub accepts 0.3 agent→human envelopes and signs their Responses at the `ma2h_version` carried; the §9.2
+  signature algorithm is identical.
+- The agent→human schemas in `schema/v0.4/` are the `schema/v0.3/` schemas re-`$id`'d to the v0.4 path,
+  same shape. `capability` gains an optional `inbound` object; the new `inbound-message.schema.json` is
+  added. `spec/v0.3.md` + `schema/v0.3/` remain on disk as the v0.3 snapshot.
+- **What's new to adopt (opt-in):** the directive envelope (§13.1), the `/v1/inbox` drain/ack transport
+  (§8.7), and the §9.7 directive signature. A pre-0.4 agent that does not consume the inbound leg keeps
+  working unchanged — the leg is optional to offer and to consume (§1).
+- **One reference correctness fix the bump surfaced:** the pre-0.3-push parity threshold is now anchored at
+  the signature-break minor (3), not "the highest implemented minor," so a 0.4 Hub still accepts a 0.3 push
+  (0.3 and 0.4 share the payload-bound signature) while still rejecting a pre-0.3 push.
+
+For a local experiment already on v0.3: bump `ma2h_version` to `"0.4"` when you want to send/consume
+directives, point `$ref`s at `schema/v0.4/`, and re-pull `@ma2h/reference`. If you only use the agent→human
+legs, you can stay on `"0.3"` against a 0.4 Hub — that is exactly the backward-compatibility guarantee.

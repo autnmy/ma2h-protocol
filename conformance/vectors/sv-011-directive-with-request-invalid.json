@@ -1,0 +1,18 @@
+{
+  "id": "sv-011-directive-with-request-invalid",
+  "class": "schema-validation",
+  "description": "A directive carrying a `request` block is rejected (cross-type leakage): human->agent ask/task are deferred, so a directive is the one-way notify equivalent only (§13.1, §2 Non-Goals).",
+  "ref": "spec §13.1, §2",
+  "target": "inbound-message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.4",
+    "type": "directive",
+    "id": "dir_01HZXDIR0004",
+    "from": "human:alice",
+    "to": "agent:deploybot/dev-team",
+    "created_at": "2026-06-30T12:00:00Z",
+    "title": "A directive must not ask for a response",
+    "request": { "mode": "confirm" }
+  }
+}

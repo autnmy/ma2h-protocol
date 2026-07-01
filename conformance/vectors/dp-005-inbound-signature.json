@@ -1,0 +1,34 @@
+{
+  "id": "dp-005-inbound-signature",
+  "class": "downstream-proof",
+  "description": "Deterministic directive-signature fixture (v0.4, §9.7). The Hub MUST reproduce `v1` from JCS(inbound_signed_context) + HMAC-SHA256(test_key); the context binds `payload_sha256` = lowercase-hex SHA-256 of JCS({directive: <content>}) plus the top-level `from`/`id`/`to`. Recomputing the digest from `directive` MUST equal signed_context.payload_sha256.",
+  "ref": "spec §9.7",
+  "obligation": "Reproduce header `v1`; reproduce `payload_sha256` from `directive`; reject a tampered inbound_signed_context; reject a replayed jti within the window.",
+  "test_key": "ma2h-test-secret-key-0123456789ab",
+  "signature_alg": "hmac-sha256",
+  "directive": {
+    "ma2h_version": "0.4",
+    "type": "directive",
+    "id": "dir_01HZXDIR0001",
+    "from": "human:alice",
+    "to": "agent:deploybot/dev-team",
+    "created_at": "2026-06-30T12:00:00Z",
+    "title": "Pause deploys until the incident is resolved",
+    "body": "We are mid-incident on prod. Hold all deploys until I say otherwise.",
+    "priority": "urgent",
+    "tags": ["incident", "deploy-freeze"]
+  },
+  "payload_canonical_jcs": "{\"directive\":{\"body\":\"We are mid-incident on prod. Hold all deploys until I say otherwise.\",\"priority\":\"urgent\",\"tags\":[\"incident\",\"deploy-freeze\"],\"title\":\"Pause deploys until the incident is resolved\"}}",
+  "signed_context": {
+    "from": "human:alice",
+    "id": "dir_01HZXDIR0001",
+    "jti": "jti_01HZXDIRDEMOFIX",
+    "ma2h_version": "0.4",
+    "payload_sha256": "73a4c4c78425ebb286d36fe12905fab35eb07adf38166940137872b43fef0483",
+    "t": "1782043200",
+    "to": "agent:deploybot/dev-team"
+  },
+  "canonical_jcs": "{\"from\":\"human:alice\",\"id\":\"dir_01HZXDIR0001\",\"jti\":\"jti_01HZXDIRDEMOFIX\",\"ma2h_version\":\"0.4\",\"payload_sha256\":\"73a4c4c78425ebb286d36fe12905fab35eb07adf38166940137872b43fef0483\",\"t\":\"1782043200\",\"to\":\"agent:deploybot/dev-team\"}",
+  "header": "MA2H-Signature: t=1782043200,jti=jti_01HZXDIRDEMOFIX,v1=Bh6zPUfvl_p3SJdgxCPEPgEKZ9VyvXbl8yRKDGzufSk",
+  "v1": "Bh6zPUfvl_p3SJdgxCPEPgEKZ9VyvXbl8yRKDGzufSk"
+}

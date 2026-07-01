@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.4/get-message.schema.json",
+  "title": "MA2H GET Message Body (v0.4)",
+  "description": "Body of GET /v1/messages/{id}: the original message plus current `status`, the Hub-assigned `id`, and (once terminal) the embedded `response`.",
+  "type": "object",
+  "required": ["id", "status"],
+  "allOf": [
+    { "$ref": "https://ma2h.org/schema/v0.4/message.schema.json" }
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["open", "delivered", "answered", "declined", "cancelled", "expired", "completed", "dismissed"] },
+    "response": {
+      "$ref": "https://ma2h.org/schema/v0.4/response.schema.json",
+      "description": "Present once the message is terminal (ask/task). Embeds the full Response envelope."
+    }
+  }
+}

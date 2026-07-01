@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.4/inbound-message.schema.json",
+  "title": "MA2H Inbound Directive (v0.4)",
+  "description": "Hub->Agent human-initiated message (spec §13). A Hub-attested `from` (human:<id>) addresses `to` (agent:<id>); the agent drains it from its mailbox (§8.7) and verifies the detached signature (§9.7). This is the DELIVERED form: `id` and `from` are Hub-assigned/attested, never agent- or request-supplied. Single type in v0.4: `directive` (the notify/instruction equivalent). No `request`/`action` (human->agent ask/task is deferred) and no `state` (not an agent-owned resume blob).",
+  "type": "object",
+  "required": ["ma2h_version", "type", "id", "from", "to", "created_at", "title"],
+  "properties": {
+    "ma2h_version": { "type": "string", "pattern": "^0\\.(0|[1-9]\\d*)$" },
+    "type": { "const": "directive" },
+    "id": { "type": "string", "minLength": 1, "description": "Hub-assigned canonical directive id. The agent's at-most-once dedup key." },
+    "from": { "type": "string", "pattern": "^(human|system):.+$", "description": "Hub-attested author (never request-supplied). `human:<id>` in v0.4; `system:<id>` reserved for Hub-originated directives." },
+    "to": { "type": "string", "pattern": "^agent:.+$", "description": "Addressed agent (`agent:<id>`); the mailbox routing key." },
+    "created_at": { "type": "string", "format": "date-time" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "body": { "type": "string", "contentMediaType": "text/markdown", "description": "Human-authored Markdown detail. UNTRUSTED agent input (the inbound mirror of §9.6): a directive drives agent behavior, so treat it as a prompt-/command-injection surface until the signature is verified." },
+    "priority": { "enum": ["low", "normal", "high", "urgent"], "default": "normal" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "context": { "type": "array", "items": { "$ref": "https://ma2h.org/schema/v0.4/message.schema.json#/$defs/part" } },
+    "expires_at": { "type": "string", "format": "date-time", "description": "RFC 3339. After this the Hub stops delivering and drops the directive (no response leg). MUST be in the future at author time." },
+    "sensitive": { "type": "boolean", "description": "Message-level sensitivity; excludes value(s) from export/telemetry." }
+  },
+  "not": { "anyOf": [{ "required": ["request"] }, { "required": ["action"] }, { "required": ["state"] }] }
+}

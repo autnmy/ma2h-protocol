@@ -1,6 +1,6 @@
 {
   "name": "@ma2h/reference",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Vendor-neutral reference implementation and conformance harness for MA2H (the Multi-agent to Human Protocol). Not affiliated with any specific Hub product.",
   "license": "Apache-2.0",
   "type": "module",
