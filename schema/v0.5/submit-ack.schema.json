@@ -20,7 +20,8 @@
       },
       "additionalProperties": false,
       "allOf": [
-        { "if": { "properties": { "state": { "const": "unknown" } }, "required": ["state"] }, "then": { "not": { "required": ["last_seen"] } } }
+        { "if": { "properties": { "state": { "const": "unknown" } }, "required": ["state"] }, "then": { "not": { "required": ["last_seen"] } } },
+        { "if": { "properties": { "state": { "enum": ["online", "offline"] } }, "required": ["state"] }, "then": { "required": ["last_seen"] }, "$comment": "Mirrors presence.schema.json: a known reachability state is meaningless without the timestamp that anchors its freshness claim (spec §8.1/§15.2)." }
       ]
     }
   },
