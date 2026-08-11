@@ -160,8 +160,11 @@ plugins/ma2h-skills/                ← installable plugin: implement a Hub + bu
 
 An implementation is conformant if it satisfies the normative requirements in `spec/v0.5.md` and the
 proof obligations in `conformance/`. The `reference/` TypeScript implementation and the vectors in
-`conformance/vectors/` define the interoperability baseline; the `ma2h` CLI can validate, sign, and
-verify messages against the schemas.
+`conformance/vectors/` define the interoperability baseline. The conformance harness
+(`npm run vectors`) validates both snapshots — bare targets against `schema/v0.4/`, `v0.5/`-prefixed
+targets against `schema/v0.5/`. The interactive `ma2h` CLI's validate/sign/docs commands still target
+v0.4 pending the v0.5 reference implementation (#26); until it lands, validate v0.5 shapes with the
+harness or any Draft 2020-12 validator pointed at `schema/v0.5/`.
 
 ## The name
 

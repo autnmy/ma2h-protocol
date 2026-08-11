@@ -62,7 +62,8 @@ See [MIGRATION.md](MIGRATION.md#v04--v05-the-inter-agent-leg).
   (`{from,id,jti,ma2h_version,payload_sha256,t,to}`, payload over `{message: <present content
   fields incl. type/request/action>}`); `response` is §9.2 with `callback_url` → `to` (identical
   payload digest; `to` reconstructed from the drain identity); `receipt` follows §14.4
-  (`receipt_sha256` over fixed-key `{at,event,in_reply_to,prior,session}`). Worked deterministic
+  (`receipt_sha256` over fixed-key `{at,event,id,in_reply_to,prior,session}` — the receipt's `id` is
+  its ack key, bound so the key a consumer acks is authenticated). Worked deterministic
   examples: [examples/entry-signatures-v0.5.md](examples/entry-signatures-v0.5.md).
 - **Security posture** — trust boundary unchanged (the account; cross-account rejected as unknown).
   Lateral movement is the named threat center, closed in layers: account opt-in + REQUIRED Hub
