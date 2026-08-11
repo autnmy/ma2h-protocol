@@ -32,7 +32,19 @@
         "edited": { "type": "boolean", "default": false },
         "actor": { "type": "string", "pattern": "^(human|agent|system):.+$", "description": "Hub-attested identity. Never request-supplied." },
         "resolved_at": { "type": "string", "format": "date-time" },
-        "comment": { "type": "string" }
+        "comment": { "type": "string" },
+        "checklist": {
+          "type": "array",
+          "description": "Task resolutions only: the final §5.3 checklist state (typed in v0.5 — the §8.8 resolve binding carries it over the wire; same item shape as resolve-request.schema.json).",
+          "items": {
+            "type": "object",
+            "required": ["text", "done"],
+            "properties": {
+              "text": { "type": "string" },
+              "done": { "type": "boolean" }
+            }
+          }
+        }
       }
     },
     "state": { "type": "object", "description": "Opaque agent blob round-tripped verbatim. UNTRUSTED until the agent verifies integrity it applied (spec 9.3).", "additionalProperties": true }

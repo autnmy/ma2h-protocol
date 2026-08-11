@@ -110,8 +110,9 @@ v0.4 legs. Nothing is removed or changed on the existing wire:
   interoperable for the addressee's return leg) are added. `spec/v0.4.md` + `schema/v0.4/` remain on
   disk as the v0.4 snapshot.
 - **What's new to adopt (opt-in, per role):** a *sender* feature-detects `inter_agent` (§8.0), adds
-  `to` (and SHOULD register a session + carry `agent.session`), and honors the §8.1 queued-ack /
-  `destination` / misroute rules; a *recipient* registers a session, drains with `?session=`, verifies
+  `to` (and SHOULD register a session + carry `agent.session`), and honors the §8.1 ack rules
+  (notify accepted `queued`; ask/task stay `open`; the REQUIRED `destination` snapshot; the misroute
+  detector); a *recipient* registers a session, drains with `?session=`, verifies
   the §9.8 entry signatures, applies the §13.4 duties (session-qualified addressee check + a declared
   sender policy), and acks; an *operator* opts the account in (`inter_agent.enabled`) and gains the
   §16 session kill-switch. A pre-0.5 agent that never presents a session never sees a new entry kind

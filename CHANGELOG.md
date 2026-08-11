@@ -22,9 +22,11 @@ See [MIGRATION.md](MIGRATION.md#v04--v05-the-inter-agent-leg).
   the destination's §8.7 mailbox (first-`#`-splits grammar; `to: human:` invalid). Submit-time
   destination validation (retroactively REQUIRED for the §13 directive `to`): `422
   unknown_destination` / `410 destination_gone` (§8.5) — no silent dead-letter, no existence oracle.
-  Addressed accepts are **`queued`, never `delivered`** (notify included), the ack carries a
-  `destination` reachability snapshot, and an addressed ack **without** it is the pre-0.5
-  **misroute detector** a 0.5 sender MUST surface (§8.1). `agent.session` binds the Caller's mailbox;
+  An addressed `notify` is accepted **`queued`, never `delivered`** (its lifecycle IS the delivery
+  track); an addressed `ask`/`task` stays `open` (its `status` is the §7 resolution track, replay-
+  unambiguous). Every addressed ack REQUIRES the `destination` reachability snapshot — the addressed
+  marker — and an addressed ack **without** it is the pre-0.5 **misroute detector** a 0.5 sender MUST
+  surface (§8.1). `agent.session` binds the Caller's mailbox;
   `agent.session`/`agent.run_id` are excluded from the §8.1 idempotency comparison (first submit's
   session stays the bound Caller).
 - **Three mailbox entry kinds (§8.7)** — delivered only to session-presenting drains
