@@ -26,6 +26,7 @@
   },
   "additionalProperties": false,
   "allOf": [
+    { "if": { "required": ["destination"] }, "then": { "properties": { "id": { "pattern": "^msg_.+$" } } }, "$comment": "A destination-carrying ack is an ADDRESSED (v0.5-minted) message, whose id is in the normative msg_ ack-key namespace (spec §8.7.1) — the 202 body must not validate an id that the delivery and GET schemas would reject or that could collide with another ack-key namespace." },
     { "if": { "properties": { "status": { "enum": ["queued", "bounced", "acknowledged"] } }, "required": ["status"] }, "then": { "required": ["destination"] }, "$comment": "queued, bounced, and acknowledged are unambiguously ADDRESSED statuses on this ack (acknowledged reaches a submit-ack only as an addressed-notify replay — human-inbox notifies terminate at delivered, and ask/task replays report §7 resolutions), so the §8.1 destination MUST applies — its absence is the misroute signal. expired/cancelled/etc. stay unconditional: they also occur on the human-inbox path." }
   ]
 }
