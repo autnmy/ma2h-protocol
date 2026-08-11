@@ -82,5 +82,8 @@
         "freshness_seconds": { "type": "integer", "minimum": 1, "description": "Window after which a `last_seen` reads `offline` (spec §15.2)." }
       }
     }
-  }
+  },
+  "allOf": [
+    { "if": { "properties": { "inter_agent": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] } }, "required": ["inter_agent"] }, "then": { "required": ["ack"], "properties": { "ack": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] } } }, "$comment": "inter_agent REQUIRES the §14 ack primitive including the v0.5 terminal delivery states (spec §8.0) — advertising the leg without ack is non-conformant, and a sender feature-detecting from this document must not be able to pick an unimplementable lifecycle." }
+  ]
 }

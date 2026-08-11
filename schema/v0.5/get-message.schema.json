@@ -6,7 +6,12 @@
   "type": "object",
   "required": ["id", "status"],
   "allOf": [
-    { "$ref": "https://ma2h.org/schema/v0.5/message.schema.json" }
+    { "$ref": "https://ma2h.org/schema/v0.5/message.schema.json" },
+    { "if": { "properties": { "type": { "enum": ["ask", "task"] } }, "required": ["type"] }, "then": { "properties": { "status": { "enum": ["open", "answered", "declined", "cancelled", "expired", "completed", "dismissed"] } } }, "$comment": "An ask/task's top-level status is ALWAYS the §7 resolution track (spec §8.2/§14.2) — mailbox states (queued/bounced/acknowledged/delivered) live under `delivery`; a bounce surfaces here only as its cancelled/dismissed auto-resolution." },
+    { "if": { "allOf": [{ "properties": { "type": { "const": "notify" } }, "required": ["type"] }, { "not": { "required": ["to"] } }] }, "then": { "properties": { "status": { "const": "delivered" } } }, "$comment": "A human-inbox notify is delivered-on-acceptance (spec §5.1) and has no other state." },
+    { "if": { "allOf": [{ "properties": { "type": { "const": "notify" } }, "required": ["type"] }, { "required": ["to"] }] }, "then": { "properties": { "status": { "enum": ["queued", "delivered", "acknowledged", "bounced", "expired"] } } }, "$comment": "An addressed notify's lifecycle IS the §14.2 delivery track (spec §5.1)." },
+    { "if": { "allOf": [{ "required": ["delivery"] }, { "not": { "required": ["to"] } }] }, "then": { "properties": { "delivery": { "properties": { "state": { "enum": ["delivered-to-agent", "acknowledged", "expired"] } } } } }, "$comment": "Without `to` this GET is the agent->human leg: the delivery object is the RESPONSE track (spec §14.2) — mailbox-only states cannot appear." },
+    { "if": { "allOf": [{ "required": ["delivery"] }, { "required": ["to"] }] }, "then": { "properties": { "delivery": { "properties": { "state": { "enum": ["queued", "delivered", "acknowledged", "bounced", "expired"] } } } } }, "$comment": "With `to` this GET is the sender's authoritative mailbox view (spec §8.2/§14.2) — the response-track delivered-to-agent cannot appear." }
   ],
   "properties": {
     "id": { "type": "string", "minLength": 1 },

@@ -50,6 +50,7 @@
     "state": { "type": "object", "description": "Opaque agent blob round-tripped verbatim. UNTRUSTED until the agent verifies integrity it applied (spec 9.3).", "additionalProperties": true }
   },
   "allOf": [
+    { "if": { "properties": { "resolution": { "enum": ["answered", "declined", "cancelled"] } }, "required": ["resolution"] }, "then": { "properties": { "response": { "not": { "required": ["checklist"] } } } }, "$comment": "answered/declined/cancelled are ask-only resolutions (spec §7) and checklists are task-only (spec §6, §8.8) — a checklist on an ask Response is malformed." },
     { "if": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } }, "required": ["ma2h_version"] }, "then": { "properties": { "resolution_id": { "pattern": "^res_.+$" } } }, "$comment": "The res_ ack-key namespace (spec §8.7.1) is normative for v0.5-minted responses only; 0.3/0.4 responses keep their opaque ids (unchanged wire, MIGRATION contract). Mailbox response ENTRIES always require minor >= 5, so every ack key on the drain is namespaced." },
     {
       "if": { "properties": { "defaulted": { "const": true } }, "required": ["defaulted"] },

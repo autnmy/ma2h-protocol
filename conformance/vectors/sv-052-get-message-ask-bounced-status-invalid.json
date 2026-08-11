@@ -1,0 +1,20 @@
+{
+  "id": "sv-052-get-message-ask-bounced-status-invalid",
+  "class": "schema-validation",
+  "description": "An addressed ask whose top-level status claims the mailbox state `bounced` is rejected — an ask/task's status is ALWAYS the §7 resolution track (a bounce surfaces as its cancelled auto-resolution; the mailbox track lives under `delivery`).",
+  "ref": "spec §7, §8.2, §14.2 (v0.5)",
+  "target": "v0.5/get-message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.5",
+    "type": "ask",
+    "id": "msg_01J5MSG0002",
+    "status": "bounced",
+    "created_at": "2026-08-10T12:01:00Z",
+    "agent": { "id": "overseer/fleet", "run_id": "run_01J5OVERSEER01", "runtime": "cli", "session": "sess_01J5OVR0001" },
+    "title": "May I restart your queue consumer?",
+    "idempotency_key": "restart-consumer-01J5",
+    "request": { "mode": "confirm" },
+    "to": "agent:deploybot/dev-team#sess_01J5WRK0007"
+  }
+}
