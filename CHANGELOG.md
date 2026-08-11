@@ -4,6 +4,82 @@ All notable changes to the MA2H (Multi-agent to Human Protocol) specification.
 
 ## Unreleased
 
+### Added (v0.5 — the inter-agent leg: sessions, addressed envelopes, delivery honesty, §16/§8.7/§9.8) — SCP #24
+**Additive and backward-compatible (MINOR).** v0.5 adds hub-mediated, store-and-forward messaging
+between agents of the same account, plus the **session** primitive that makes it addressable and
+honest. Every v0.3/v0.4 wire format is byte-for-byte unchanged; the leg is **account-opt-in**
+(`inter_agent.enabled` defaults false). Designed via SCP #24 (r2, six-persona review-hardened;
+archived at [docs/proposals/scp-v0.5-inter-agent-leg.md](docs/proposals/scp-v0.5-inter-agent-leg.md)).
+See [MIGRATION.md](MIGRATION.md#v04--v05-the-inter-agent-leg).
+
+- **Sessions (§16)** — a Hub-registered, lease-bound, ephemeral *address* under an existing `agent.id`
+  (`POST /v1/sessions`, Hub-minted `^sess_` ids; no new credentials). Lease renewal is strictly
+  **client-originated** (a merely-open socket is never evidence); states `active → closed | expired`,
+  first-terminal-wins; terminal touchpoints pinned (submit `410`/`422`; drain `410` vs `404`);
+  owner-only operations plus the account-human **kill-switch**; unconditional own-session visibility;
+  policy-gated fleet listing (`sessions.agent_list_visibility`); discovery rides the attested `from`.
+- **Addressed envelopes (§4)** — optional `to: agent:<id>` / `agent:<id>#<session>` routes any verb to
+  the destination's §8.7 mailbox (first-`#`-splits grammar; `to: human:` invalid). Submit-time
+  destination validation (retroactively REQUIRED for the §13 directive `to`): `422
+  unknown_destination` / `410 destination_gone` (§8.5) — no silent dead-letter, no existence oracle.
+  Addressed accepts are **`queued`, never `delivered`** (notify included), the ack carries a
+  `destination` reachability snapshot, and an addressed ack **without** it is the pre-0.5
+  **misroute detector** a 0.5 sender MUST surface (§8.1). `agent.session` binds the Caller's mailbox;
+  `agent.session`/`agent.run_id` are excluded from the §8.1 idempotency comparison (first submit's
+  session stays the bound Caller).
+- **Three mailbox entry kinds (§8.7)** — delivered only to session-presenting drains
+  (`GET /v1/inbox?session=`; a session-less drain returns exactly the v0.4 shape): **`message`** (the
+  addressed §4 envelope, Hub-attested session-qualified `from`, submitter machinery stripped),
+  **`response`** (the §6 Response to the submitting session — the attested `agent:` return leg §2 was
+  missing; webhook-free push-grade latency), **`receipt`** (Hub-originated delivery-status
+  notification, v0.5: the bounce, with `prior` preserving never-seen vs seen-then-orphaned).
+  Session-addressed entries are session-only; principal-addressed entries are **first-claim-wins**
+  role delivery (racing sessions = the documented degraded mode). Addressed messages default out of
+  the human triage inbox but stay human-auditable. Optional **SSE stream** (`inbound.stream_url`) with
+  the **zombie-socket rule**: bounded holds (`stream_max_hold_seconds` ≤ freshness window),
+  reconnect-as-renewal, and **provisional** stream delivery (the track advances only on
+  client-originated evidence). Long-poll remains the conformance floor.
+- **Delivery honesty (§14.2, §7)** — the mailbox track gains terminals **`bounced`** (covers every
+  un-acked session-addressed entry on session death, *including drained-but-unacked*) and
+  **`expired`** (MUST mean *never delivered* — the anti-false-belief invariant); a bounced ask
+  auto-resolves `cancelled` / task `dismissed` as attested `system:undeliverable` (first-terminal-wins
+  no-op if already resolved); the ask/task **response track** gains terminal `expired` (an answer
+  never picked up now terminates visibly). Sender's §8.2 pull is authoritative; receipts are
+  best-effort, deduped `(in_reply_to, event)`, never cascading.
+- **Reachability (§15)** — per-session presence from client-originated activity; derivation **split
+  per consumption capability** (session-bearing for addressed-message reachability vs unchanged
+  any-drain directive presence — no v0.4 regression); the **truthfulness rule**: no `online` absent
+  qualifying activity, no track advance absent client-originated receipt evidence. `GET /v1/sessions`
+  joins the §15.3 read surface, same visibility policy as the §8.1 snapshot (no oracles).
+- **Resolution by agents (§6, §9.1)** — the addressee resolves an addressed `ask`/`task` as the
+  attested session-qualified `agent:` actor; `allowed_resolvers` **default flips to the addressee**
+  (the submitter must not answer its own ask; the account human is deliberately NOT a default resolver
+  — the kill-switch is the recourse). §7 CAS, modes, expiry, cancel: unchanged.
+- **Entry signatures (§9.8; SCP UQ1 resolved)** — three pinned contexts on the §9.2/§9.7 pattern, JCS
+  + fixed-key digests + per-delivery fresh `t`/`jti`: `message` mirrors §9.7
+  (`{from,id,jti,ma2h_version,payload_sha256,t,to}`, payload over `{message: <present content
+  fields incl. type/request/action>}`); `response` is §9.2 with `callback_url` → `to` (identical
+  payload digest; `to` reconstructed from the drain identity); `receipt` follows §14.4
+  (`receipt_sha256` over fixed-key `{at,event,in_reply_to,prior,session}`). Worked deterministic
+  examples: [examples/entry-signatures-v0.5.md](examples/entry-signatures-v0.5.md).
+- **Security posture** — trust boundary unchanged (the account; cross-account rejected as unknown).
+  Lateral movement is the named threat center, closed in layers: account opt-in + REQUIRED Hub
+  support for per-destination sender allowlists + a MANDATORY deployment-declared recipient policy
+  before acting on an addressed `ask`/`task` (§13.4) + human auditability. Same-principal session
+  impersonation documented as the known limitation (per-session tokens: roadmap).
+- **Discovery (§8.0)** — `sessions` + `inter_agent` capability objects; `inbound` gains
+  `session_param`/`stream_url`/`stream_max_hold_seconds`; `inter_agent` REQUIRES the §14 ack
+  primitive incl. the v0.5 terminals.
+- **Schemas** — `schema/v0.5/` full snapshot (no existing `$id` changes): `message` gains
+  `to`/`agent.session`; closed `submit-ack` lists `queued` + `destination`; `get-message` carries the
+  v0.5 delivery states; `capability` gains the v0.5 objects; `inbound-message` becomes the four-kind
+  delivered-entry union; new `session.schema.json`.
+- **Conformance** — `sv-017..032` (grammar, session shapes, capability, submit-ack, entry kinds incl.
+  the strip rule, union regression); the reference harness routes `v0.5/`-prefixed vector targets to a
+  second ajv registry (v0.4 suite untouched, 110/110). §12 enumerates the v0.5 signature +
+  downstream-proof obligations, which land with the reference implementation (#26) and vectors (#27)
+  issues per the conformance gate.
+
 ### Added (v0.4 — cross-cutting acknowledgment + presence primitives, §14/§15) — SCP #21
 Two primitives that enrich **both** directions (the shipped v0.3 response leg *and* the new inbound leg),
 modeled once and applied to each — additive, non-breaking, capability-advertised:
