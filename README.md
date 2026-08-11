@@ -146,6 +146,7 @@ schema/v0.5/
   response.schema.json             ← return leg (Hub → agent)
   inbound-message.schema.json      ← delivered mailbox entries: directive | message | response | receipt
   session.schema.json              ← the v0.5 session resource + register/read shapes (§16)
+  resolve-request.schema.json      ← POST /v1/messages/{id}/resolve body (§8.8; the addressee's return leg)
   submit-ack.schema.json           ← 202 ack body (+ the v0.5 `queued` / `destination`)
   get-message.schema.json          ← GET /v1/messages/{id} body
   capability.schema.json           ← GET /.well-known/ma2h discovery doc (+ inbound/sessions/inter_agent)

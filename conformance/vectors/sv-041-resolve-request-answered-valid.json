@@ -1,0 +1,13 @@
+{
+  "id": "sv-041-resolve-request-answered-valid",
+  "class": "schema-validation",
+  "description": "A valid §8.8 resolve request: an addressee answers an addressed confirm ask with a value and a comment.",
+  "ref": "spec §8.8 (v0.5)",
+  "target": "v0.5/resolve-request.schema.json",
+  "expect": "valid",
+  "input": {
+    "resolution": "answered",
+    "value": "approve",
+    "comment": "Restarting the consumer now."
+  }
+}

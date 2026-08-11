@@ -56,6 +56,7 @@ const SCHEMA_FILES_V05 = [
   "ack.schema.json",
   "presence.schema.json",
   "session.schema.json",
+  "resolve-request.schema.json",
 ] as const;
 const BASE_V05 = "https://ma2h.org/schema/v0.5/";
 

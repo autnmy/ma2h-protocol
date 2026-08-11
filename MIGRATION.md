@@ -106,8 +106,9 @@ v0.4 legs. Nothing is removed or changed on the existing wire:
   change, not a silent carry-forward); `get-message` carries the v0.5 delivery-track states;
   `capability` gains `sessions`/`inter_agent` + the `inbound` stream/session fields;
   `inbound-message.schema.json` becomes the four-kind delivered-entry union (a v0.4 directive still
-  validates); `session.schema.json` is added. `spec/v0.4.md` + `schema/v0.4/` remain on disk as the
-  v0.4 snapshot.
+  validates); `session.schema.json` and `resolve-request.schema.json` (the §8.8 resolve binding, made
+  interoperable for the addressee's return leg) are added. `spec/v0.4.md` + `schema/v0.4/` remain on
+  disk as the v0.4 snapshot.
 - **What's new to adopt (opt-in, per role):** a *sender* feature-detects `inter_agent` (§8.0), adds
   `to` (and SHOULD register a session + carry `agent.session`), and honors the §8.1 queued-ack /
   `destination` / misroute rules; a *recipient* registers a session, drains with `?session=`, verifies

@@ -53,8 +53,11 @@
     },
     "responseEntry": {
       "title": "response (Hub->submitting session, v0.5)",
-      "description": "A §6 Response delivered as a mailbox entry to the submitting session (spec §8.7): the return leg for an agent-addressed ask/task, and available to any session-registered Caller in place of a webhook. The Response body is byte-for-byte the v0.4 shape; the delivery destination is bound only in the §9.8 signed context (`to`), which the drainer reconstructs from its own presented identity. Enqueued only when the submitting session is live at resolution time; otherwise delivery falls back to the unchanged §8.2 pull / §8.3 callback with no bounce. Dedup on (in_reply_to, resolution_id).",
-      "$ref": "https://ma2h.org/schema/v0.5/response.schema.json"
+      "description": "A §6 Response delivered as a mailbox entry to the submitting session (spec §8.7): the return leg for an agent-addressed ask/task, and available to any session-registered Caller in place of a webhook. The Response body is byte-for-byte the v0.4 shape; the delivery destination is bound only in the §9.8 signed context (`to`), which the drainer reconstructs from its own presented identity. Enqueued only when the submitting session is live at resolution time; otherwise delivery falls back to the unchanged §8.2 pull / §8.3 callback with no bounce. Dedup on (in_reply_to, resolution_id). Its ack key is the resolution_id (spec §8.7.1). A response ENTRY cannot predate v0.5 (mailbox delivery requires a registered submitting session, a >= 0.5 feature), so the branch requires minor >= 5 like its siblings.",
+      "allOf": [
+        { "$ref": "https://ma2h.org/schema/v0.5/response.schema.json" },
+        { "type": "object", "properties": { "ma2h_version": { "type": "string", "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } } }
+      ]
     },
     "receipt": {
       "title": "receipt (Hub->sender, v0.5)",
