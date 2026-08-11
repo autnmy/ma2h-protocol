@@ -77,7 +77,8 @@ payload_sha256 = 21bf7d8c7b9245170bbe80d0256de0779fa2490a08cc96c3c4e02568a33f997
 session this entry is delivered to. The verifier **reconstructs** `to` from its own presented drain
 identity (its `agent.id` + the session it presented), exactly as a §9.2 verifier reconstructs
 `callback_url` from its own endpoint; a response entry signed for one session fails verification
-replayed to any other:
+replayed to any other. `id` is reconstructed from the delivered `in_reply_to` — the two are always
+equal (both name the original message record, spec §9.8):
 
 ```
 {"id":"msg_01J5MSG0002","in_reply_to":"msg_01J5MSG0002","jti":"jti_01J5RSPDEMOFIX","ma2h_version":"0.5","payload_sha256":"21bf7d8c7b9245170bbe80d0256de0779fa2490a08cc96c3c4e02568a33f997f","resolution":"answered","resolution_id":"res_01J5RSLV0001","resolved_at":"2026-08-10T12:05:00Z","t":"1786752060","to":"agent:overseer/fleet#sess_01J5OVR0001"}

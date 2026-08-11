@@ -7,7 +7,7 @@
   "required": ["id", "agent_id", "state", "created_at", "expires_at"],
   "properties": {
     "id": { "type": "string", "pattern": "^sess_.+$", "description": "Hub-minted session id (spec §16). Not a secret; another principal's session id MUST be indistinguishable from unknown." },
-    "agent_id": { "type": "string", "minLength": 1, "description": "The owning principal. Registration is rejected for an agent.id containing `#` (the address separator, spec §4)." },
+    "agent_id": { "type": "string", "pattern": "^[^#]+$", "description": "The owning principal. Registration is rejected for an agent.id containing `#` (the address separator, spec §4/§16.1) — schema-enforced here so a session resource that could never be addressed cannot validate." },
     "state": { "enum": ["active", "closed", "expired"], "description": "active -> closed (explicit DELETE, idempotent) or active -> expired (lease lapse, Hub clock). Both terminal and immutable (first-terminal-wins, spec §16); terminal sessions remain readable for the advertised retention window." },
     "created_at": { "type": "string", "format": "date-time" },
     "expires_at": { "type": "string", "format": "date-time", "description": "Current lease expiry (Hub clock). Renewed only by client-originated authenticated activity that references the session (spec §16); a merely-open connection is NOT renewal evidence." },
