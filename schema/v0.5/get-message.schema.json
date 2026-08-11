@@ -10,7 +10,7 @@
   ],
   "properties": {
     "id": { "type": "string", "minLength": 1 },
-    "status": { "enum": ["open", "delivered", "answered", "declined", "cancelled", "expired", "completed", "dismissed", "queued", "bounced"], "description": "Lifecycle status (spec §7). v0.5 adds `queued` and `bounced` for ADDRESSED messages: an addressed notify's lifecycle IS the delivery track (queued -> delivered | bounced | expired, spec §14.2); an addressed ask/task keeps the §7 resolution machinery here (open -> terminals — a bounce auto-resolves it cancelled/dismissed) with the mailbox track surfaced under `delivery`." },
+    "status": { "enum": ["open", "delivered", "answered", "declined", "cancelled", "expired", "completed", "dismissed", "queued", "bounced", "acknowledged"], "description": "Lifecycle status (spec §7). v0.5 adds `queued`/`bounced`/`acknowledged` for ADDRESSED messages: an addressed notify's lifecycle IS the delivery track (queued -> delivered -> acknowledged, or terminal bounced/expired, spec §14.2); an addressed ask/task keeps the §7 resolution machinery here (open -> terminals — an undeliverable track terminal auto-resolves it cancelled/dismissed) with the mailbox track surfaced under `delivery`." },
     "response": {
       "$ref": "https://ma2h.org/schema/v0.5/response.schema.json",
       "description": "Present once the message is terminal (ask/task). Embeds the full Response envelope."

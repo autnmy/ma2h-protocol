@@ -1,0 +1,35 @@
+{
+  "id": "sv-050-get-message-acknowledged-notify-valid",
+  "class": "schema-validation",
+  "description": "The authoritative GET body for an addressed notify whose recipient consumed it: status `acknowledged` (the owning delivery track's terminal) with the acknowledged delivery object.",
+  "ref": "spec §8.2, §14.2 (v0.5)",
+  "target": "v0.5/get-message.schema.json",
+  "expect": "valid",
+  "input": {
+    "ma2h_version": "0.5",
+    "type": "notify",
+    "id": "msg_01J5MSG0005",
+    "status": "acknowledged",
+    "created_at": "2026-08-10T12:00:00Z",
+    "agent": {
+      "id": "overseer/fleet",
+      "run_id": "run_01J5OVERSEER01",
+      "runtime": "cli",
+      "session": "sess_01J5OVR0001"
+    },
+    "title": "Addressed notify, consumed by the worker",
+    "to": "agent:deploybot/dev-team#sess_01J5WRK0007",
+    "delivery": {
+      "state": "acknowledged",
+      "delivered_at": "2026-08-10T12:02:00Z",
+      "acknowledged_at": "2026-08-10T12:03:00Z",
+      "ack": {
+        "ma2h_version": "0.5",
+        "type": "ack",
+        "in_reply_to": "msg_01J5MSG0005",
+        "by": "agent:deploybot/dev-team",
+        "acked_at": "2026-08-10T12:03:00Z"
+      }
+    }
+  }
+}
