@@ -25,6 +25,7 @@
     "action": { "$ref": "#/$defs/action" }
   },
   "allOf": [
+    { "if": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } }, "required": ["ma2h_version"] }, "then": { "properties": { "request": { "properties": { "allowed_resolvers": { "items": { "pattern": "^(human|system):.+$|^agent:[^#]+(#sess_.+)?$" } } } }, "action": { "properties": { "allowed_resolvers": { "items": { "pattern": "^(human|system):.+$|^agent:[^#]+(#sess_.+)?$" } } } } } }, "$comment": ">= 0.5 envelopes: agent-form allowed_resolvers entries follow the §4 address grammar (spec §9.1 matching). Pre-0.5 envelopes keep the legacy pattern — hash-bearing principals stay valid for human-inbox traffic (unchanged-wire contract)." },
     {
       "if": { "anyOf": [{ "required": ["to"] }, { "required": ["agent"], "properties": { "agent": { "required": ["session"] } } }] },
       "then": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$", "$comment": "see root $comment" }, "agent": { "properties": { "id": { "pattern": "^[^#]+$" } } } } },
@@ -103,7 +104,7 @@
           "type": ["string", "object", "null"],
           "description": "For select: MUST be a member of options[].value (Hub-enforced + conformance vector). For input: an object validating against `schema`, or null."
         },
-        "allowed_resolvers": { "type": "array", "items": { "type": "string", "pattern": "^(human|system):.+$|^agent:[^#]+(#sess_.+)?$" }, "description": "Who may resolve (spec §9.1). v0.5: an agent-form entry follows the §4 address grammar — principal form matches any session of that principal; a session-qualified form (#sess_...) matches only that exact session. A malformed agent entry could never match an attested actor, leaving the message unresolvable (an explicit list replaces the default)." },
+        "allowed_resolvers": { "type": "array", "items": { "type": "string", "pattern": "^(human|agent|system):.+$" }, "description": "Who may resolve (spec §9.1). On a >= 0.5 envelope an agent-form entry follows the §4 address grammar (the root conditional): principal form matches any session of that principal; a session-qualified form (#sess_...) matches only that exact session — a malformed agent entry could never match an attested actor, leaving the message unresolvable. Pre-0.5 envelopes keep the legacy v0.4 pattern (hash-bearing principals remain valid for human-inbox traffic)." },
         "callback": { "$ref": "#/$defs/callback" }
       },
       "allOf": [
@@ -119,7 +120,7 @@
         "instructions": { "type": "string" },
         "checklist": { "type": "array", "items": { "type": "object", "required": ["text"], "properties": { "text": { "type": "string" }, "done": { "type": "boolean", "default": false } } } },
         "verification": { "type": "string" },
-        "allowed_resolvers": { "type": "array", "items": { "type": "string", "pattern": "^(human|system):.+$|^agent:[^#]+(#sess_.+)?$" }, "description": "Who may resolve (spec §9.1). v0.5: an agent-form entry follows the §4 address grammar — principal form matches any session of that principal; a session-qualified form (#sess_...) matches only that exact session. A malformed agent entry could never match an attested actor, leaving the message unresolvable (an explicit list replaces the default)." },
+        "allowed_resolvers": { "type": "array", "items": { "type": "string", "pattern": "^(human|agent|system):.+$" }, "description": "Who may resolve (spec §9.1). On a >= 0.5 envelope an agent-form entry follows the §4 address grammar (the root conditional): principal form matches any session of that principal; a session-qualified form (#sess_...) matches only that exact session — a malformed agent entry could never match an attested actor, leaving the message unresolvable. Pre-0.5 envelopes keep the legacy v0.4 pattern (hash-bearing principals remain valid for human-inbox traffic)." },
         "callback": { "$ref": "#/$defs/callback" }
       }
     },
