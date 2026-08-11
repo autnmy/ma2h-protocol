@@ -1,0 +1,16 @@
+{
+  "id": "sv-040-addressed-submit-hash-sender-invalid",
+  "class": "schema-validation",
+  "description": "An addressed submit from a principal whose own agent.id contains '#' is rejected — the Hub could not attest a from address the first-# grammar can represent, so #-bearing ids cannot participate in the inter-agent leg on either end (§4 sender-side symmetry).",
+  "ref": "spec §4, §8.7 (v0.5)",
+  "target": "v0.5/message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.5",
+    "type": "notify",
+    "created_at": "2026-08-10T12:00:00Z",
+    "agent": { "id": "legacy#worker", "run_id": "run_01J5LEGACY01", "runtime": "cli" },
+    "title": "Hash-bearing sender tries the inter-agent leg",
+    "to": "agent:deploybot/dev-team"
+  }
+}

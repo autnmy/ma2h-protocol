@@ -27,8 +27,8 @@
   "allOf": [
     {
       "if": { "anyOf": [{ "required": ["to"] }, { "required": ["agent"], "properties": { "agent": { "required": ["session"] } } }] },
-      "then": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } } },
-      "$comment": "`to` and `agent.session` are v0.5 features: an envelope carrying either MUST declare minor >= 5, so the validator never approves a submission whose delivered form (the >= 0.5 inter-agent entry branch of inbound-message.schema.json) could not validate."
+      "then": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$", "$comment": "see root $comment" }, "agent": { "properties": { "id": { "pattern": "^[^#]+$" } } } } },
+      "$comment": "`to` and `agent.session` are v0.5 features: an envelope carrying either MUST declare minor >= 5, so the validator never approves a submission whose delivered form (the >= 0.5 inter-agent entry branch of inbound-message.schema.json) could not validate. The same conditional rejects a `#`-bearing agent.id on an addressed/session-bearing submit (spec §4): the Hub would have to attest a `from` the first-#-splits grammar cannot represent — such principals cannot participate in the inter-agent leg (they also cannot register sessions or be addressed)."
     }
   ],
   "oneOf": [
