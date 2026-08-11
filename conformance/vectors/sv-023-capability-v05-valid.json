@@ -7,9 +7,18 @@
   "expect": "valid",
   "input": {
     "ma2h_version": "0.5",
-    "auth_schemes": ["bearer"],
-    "signature_algs": ["hmac-sha256", "ed25519"],
-    "rate_limit": { "requests_per_minute": 60, "inbox_depth": 1000, "inter_agent_requests_per_minute": 120 },
+    "auth_schemes": [
+      "bearer"
+    ],
+    "signature_algs": [
+      "hmac-sha256",
+      "ed25519"
+    ],
+    "rate_limit": {
+      "requests_per_minute": 60,
+      "inbox_depth": 1000,
+      "inter_agent_requests_per_minute": 120
+    },
     "inbound": {
       "enabled": true,
       "poll_url": "https://hub.example/v1/inbox",
@@ -17,24 +26,39 @@
       "max_batch": 32,
       "visibility_timeout_seconds": 60,
       "retention_days": 30,
-      "signature_algs": ["hmac-sha256"],
+      "signature_algs": [
+        "hmac-sha256"
+      ],
       "webhook_supported": false,
       "session_param": true,
       "stream_url": "https://hub.example/v1/inbox/stream",
       "stream_max_hold_seconds": 60
     },
-    "ack": { "enabled": true, "signature_algs": ["hmac-sha256"] },
-    "presence": { "enabled": true, "freshness_seconds": 90 },
+    "ack": {
+      "enabled": true,
+      "signature_algs": [
+        "hmac-sha256"
+      ]
+    },
+    "presence": {
+      "enabled": true,
+      "freshness_seconds": 90
+    },
     "sessions": {
       "enabled": true,
       "max_ttl_seconds": 3600,
       "max_live_per_agent": 16,
       "agent_list_visibility": false,
-      "terminal_retention_seconds": 86400
+      "terminal_retention_seconds": 86400,
+      "min_ttl_seconds": 120
     },
     "inter_agent": {
       "enabled": true,
-      "entry_kinds": ["message", "response", "receipt"],
+      "entry_kinds": [
+        "message",
+        "response",
+        "receipt"
+      ],
       "sender_allowlists": true
     }
   }

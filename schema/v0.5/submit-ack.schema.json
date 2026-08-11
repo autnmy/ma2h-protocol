@@ -26,6 +26,6 @@
   },
   "additionalProperties": false,
   "allOf": [
-    { "if": { "properties": { "status": { "const": "queued" } }, "required": ["status"] }, "then": { "required": ["destination"] } }
+    { "if": { "properties": { "status": { "enum": ["queued", "bounced"] } }, "required": ["status"] }, "then": { "required": ["destination"] }, "$comment": "queued and bounced are unambiguously ADDRESSED statuses, so the §8.1 destination MUST applies — its absence is the misroute signal. expired/cancelled/etc. stay unconditional: they also occur on the human-inbox path." }
   ]
 }

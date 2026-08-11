@@ -1,0 +1,13 @@
+{
+  "id": "sv-037-submit-ack-bounced-missing-destination-invalid",
+  "class": "schema-validation",
+  "description": "A bounced replay ack WITHOUT the destination snapshot is rejected — bounced is an unambiguously addressed status, so the §8.1 destination requirement applies to the replayed original ack too.",
+  "ref": "spec §8.1, §14.2 (v0.5)",
+  "target": "v0.5/submit-ack.schema.json",
+  "expect": "invalid",
+  "input": {
+    "id": "msg_01J5MSG0003",
+    "status": "bounced",
+    "poll_url": "https://hub.example/v1/messages/msg_01J5MSG0003"
+  }
+}

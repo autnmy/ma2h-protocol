@@ -24,6 +24,13 @@
     "request": { "$ref": "#/$defs/request" },
     "action": { "$ref": "#/$defs/action" }
   },
+  "allOf": [
+    {
+      "if": { "anyOf": [{ "required": ["to"] }, { "required": ["agent"], "properties": { "agent": { "required": ["session"] } } }] },
+      "then": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } } },
+      "$comment": "`to` and `agent.session` are v0.5 features: an envelope carrying either MUST declare minor >= 5, so the validator never approves a submission whose delivered form (the >= 0.5 inter-agent entry branch of inbound-message.schema.json) could not validate."
+    }
+  ],
   "oneOf": [
     {
       "title": "notify",

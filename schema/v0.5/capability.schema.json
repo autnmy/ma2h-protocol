@@ -47,6 +47,7 @@
       "required": ["enabled"],
       "properties": {
         "enabled": { "type": "boolean" },
+        "min_ttl_seconds": { "type": "integer", "minimum": 1, "description": "Lower bound the Hub clamps a requested ttl_seconds UP to (v0.5, spec §16.1). A Hub offering the §8.7.2 stream SHOULD set it comfortably above its stream hold bound so a healthy streaming client's lease can never lapse before its reconnect-renewal." },
         "max_ttl_seconds": { "type": "integer", "minimum": 1, "description": "Upper bound the Hub clamps a requested ttl_seconds to (spec §16)." },
         "max_live_per_agent": { "type": "integer", "minimum": 1, "description": "Cap on live sessions per agent.id; over-cap registration -> 429 (spec §16)." },
         "agent_list_visibility": { "type": "boolean", "description": "True iff same-account agents may list/read account sessions (spec §16). Own-session visibility is unconditional regardless of this policy; the account's human always may list/read. Cross-account: never." },
