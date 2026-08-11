@@ -1,0 +1,19 @@
+{
+  "id": "sv-053-capability-partial-entry-kinds-invalid",
+  "class": "schema-validation",
+  "description": "An enabled inter_agent leg advertising only a subset of the entry kinds is rejected — the leg requires all three (an addressed ask needs the response return leg; the bounce needs receipts).",
+  "ref": "spec §1, §8.0, §8.7 (v0.5)",
+  "target": "v0.5/capability.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.5",
+    "inbound": { "enabled": true, "session_param": true },
+    "ack": { "enabled": true },
+    "sessions": { "enabled": true },
+    "inter_agent": {
+      "enabled": true,
+      "entry_kinds": ["message"],
+      "sender_allowlists": true
+    }
+  }
+}
