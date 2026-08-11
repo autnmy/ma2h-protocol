@@ -35,13 +35,13 @@
         "comment": { "type": "string" },
         "checklist": {
           "type": "array",
-          "description": "Task resolutions only: the final §5.3 checklist state (typed in v0.5 — the §8.8 resolve binding carries it over the wire; same item shape as resolve-request.schema.json).",
+          "description": "Task resolutions only: the final §5.3 checklist state (typed in v0.5 — the §8.8 resolve binding carries it over the wire). Base item shape matches v0.4's action.checklist (text required, done optional default false) so a stored legacy Response stays valid; a >= 0.5 Response states each item's doneness (the root conditional; same shape as resolve-request.schema.json).",
           "items": {
             "type": "object",
-            "required": ["text", "done"],
+            "required": ["text"],
             "properties": {
               "text": { "type": "string" },
-              "done": { "type": "boolean" }
+              "done": { "type": "boolean", "default": false }
             }
           }
         }
@@ -51,7 +51,7 @@
   },
   "allOf": [
     { "if": { "properties": { "resolution": { "enum": ["answered", "declined", "cancelled"] } }, "required": ["resolution"] }, "then": { "properties": { "response": { "not": { "required": ["checklist"] } } } }, "$comment": "answered/declined/cancelled are ask-only resolutions (spec §7) and checklists are task-only (spec §6, §8.8) — a checklist on an ask Response is malformed." },
-    { "if": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } }, "required": ["ma2h_version"] }, "then": { "properties": { "resolution_id": { "pattern": "^res_.+$" } } }, "$comment": "The res_ ack-key namespace (spec §8.7.1) is normative for v0.5-minted responses only; 0.3/0.4 responses keep their opaque ids (unchanged wire, MIGRATION contract). Mailbox response ENTRIES always require minor >= 5, so every ack key on the drain is namespaced." },
+    { "if": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } }, "required": ["ma2h_version"] }, "then": { "properties": { "resolution_id": { "pattern": "^res_.+$" }, "response": { "properties": { "checklist": { "items": { "required": ["text", "done"] } } } } } }, "$comment": "The res_ ack-key namespace (spec §8.7.1) is normative for v0.5-minted responses only; 0.3/0.4 responses keep their opaque ids (unchanged wire, MIGRATION contract). Mailbox response ENTRIES always require minor >= 5, so every ack key on the drain is namespaced." },
     {
       "if": { "properties": { "defaulted": { "const": true } }, "required": ["defaulted"] },
       "then": {

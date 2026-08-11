@@ -51,7 +51,10 @@
             "request": { "not": { "required": ["callback"] } },
             "action": { "not": { "required": ["callback"] } }
           },
-          "not": { "anyOf": [{ "required": ["state"] }, { "required": ["client_ref"] }] }
+          "not": { "anyOf": [{ "required": ["state"] }, { "required": ["client_ref"] }] },
+          "allOf": [
+            { "if": { "properties": { "agent": { "required": ["session"] } }, "required": ["agent"] }, "then": { "properties": { "from": { "pattern": "^agent:[^#]+#sess_.+$" } } }, "$comment": "A submit carrying agent.session yields a session-qualified attested from (spec §8.7.1) — a bare from would let a reply be principal-addressed and claimed by a sibling session instead of the originating invocation. That the qualifier equals the submitted agent.session exactly is Hub-side semantic validation (a cross-field equality this dialect cannot express; spec §12)." }
+          ]
         }
       ]
     },
