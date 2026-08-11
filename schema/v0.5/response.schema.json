@@ -8,7 +8,7 @@
   "properties": {
     "ma2h_version": { "type": "string", "pattern": "^0\\.(0|[1-9]\\d*)$" },
     "in_reply_to": { "type": "string", "minLength": 1 },
-    "resolution_id": { "type": "string", "pattern": "^res_.+$", "description": "Hub-assigned, opaque, random, in the res_ namespace (v0.5 pins the ack-key namespaces disjoint, spec §8.7.1); identical across every channel and retry. Agent dedups on (in_reply_to, resolution_id)." },
+    "resolution_id": { "type": "string", "minLength": 1, "description": "Hub-assigned, opaque, random; identical across every channel and retry. Agent dedups on (in_reply_to, resolution_id). v0.5 responses mint it in the res_ namespace (the conditional below; spec §8.7.1) — pre-0.5 responses keep their opaque ids, per the unchanged-wire contract." },
     "agent": {
       "type": "object",
       "description": "responseAgent: routing identity only (runtime NOT required on the return leg).",
@@ -50,6 +50,7 @@
     "state": { "type": "object", "description": "Opaque agent blob round-tripped verbatim. UNTRUSTED until the agent verifies integrity it applied (spec 9.3).", "additionalProperties": true }
   },
   "allOf": [
+    { "if": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } }, "required": ["ma2h_version"] }, "then": { "properties": { "resolution_id": { "pattern": "^res_.+$" } } }, "$comment": "The res_ ack-key namespace (spec §8.7.1) is normative for v0.5-minted responses only; 0.3/0.4 responses keep their opaque ids (unchanged wire, MIGRATION contract). Mailbox response ENTRIES always require minor >= 5, so every ack key on the drain is namespaced." },
     {
       "if": { "properties": { "defaulted": { "const": true } }, "required": ["defaulted"] },
       "then": {

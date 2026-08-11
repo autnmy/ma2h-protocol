@@ -18,7 +18,7 @@
       "properties": {
         "ma2h_version": { "type": "string", "pattern": "^0\\.([4-9]|[1-9]\\d+)$", "description": "Directives are a v0.4 feature; the minor MUST be >= 4 (a pre-0.4 recipient would not know the §9.7 signature/addressee semantics)." },
         "type": { "const": "directive" },
-        "id": { "type": "string", "pattern": "^dir_.+$", "description": "Hub-assigned canonical directive id (the dir_ ack-key namespace, spec §8.7.1). The agent's at-most-once dedup key." },
+        "id": { "type": "string", "minLength": 1, "description": "Hub-assigned canonical directive id. The agent's at-most-once dedup key. v0.5-minted directives use the dir_ ack-key namespace (the conditional below, spec §8.7.1); a 0.4-era directive still queued at upgrade keeps its legacy id and stays drainable." },
         "from": { "type": "string", "pattern": "^(human|system):.+$", "description": "Hub-attested author (never request-supplied). `human:<id>`; `system:<id>` reserved for Hub-originated directives." },
         "to": { "type": "string", "pattern": "^agent:[^#]+(#sess_.+)?$", "description": "Addressed agent (`agent:<id>`, or `agent:<id>#<session>` for a session-addressed directive, v0.5 spec §13.2); the mailbox routing key. The §4 first-`#` grammar applies to directives too (spec §13.2, retroactive destination validation): the session segment must match ^sess_." },
         "created_at": { "type": "string", "format": "date-time" },
@@ -32,7 +32,8 @@
       },
       "not": { "anyOf": [{ "required": ["request"] }, { "required": ["action"] }, { "required": ["state"] }] },
       "allOf": [
-        { "if": { "properties": { "to": { "pattern": "#" } }, "required": ["to"] }, "then": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } } }, "$comment": "Session-qualified directive routing is a v0.5 feature (spec §13.1/§13.2): a directive addressed to agent:<id>#<session> must declare minor >= 5 — the recipient's session-qualified addressee check is new-addressee semantics a 0.4-era payload cannot invoke." }
+        { "if": { "properties": { "to": { "pattern": "#" } }, "required": ["to"] }, "then": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } } }, "$comment": "Session-qualified directive routing is a v0.5 feature (spec §13.1/§13.2): a directive addressed to agent:<id>#<session> must declare minor >= 5 — the recipient's session-qualified addressee check is new-addressee semantics a 0.4-era payload cannot invoke." },
+        { "if": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } }, "required": ["ma2h_version"] }, "then": { "properties": { "id": { "pattern": "^dir_.+$" } } }, "$comment": "The dir_ ack-key namespace (spec §8.7.1) is normative for v0.5-minted directives; pre-0.5 queued directives are grandfathered so an upgrade never strands drainable mail." }
       ]
     },
     "interAgentMessage": {
