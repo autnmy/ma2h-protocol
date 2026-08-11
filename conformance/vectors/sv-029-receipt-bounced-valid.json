@@ -8,6 +8,7 @@
   "input": {
     "ma2h_version": "0.5",
     "type": "receipt",
+    "id": "rcpt_01J5RCPT0001",
     "in_reply_to": "msg_01J5MSG0002",
     "event": "bounced",
     "prior": "queued",

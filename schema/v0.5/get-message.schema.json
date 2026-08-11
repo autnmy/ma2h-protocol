@@ -29,7 +29,8 @@
         }
       },
       "allOf": [
-        { "if": { "properties": { "state": { "const": "acknowledged" } }, "required": ["state"] }, "then": { "required": ["ack", "acknowledged_at"] }, "else": { "not": { "anyOf": [{ "required": ["ack"] }, { "required": ["acknowledged_at"] }] } } }
+        { "if": { "properties": { "state": { "const": "acknowledged" } }, "required": ["state"] }, "then": { "required": ["ack", "acknowledged_at"] }, "else": { "not": { "anyOf": [{ "required": ["ack"] }, { "required": ["acknowledged_at"] }] } } },
+        { "if": { "properties": { "state": { "enum": ["queued", "expired"] } }, "required": ["state"] }, "then": { "not": { "required": ["delivered_at"] } }, "$comment": "Delivery honesty (spec §14.2): queued = not delivered yet, and a delivery-track `expired` MUST mean NEVER delivered — a body claiming both delivered_at and one of these states would be the exact false belief the track exists to kill. bounced deliberately allows delivered_at: its presence is the seen-then-orphaned signal (receipt prior: delivered), its absence never-seen." }
       ]
     }
   }

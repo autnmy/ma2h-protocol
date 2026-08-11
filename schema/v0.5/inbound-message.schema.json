@@ -60,10 +60,11 @@
       "title": "receipt (Hub->sender, v0.5)",
       "description": "A Hub-originated delivery-status notification to a SENDER (spec §8.7, §14.2): v0.5 uses it for the bounce. Best-effort, at-most-once-meaningful — the recipient dedups on (in_reply_to, event) — delivered only to live sessions of the sender, and a receipt MUST NOT itself generate receipts. The sender's §8.2 pull remains authoritative.",
       "type": "object",
-      "required": ["ma2h_version", "type", "in_reply_to", "event", "prior", "at", "session", "to"],
+      "required": ["ma2h_version", "type", "id", "in_reply_to", "event", "prior", "at", "session", "to"],
       "properties": {
         "ma2h_version": { "type": "string", "pattern": "^0\\.([5-9]|[1-9]\\d+)$", "description": "Receipt entries are a v0.5 feature; the minor MUST be >= 5." },
         "type": { "const": "receipt" },
+        "id": { "type": "string", "pattern": "^rcpt_.+$", "description": "Hub-assigned receipt id — this entry's ack key (spec §8.7.1) and part of the §9.8 digest, so the key a consumer acks is signature-bound. Distinct from the dedup pair (in_reply_to, event)." },
         "in_reply_to": { "type": "string", "minLength": 1, "description": "The affected entry/message id — also the dedup key together with `event`." },
         "event": { "enum": ["bounced"], "description": "The delivery-track event this receipt reports. `bounced` in v0.5; future minors may add events." },
         "prior": { "enum": ["queued", "delivered"], "description": "The delivery-track state the entry bounced FROM: `queued` = never seen; `delivered` = drained-but-unacked when the destination session went terminal (seen-then-orphaned, spec §14.2)." },

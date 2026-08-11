@@ -103,14 +103,15 @@ session with [`receipt-bounced.json`](receipt-bounced.json).
 
 ### 3a. `receipt_sha256` — SHA-256 of the fixed-key wrapper
 
-Exactly five keys — `{ at, event, in_reply_to, prior, session }` — with any absent member serialized
-as JSON `null` (all five are present in a v0.5 bounce receipt; the `null` convention matches §14.4's
-`ack_sha256` wrapper):
+Exactly six keys — `{ at, event, id, in_reply_to, prior, session }` — with any absent member
+serialized as JSON `null` (all six are present in a v0.5 bounce receipt; the `null` convention matches
+§14.4's `ack_sha256` wrapper). The receipt's `id` is its §8.7.1 **ack key**, so binding it here means
+the key a consumer acks is authenticated:
 
 ```
-{"at":"2026-08-10T12:20:00Z","event":"bounced","in_reply_to":"msg_01J5MSG0003","prior":"queued","session":"sess_01J5WRK0007"}
+{"at":"2026-08-10T12:20:00Z","event":"bounced","id":"rcpt_01J5RCPT0001","in_reply_to":"msg_01J5MSG0003","prior":"queued","session":"sess_01J5WRK0007"}
 
-receipt_sha256 = bcf2b954ef3433a22ee52ea787aeb52dee1194eb1583ce99d25f74d43d293b76
+receipt_sha256 = 40abdcfbc1b8c32ed106288063609e5ef7a295f578afa1b17cde5d1c7405bcd6
 ```
 
 `prior: "queued"` tells the sender the message was **never seen** (a `"delivered"` would mean
@@ -119,16 +120,18 @@ drained-but-unacked when the session died — seen-then-orphaned, §14.2).
 ### 3b. The canonical `receipt_signed_context`
 
 ```
-{"in_reply_to":"msg_01J5MSG0003","jti":"jti_01J5RCPDEMOFIX","ma2h_version":"0.5","receipt_sha256":"bcf2b954ef3433a22ee52ea787aeb52dee1194eb1583ce99d25f74d43d293b76","t":"1786752120","to":"agent:overseer/fleet#sess_01J5OVR0001"}
+{"in_reply_to":"msg_01J5MSG0003","jti":"jti_01J5RCPDEMOFIX","ma2h_version":"0.5","receipt_sha256":"40abdcfbc1b8c32ed106288063609e5ef7a295f578afa1b17cde5d1c7405bcd6","t":"1786752120","to":"agent:overseer/fleet#sess_01J5OVR0001"}
 ```
 
 ### 3c. The wire header
 
 ```
-MA2H-Signature: t=1786752120,jti=jti_01J5RCPDEMOFIX,v1=ufgTqMMDBk4-e4abp66L6_8YE4ZmJVRXbohAXijd2q4
+MA2H-Signature: t=1786752120,jti=jti_01J5RCPDEMOFIX,v1=-80T4jjtirjLy6Fri6osKG_gPS-CQhfd9uXgV0_9l78
 ```
 
-The sender verifies, dedups on `(in_reply_to, event)`, and treats its §8.2 pull as authoritative —
+The sender verifies, dedups on `(in_reply_to, event)`, acks by the receipt's `id` (its ack key —
+distinct from the `res_` key of the auto-cancellation `response` entry that can sit beside it for the
+same `in_reply_to`), and treats its §8.2 pull as authoritative —
 receipts are best-effort and MUST NOT generate receipts. Verification is still a MUST: an unverified
 receipt could fabricate a bounce and trick a sender into abandoning a live ask. (The bounce also
 auto-resolved nothing here — a `notify` has no resolution track; had `msg_01J5MSG0003` been an ask, it
