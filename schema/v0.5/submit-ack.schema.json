@@ -7,7 +7,7 @@
   "required": ["id", "status", "poll_url"],
   "properties": {
     "id": { "type": "string", "minLength": 1, "description": "Hub-assigned canonical message id." },
-    "status": { "enum": ["open", "delivered", "queued"], "description": "`open` for a human-inbox ask/task; `delivered` for a human-inbox notify; `queued` for ANY addressed (`to`-carrying) message, notify included — an addressed message is parked in a mailbox and may still bounce or expire unseen, so the ack never asserts delivery (spec §8.1)." },
+    "status": { "enum": ["open", "delivered", "queued", "answered", "declined", "cancelled", "expired", "completed", "dismissed", "bounced"], "description": "The §7/§14.2 lifecycle status (per spec §1, `status` on this ack is 'open, delivered, or a terminal value'). At first accept: `open` for a human-inbox ask/task; `delivered` for a human-inbox notify; `queued` for ANY addressed (`to`-carrying) message, notify included — an addressed message is parked in a mailbox and may still bounce or expire unseen, so the ack never asserts delivery (spec §8.1). An idempotent same-payload replay returns the original ack with the message's CURRENT status (spec §8.1), which may be any terminal — e.g. `bounced`/`expired` for an addressed notify, or a §7 resolution for an ask/task." },
     "poll_url": { "type": "string", "format": "uri" },
     "review_url": { "type": "string", "format": "uri", "description": "Human-facing deep link." },
     "destination": {

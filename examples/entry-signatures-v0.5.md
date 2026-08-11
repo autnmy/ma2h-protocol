@@ -91,7 +91,9 @@ MA2H-Signature: t=1786752060,jti=jti_01J5RSPDEMOFIX,v1=ML7nxivSFOMqQ8CerEeBJmMV6
 
 The submitter dedups on `(in_reply_to, resolution_id)` — the same Response may also arrive via §8.2
 pull or a §8.3 callback (each channel carries the same `resolution_id`), and `state` stays untrusted
-until the agent verifies the integrity it applied (§9.3).
+until the agent verifies the integrity it applied (§9.3). One reconstruction rule to note: when a task
+Response legitimately carries **no** `response` detail at all, this context's `resolved_at` is JSON
+`null` (spec §9.8) — here the detail is present, so its `resolved_at` binds.
 
 ## 3. The `receipt` entry — the §14.4 ack pattern
 
