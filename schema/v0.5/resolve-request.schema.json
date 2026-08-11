@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.5/resolve-request.schema.json",
+  "title": "MA2H Resolve Request (v0.5)",
+  "description": "Body of POST /v1/messages/{id}/resolve (spec §8.8) — the wire binding for resolving an open ask/task, made interoperable in v0.5 for the inter-agent leg's addressee (spec §6). The caller's identity/authorization and any session presentation ride the credential and the ?session= parameter (spec §8.8, §9.1), never the body. `cancelled` is the §8.4 verb and `expired` is Hub-only, so neither appears here. Value-vs-request validation beyond shape (membership in options[].value, conformance to request.schema) is Hub-enforced (spec §8.8).",
+  "type": "object",
+  "required": ["resolution"],
+  "properties": {
+    "resolution": { "enum": ["answered", "declined", "completed", "dismissed"], "description": "The terminal the resolver asserts: answered|declined for an ask, completed|dismissed for a task (verb-match Hub-enforced)." },
+    "value": { "type": ["string", "object"], "description": "REQUIRED iff resolution is `answered`: the chosen option value (select/confirm; string) or the input object (input mode), per spec §5.2. MUST NOT appear for any other resolution." },
+    "comment": { "type": "string", "description": "Optional; carried into response.comment (spec §6)." },
+    "checklist": {
+      "type": "array",
+      "description": "Task resolutions only: the final §5.3 checklist state, carried into the Response. MUST NOT appear for ask resolutions.",
+      "items": {
+        "type": "object",
+        "required": ["text", "done"],
+        "properties": {
+          "text": { "type": "string" },
+          "done": { "type": "boolean" }
+        }
+      }
+    }
+  },
+  "allOf": [
+    { "if": { "properties": { "resolution": { "const": "answered" } }, "required": ["resolution"] }, "then": { "required": ["value"] }, "else": { "not": { "required": ["value"] } } },
+    { "if": { "properties": { "resolution": { "enum": ["answered", "declined"] } }, "required": ["resolution"] }, "then": { "not": { "required": ["checklist"] } } }
+  ]
+}

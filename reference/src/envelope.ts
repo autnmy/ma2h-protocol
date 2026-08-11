@@ -41,6 +41,31 @@ for (const file of SCHEMA_FILES) {
   ajv.addSchema(JSON.parse(readFileSync(new URL(file, SCHEMA_DIR), "utf8")));
 }
 
+// v0.5 snapshot (spec/v0.5.md): a SECOND registry so v0.5-targeted conformance
+// vectors validate against schema/v0.5/ while every v0.4 validator above runs
+// byte-identically. The v0.5 reference *implementation* lands with issue #26;
+// this registry only powers schema validation.
+const SCHEMA_DIR_V05 = new URL("../../schema/v0.5/", import.meta.url);
+const SCHEMA_FILES_V05 = [
+  "message.schema.json",
+  "response.schema.json",
+  "submit-ack.schema.json",
+  "get-message.schema.json",
+  "capability.schema.json",
+  "inbound-message.schema.json",
+  "ack.schema.json",
+  "presence.schema.json",
+  "session.schema.json",
+  "resolve-request.schema.json",
+] as const;
+const BASE_V05 = "https://ma2h.org/schema/v0.5/";
+
+const ajvV05: AjvLike = new AjvCtor({ strict: false, allErrors: true });
+addFormats(ajvV05);
+for (const file of SCHEMA_FILES_V05) {
+  ajvV05.addSchema(JSON.parse(readFileSync(new URL(file, SCHEMA_DIR_V05), "utf8")));
+}
+
 export type ValidationResult = { valid: true } | { valid: false; errors: string[] };
 
 function runValidator(schemaId: string, data: unknown): ValidationResult {
@@ -73,3 +98,20 @@ export const validateAck = (data: unknown): ValidationResult =>
 /** Validate a presence read body (spec §15.3, v0.4). */
 export const validatePresence = (data: unknown): ValidationResult =>
   runValidator(BASE + "presence.schema.json", data);
+
+/**
+ * Validate against a v0.5 schema by filename (e.g. "message.schema.json").
+ * Backs conformance vectors whose `target` carries the "v0.5/" prefix.
+ */
+export function validateV05(schemaFile: string, data: unknown): ValidationResult {
+  if (!(SCHEMA_FILES_V05 as readonly string[]).includes(schemaFile)) {
+    throw new Error(`unknown v0.5 schema: ${schemaFile}`);
+  }
+  const validate = ajvV05.getSchema(BASE_V05 + schemaFile);
+  if (!validate) throw new Error(`schema not loaded: ${BASE_V05 + schemaFile}`);
+  if (validate(data)) return { valid: true };
+  const errors = (validate.errors ?? []).map((e) =>
+    `${e.instancePath || "/"} ${e.message ?? ""}`.trim(),
+  );
+  return { valid: false, errors };
+}

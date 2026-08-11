@@ -1,0 +1,20 @@
+{
+  "id": "sv-043-response-entry-pre05-invalid",
+  "class": "schema-validation",
+  "description": "A response mailbox entry declaring ma2h_version 0.4 is rejected — mailbox response delivery requires a registered submitting session, a >= 0.5 feature, so a pre-0.5 response entry cannot legitimately exist.",
+  "ref": "spec §6, §8.7 (v0.5)",
+  "target": "v0.5/inbound-message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.4",
+    "in_reply_to": "msg_01J5MSG0002",
+    "resolution_id": "res_01J5RSLV0001",
+    "agent": { "id": "overseer/fleet", "run_id": "run_01J5OVERSEER01" },
+    "resolution": "answered",
+    "response": {
+      "value": "approve",
+      "actor": "agent:deploybot/dev-team#sess_01J5WRK0007",
+      "resolved_at": "2026-08-10T12:05:00Z"
+    }
+  }
+}

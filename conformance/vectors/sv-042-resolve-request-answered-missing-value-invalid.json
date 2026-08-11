@@ -1,0 +1,12 @@
+{
+  "id": "sv-042-resolve-request-answered-missing-value-invalid",
+  "class": "schema-validation",
+  "description": "A resolve request asserting `answered` without a value is rejected — §8.8 requires the chosen option value or input object for an answer (and forbids value for every other resolution).",
+  "ref": "spec §8.8, §5.2 (v0.5)",
+  "target": "v0.5/resolve-request.schema.json",
+  "expect": "invalid",
+  "input": {
+    "resolution": "answered",
+    "comment": "Forgot the value"
+  }
+}

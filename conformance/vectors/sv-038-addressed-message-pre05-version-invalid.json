@@ -1,0 +1,16 @@
+{
+  "id": "sv-038-addressed-message-pre05-version-invalid",
+  "class": "schema-validation",
+  "description": "An envelope declaring ma2h_version 0.4 while carrying the v0.5 `to` field is rejected — the validator must not approve a submission whose delivered form (the >= 0.5 entry branch) could never validate.",
+  "ref": "spec §4, §10 (v0.5)",
+  "target": "v0.5/message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.4",
+    "type": "notify",
+    "created_at": "2026-08-10T12:00:00Z",
+    "agent": { "id": "overseer/fleet", "run_id": "run_01J5OVERSEER01", "runtime": "cli" },
+    "title": "Version too old for addressing",
+    "to": "agent:deploybot/dev-team"
+  }
+}

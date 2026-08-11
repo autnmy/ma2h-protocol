@@ -1,0 +1,20 @@
+{
+  "id": "sv-032-directive-valid-in-v05-union",
+  "class": "schema-validation",
+  "description": "Union regression: a v0.4-shaped human->agent directive still validates against the v0.5 inbound-entry schema (and matches exactly one branch).",
+  "ref": "spec §13.1; SCP #24 backward compatibility",
+  "target": "v0.5/inbound-message.schema.json",
+  "expect": "valid",
+  "input": {
+    "ma2h_version": "0.4",
+    "type": "directive",
+    "id": "dir_01HZXDIR0001",
+    "from": "human:alice",
+    "to": "agent:deploybot/dev-team",
+    "created_at": "2026-06-30T12:00:00Z",
+    "title": "Pause deploys until the incident is resolved",
+    "body": "We are mid-incident on prod. Hold all deploys until I say otherwise.",
+    "priority": "urgent",
+    "tags": ["incident", "deploy-freeze"]
+  }
+}

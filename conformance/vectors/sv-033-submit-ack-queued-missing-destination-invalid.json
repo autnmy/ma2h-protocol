@@ -1,0 +1,13 @@
+{
+  "id": "sv-033-submit-ack-queued-missing-destination-invalid",
+  "class": "schema-validation",
+  "description": "A queued (addressed) submit ack WITHOUT the destination snapshot is rejected — §8.1 makes destination REQUIRED on an addressed ack, and its absence is exactly the malformed ack a 0.5 sender must treat as a pre-0.5 misroute.",
+  "ref": "spec §8.1 (v0.5)",
+  "target": "v0.5/submit-ack.schema.json",
+  "expect": "invalid",
+  "input": {
+    "id": "msg_01J5MSG0001",
+    "status": "queued",
+    "poll_url": "https://hub.example/v1/messages/msg_01J5MSG0001"
+  }
+}

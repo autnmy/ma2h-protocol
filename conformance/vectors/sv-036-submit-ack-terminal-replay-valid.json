@@ -1,0 +1,14 @@
+{
+  "id": "sv-036-submit-ack-terminal-replay-valid",
+  "class": "schema-validation",
+  "description": "An idempotent same-payload replay returns the original ack with the message's CURRENT status (§8.1) — for an addressed notify that bounced unseen, that status is the terminal `bounced`.",
+  "ref": "spec §8.1, §14.2 (v0.5)",
+  "target": "v0.5/submit-ack.schema.json",
+  "expect": "valid",
+  "input": {
+    "id": "msg_01J5MSG0003",
+    "status": "bounced",
+    "poll_url": "https://hub.example/v1/messages/msg_01J5MSG0003",
+    "destination": { "state": "offline", "last_seen": "2026-08-10T11:20:00Z" }
+  }
+}

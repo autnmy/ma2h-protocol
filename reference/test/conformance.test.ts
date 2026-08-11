@@ -57,3 +57,10 @@ test("the dp-009 ack-tamper vector is exercised and passes", () => {
   assert.ok(dp, "dp-009 vector present");
   assert.equal(dp.status, "pass");
 });
+
+test("the v0.5 schema-validation vectors are exercised and pass (spec/v0.5.md)", () => {
+  const report = runVectors();
+  const v05 = report.results.filter((r) => r.id.startsWith("sv-0") && Number(r.id.slice(3, 6)) >= 17);
+  assert.ok(v05.length >= 16, `expected >= 16 v0.5 vectors, got ${v05.length}`);
+  for (const r of v05) assert.equal(r.status, "pass", `${r.id}: ${r.detail ?? ""}`);
+});

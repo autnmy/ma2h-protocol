@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.5/submit-ack.schema.json",
+  "title": "MA2H Submit Ack (v0.5)",
+  "description": "Body of the 202 Accepted returned by POST /v1/messages. v0.5 lists two additions for the addressed (inter-agent) path: `status: queued` and the `destination` reachability snapshot — this schema is closed (additionalProperties: false), so both are deliberate, listed changes (spec §8.1; SCP #24 Backward compatibility).",
+  "type": "object",
+  "required": ["id", "status", "poll_url"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "description": "Hub-assigned canonical message id." },
+    "status": { "enum": ["open", "delivered", "queued", "answered", "declined", "cancelled", "expired", "completed", "dismissed", "bounced", "acknowledged"], "description": "The verb's OWNING-track status (spec §8.1; per spec §1 this is 'open, delivered, or a terminal value'). At first accept: `open` for ANY ask/task, addressed or not (the §7 resolution track — `open` asserts nothing about delivery); `delivered` for a human-inbox notify; `queued` for an ADDRESSED notify only (its lifecycle IS the §14.2 delivery track, and asserting `delivered` at accept would be the false belief v0.5 bans). An idempotent same-payload replay returns the original ack with the owning track's CURRENT status (spec §8.1) — e.g. `queued`/`delivered`/`acknowledged`/`bounced`/`expired` for an addressed notify (its track runs to acknowledged on consume, spec §14.2), a §7 resolution for an ask/task." },
+    "poll_url": { "type": "string", "format": "uri" },
+    "review_url": { "type": "string", "format": "uri", "description": "Human-facing deep link." },
+    "destination": {
+      "type": "object",
+      "description": "REQUIRED on the ack for EVERY addressed submit, any verb (v0.5, spec §8.1): the destination's reachability at send time, and the sender's misroute detector — its absence on an addressed-submit ack means a pre-0.5 Hub misrouted the message to the human inbox, which the sender MUST treat as a failure. Schema-enforceable only for the unambiguously-addressed statuses (`queued`/`bounced`/`acknowledged`, the allOf below): `open` also occurs on the human-inbox path, so for an addressed ask/task's `open` ack the requirement is Hub-enforced, a §12 downstream-proof obligation — the sender-side detector never depends on the schema (the sender knows it addressed the message). When the sender lacks visibility for the destination, exactly {\"state\": \"unknown\"} with no last_seen (schema-enforced below, mirroring presence.schema.json).",
+      "required": ["state"],
+      "properties": {
+        "state": { "enum": ["online", "offline", "unknown"] },
+        "last_seen": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        { "if": { "properties": { "state": { "const": "unknown" } }, "required": ["state"] }, "then": { "not": { "required": ["last_seen"] } } },
+        { "if": { "properties": { "state": { "enum": ["online", "offline"] } }, "required": ["state"] }, "then": { "required": ["last_seen"] }, "$comment": "Mirrors presence.schema.json: a known reachability state is meaningless without the timestamp that anchors its freshness claim (spec §8.1/§15.2)." }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "allOf": [
+    { "if": { "required": ["destination"] }, "then": { "properties": { "id": { "pattern": "^msg_.+$" } } }, "$comment": "A destination-carrying ack is an ADDRESSED (v0.5-minted) message, whose id is in the normative msg_ ack-key namespace (spec §8.7.1) — the 202 body must not validate an id that the delivery and GET schemas would reject or that could collide with another ack-key namespace." },
+    { "if": { "properties": { "status": { "enum": ["queued", "bounced", "acknowledged"] } }, "required": ["status"] }, "then": { "required": ["destination"] }, "$comment": "queued, bounced, and acknowledged are unambiguously ADDRESSED statuses on this ack (acknowledged reaches a submit-ack only as an addressed-notify replay — human-inbox notifies terminate at delivered, and ask/task replays report §7 resolutions), so the §8.1 destination MUST applies — its absence is the misroute signal. expired/cancelled/etc. stay unconditional: they also occur on the human-inbox path." }
+  ]
+}

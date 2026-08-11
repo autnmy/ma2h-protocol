@@ -1,0 +1,25 @@
+{
+  "id": "sv-028-message-entry-with-state-invalid",
+  "class": "schema-validation",
+  "description": "A delivered `message` entry carrying `state` is rejected: the submitter's resume blob is never delivered to the addressee, and `state` is outside the §9.8 payload digest — shape validation is what stops an unsigned injected copy.",
+  "ref": "spec §8.7 (v0.5), §13.4",
+  "target": "v0.5/inbound-message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.5",
+    "type": "ask",
+    "id": "msg_01J5MSG0002",
+    "from": "agent:overseer/fleet#sess_01J5OVR0001",
+    "to": "agent:deploybot/dev-team#sess_01J5WRK0007",
+    "created_at": "2026-08-10T12:01:00Z",
+    "agent": {
+      "id": "overseer/fleet",
+      "run_id": "run_01J5OVERSEER01",
+      "runtime": "cli"
+    },
+    "title": "May I restart your queue consumer?",
+    "idempotency_key": "restart-consumer-01J5",
+    "request": { "mode": "confirm" },
+    "state": { "sealed": "v1.demo.INJECTED-BLOB" }
+  }
+}

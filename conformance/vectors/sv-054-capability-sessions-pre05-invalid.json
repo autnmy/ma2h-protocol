@@ -1,0 +1,14 @@
+{
+  "id": "sv-054-capability-sessions-pre05-invalid",
+  "class": "schema-validation",
+  "description": "A capability document advertising sessions while declaring ma2h_version 0.4 is rejected — sessions (like inter_agent and the inbound session/stream fields) are v0.5 capabilities, and version-based feature negotiation must stay unambiguous.",
+  "ref": "spec §8.0, §16 (v0.5)",
+  "target": "v0.5/capability.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.4",
+    "sessions": {
+      "enabled": true
+    }
+  }
+}

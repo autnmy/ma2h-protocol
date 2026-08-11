@@ -1,0 +1,16 @@
+{
+  "id": "sv-020-to-bad-session-segment-invalid",
+  "class": "schema-validation",
+  "description": "`to: agent:foo#bar` is rejected: the first `#` terminates the agent-id segment and the remainder must match ^sess_ — which also makes a `#`-bearing agent id inexpressible in `to`.",
+  "ref": "spec §4 (v0.5 `to` grammar), §16",
+  "target": "v0.5/message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.5",
+    "type": "notify",
+    "created_at": "2026-08-10T12:03:00Z",
+    "agent": { "id": "overseer/fleet", "run_id": "run_01J5OVERSEER01", "runtime": "cli" },
+    "title": "Bad session segment",
+    "to": "agent:foo#bar"
+  }
+}

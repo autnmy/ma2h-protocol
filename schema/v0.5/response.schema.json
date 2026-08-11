@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.5/response.schema.json",
+  "title": "MA2H Response (v0.5)",
+  "description": "Hub->Agent response envelope for a resolved ask/task. Pushed (signed, see spec 9.2) or embedded in the GET body. `resolution` is a flat union; per-verb validity (ask: answered|declined|cancelled|expired; task: completed|dismissed|expired) is Hub-enforced + covered by a conformance vector.",
+  "type": "object",
+  "required": ["ma2h_version", "in_reply_to", "resolution_id", "agent", "resolution"],
+  "properties": {
+    "ma2h_version": { "type": "string", "pattern": "^0\\.(0|[1-9]\\d*)$" },
+    "in_reply_to": { "type": "string", "minLength": 1 },
+    "resolution_id": { "type": "string", "minLength": 1, "description": "Hub-assigned, opaque, random; identical across every channel and retry. Agent dedups on (in_reply_to, resolution_id). v0.5 responses mint it in the res_ namespace (the conditional below; spec §8.7.1) — pre-0.5 responses keep their opaque ids, per the unchanged-wire contract." },
+    "agent": {
+      "type": "object",
+      "description": "responseAgent: routing identity only (runtime NOT required on the return leg).",
+      "required": ["id", "run_id"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 }
+      }
+    },
+    "resolution": { "enum": ["answered", "declined", "cancelled", "expired", "completed", "dismissed"] },
+    "defaulted": { "type": "boolean", "default": false, "description": "True iff the resolution came from default_on_expire (then actor MUST be system:default_on_expire)." },
+    "response": {
+      "type": "object",
+      "description": "Present for ask; for task present only to carry comment/checklist (no value); never for notify.",
+      "required": ["actor", "resolved_at"],
+      "properties": {
+        "value": {
+          "description": "ask only: chosen option value (string, select/confirm) or the input object (input). Absent for task.",
+          "type": ["string", "object"]
+        },
+        "edited": { "type": "boolean", "default": false },
+        "actor": { "type": "string", "pattern": "^(human|agent|system):.+$", "description": "Hub-attested identity. Never request-supplied." },
+        "resolved_at": { "type": "string", "format": "date-time" },
+        "comment": { "type": "string" },
+        "checklist": {
+          "type": "array",
+          "description": "Task resolutions only: the final §5.3 checklist state (typed in v0.5 — the §8.8 resolve binding carries it over the wire). Base item shape matches v0.4's action.checklist (text required, done optional default false) so a stored legacy Response stays valid; a >= 0.5 Response states each item's doneness (the root conditional; same shape as resolve-request.schema.json).",
+          "items": {
+            "type": "object",
+            "required": ["text"],
+            "properties": {
+              "text": { "type": "string" },
+              "done": { "type": "boolean", "default": false }
+            }
+          }
+        }
+      }
+    },
+    "state": { "type": "object", "description": "Opaque agent blob round-tripped verbatim. UNTRUSTED until the agent verifies integrity it applied (spec 9.3).", "additionalProperties": true }
+  },
+  "allOf": [
+    { "if": { "properties": { "resolution": { "enum": ["answered", "declined", "cancelled"] } }, "required": ["resolution"] }, "then": { "properties": { "response": { "not": { "required": ["checklist"] } } } }, "$comment": "answered/declined/cancelled are ask-only resolutions (spec §7) and checklists are task-only (spec §6, §8.8) — a checklist on an ask Response is malformed." },
+    { "if": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } }, "required": ["ma2h_version"] }, "then": { "properties": { "resolution_id": { "pattern": "^res_.+$" }, "response": { "properties": { "checklist": { "items": { "required": ["text", "done"] } } } } } }, "$comment": "The res_ ack-key namespace (spec §8.7.1) is normative for v0.5-minted responses only; 0.3/0.4 responses keep their opaque ids (unchanged wire, MIGRATION contract). Mailbox response ENTRIES always require minor >= 5, so every ack key on the drain is namespaced." },
+    {
+      "if": { "properties": { "defaulted": { "const": true } }, "required": ["defaulted"] },
+      "then": {
+        "properties": {
+          "resolution": { "const": "expired" },
+          "response": { "properties": { "actor": { "const": "system:default_on_expire" } } }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "sv-030-receipt-bad-prior-invalid",
+  "class": "schema-validation",
+  "description": "receipt.prior is a closed enum (queued | delivered — the never-seen vs seen-then-orphaned distinction); anything else is rejected.",
+  "ref": "spec §8.7 (v0.5), §14.2",
+  "target": "v0.5/inbound-message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.5",
+    "type": "receipt",
+    "id": "rcpt_01J5RCPT0001",
+    "in_reply_to": "msg_01J5MSG0002",
+    "event": "bounced",
+    "prior": "seen",
+    "at": "2026-08-10T12:20:00Z",
+    "session": "sess_01J5WRK0007",
+    "to": "agent:overseer/fleet#sess_01J5OVR0001"
+  }
+}

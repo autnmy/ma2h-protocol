@@ -1,0 +1,13 @@
+{
+  "id": "sv-048-submit-ack-acknowledged-missing-destination-invalid",
+  "class": "schema-validation",
+  "description": "An acknowledged replay ack WITHOUT the destination snapshot is rejected — acknowledged reaches a submit-ack only as an addressed-notify replay (the track ran to acknowledged on consume), so the §8.1 destination requirement applies.",
+  "ref": "spec §8.1, §14.2 (v0.5)",
+  "target": "v0.5/submit-ack.schema.json",
+  "expect": "invalid",
+  "input": {
+    "id": "msg_01J5MSG0004",
+    "status": "acknowledged",
+    "poll_url": "https://hub.example/v1/messages/msg_01J5MSG0004"
+  }
+}

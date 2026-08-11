@@ -88,3 +88,43 @@ wire**:
 For a local experiment already on v0.3: bump `ma2h_version` to `"0.4"` when you want to send/consume
 directives, point `$ref`s at `schema/v0.4/`, and re-pull `@ma2h/reference`. If you only use the agent→human
 legs, you can stay on `"0.3"` against a 0.4 Hub — that is exactly the backward-compatibility guarantee.
+
+## v0.4 → v0.5 (the inter-agent leg)
+
+v0.5 is a **version bump, not a rename** — **additive and backward-compatible** (a MINOR bump under
+major `0`, via [SCP #24](https://github.com/autnmy/ma2h-protocol/issues/24)). It adds the
+**inter-agent leg** — [sessions](spec/v0.5.md) (§16), addressed envelopes (`to`, §4), three mailbox
+entry kinds (§8.7), the §9.8 entry signatures, and delivery honesty (§14.2) — alongside the unchanged
+v0.4 legs. Nothing is removed or changed on the existing wire:
+
+- Every v0.3/v0.4 leg — `notify`/`ask`/`task`, Responses, directives, acks, presence — is
+  **byte-for-byte unchanged**. A 0.5 Hub accepts 0.3/0.4 envelopes and signs at the version carried;
+  the §9.2/§9.7 algorithms and the push-parity threshold (minor 3) are identical.
+- The `schema/v0.5/` snapshot is the `schema/v0.4/` schemas re-`$id`'d to the v0.5 path, with the
+  listed extensions only: `message` gains optional `to` + `agent.session`; the **closed** `submit-ack`
+  schema lists two additions (`status: "queued"` and the `destination` snapshot — a deliberate, named
+  change, not a silent carry-forward); `get-message` carries the v0.5 delivery-track states;
+  `capability` gains `sessions`/`inter_agent` + the `inbound` stream/session fields;
+  `inbound-message.schema.json` becomes the four-kind delivered-entry union (a v0.4 directive still
+  validates); `session.schema.json` and `resolve-request.schema.json` (the §8.8 resolve binding, made
+  interoperable for the addressee's return leg) are added. `spec/v0.4.md` + `schema/v0.4/` remain on
+  disk as the v0.4 snapshot.
+- **What's new to adopt (opt-in, per role):** a *sender* feature-detects `inter_agent` (§8.0), adds
+  `to` (and SHOULD register a session + carry `agent.session`), and honors the §8.1 ack rules
+  (notify accepted `queued`; ask/task stay `open`; the REQUIRED `destination` snapshot; the misroute
+  detector); a *recipient* registers a session, drains with `?session=`, verifies
+  the §9.8 entry signatures, applies the §13.4 duties (session-qualified addressee check + a declared
+  sender policy), and acks; an *operator* opts the account in (`inter_agent.enabled`) and gains the
+  §16 session kill-switch. A pre-0.5 agent that never presents a session never sees a new entry kind
+  and keeps working unchanged — the leg is optional to offer and to consume (§1).
+- **Two deliberate louder-failure changes to know about:** (1) a 0.5 Hub **rejects** (`422
+  unknown_destination` / `410 destination_gone`) directive submissions to unknown or terminal
+  destinations that a 0.4 Hub accepted and silently dead-lettered (§4's retroactive validation —
+  failing submissions now fail visibly); (2) a 0.5 **sender** MUST treat an addressed-submit ack
+  lacking `destination` as a pre-0.5 misroute (§8.1) — capability caching alone is TOCTOU across
+  rolling deploys.
+
+For a local experiment already on v0.4: bump `ma2h_version` to `"0.5"` when you want the inter-agent
+leg, point `$ref`s at `schema/v0.5/`, and re-pull `@ma2h/reference`. If you only use the
+agent→human/human→agent legs, you can stay on `"0.4"` against a 0.5 Hub — the same guarantee as every
+MINOR before it.

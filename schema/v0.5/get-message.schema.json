@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.5/get-message.schema.json",
+  "title": "MA2H GET Message Body (v0.5)",
+  "description": "Body of GET /v1/messages/{id}: the original message plus current `status`, the Hub-assigned `id`, and (once terminal) the embedded `response`.",
+  "type": "object",
+  "required": ["id", "status"],
+  "allOf": [
+    { "$ref": "https://ma2h.org/schema/v0.5/message.schema.json" },
+    { "if": { "properties": { "type": { "const": "ask" } }, "required": ["type"] }, "then": { "properties": { "status": { "enum": ["open", "answered", "declined", "cancelled", "expired"] } } }, "$comment": "An ask's top-level status is ALWAYS its §7 resolution track (spec §7/§8.2) — verb-true (no task terminals), and mailbox states live under `mailbox` (a bounce surfaces here only as its cancelled auto-resolution)." },
+    { "if": { "properties": { "type": { "const": "task" } }, "required": ["type"] }, "then": { "properties": { "status": { "enum": ["open", "completed", "dismissed", "expired"] } } }, "$comment": "A task's top-level status is ALWAYS its §7 resolution track (spec §7/§8.2) — verb-true (no ask terminals; a bounce surfaces here as its dismissed auto-resolution)." },
+    { "if": { "allOf": [{ "properties": { "type": { "const": "notify" } }, "required": ["type"] }, { "not": { "required": ["to"] } }] }, "then": { "properties": { "status": { "const": "delivered" } } }, "$comment": "A human-inbox notify is delivered-on-acceptance (spec §5.1) and has no other state." },
+    { "if": { "allOf": [{ "properties": { "type": { "const": "notify" } }, "required": ["type"] }, { "required": ["to"] }] }, "then": { "properties": { "status": { "enum": ["queued", "delivered", "acknowledged", "bounced", "expired"] } } }, "$comment": "An addressed notify's lifecycle IS the §14.2 delivery track (spec §5.1)." },
+    { "if": { "not": { "required": ["to"] } }, "then": { "not": { "required": ["mailbox"] } }, "$comment": "The mailbox track exists only for ADDRESSED messages (spec §14.2); a human-inbox message has no outbound mailbox leg." },
+    { "if": { "required": ["to"] }, "then": { "required": ["mailbox"] }, "$comment": "Every ADDRESSED message carries its authoritative outbound track (spec §8.2): the inter-agent leg requires the §14 primitive, so the track always exists — a sender must never be left unable to distinguish queued/delivered/bounced/expired." },
+    { "if": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } }, "required": ["ma2h_version"] }, "then": { "properties": { "id": { "pattern": "^msg_.+$" } } }, "$comment": "The msg_ ack-key namespace (spec §8.7.1) is normative for v0.5-minted message ids — mirrors the res_ conditional in response.schema.json; pre-0.5 messages keep their opaque ids (unchanged-wire contract)." },
+    { "if": { "properties": { "delivery": { "properties": { "state": { "const": "expired" } }, "required": ["state"] } }, "required": ["delivery"] }, "then": { "properties": { "ma2h_version": { "pattern": "^0\\.([5-9]|[1-9]\\d+)$" } } }, "$comment": "The response-track terminal `expired` is a v0.5 state (spec §14.2): a 0.3/0.4 message keeps its unchanged wire, on which the track never expires — the validator must not approve a legacy body carrying a state its own minor does not define." },
+    { "if": { "allOf": [{ "properties": { "type": { "enum": ["ask", "task"] } }, "required": ["type"] }, { "properties": { "mailbox": { "properties": { "state": { "enum": ["bounced", "expired"] } }, "required": ["state"] } }, "required": ["mailbox"] }] }, "then": { "properties": { "status": { "enum": ["answered", "declined", "cancelled", "expired", "completed", "dismissed"] } } }, "$comment": "An undeliverable mailbox terminal on an addressed ask/task guarantees a resolution terminal (spec §7/§14.2): the system:undeliverable auto-resolution fires, or a pre-death resolution already won the CAS (bounced + answered is legitimate — resolved, never acked, then died). What can never be true is `open`: a permanently undeliverable request must not present as actionable." },
+    { "if": { "allOf": [{ "properties": { "type": { "enum": ["ask", "task"] } }, "required": ["type"] }, { "required": ["delivery"] }] }, "then": { "properties": { "status": { "enum": ["answered", "declined", "cancelled", "expired", "completed", "dismissed"] } } }, "$comment": "The response track exists only after resolution (answered -> delivered-to-agent -> ..., spec §14.2): a body claiming response-delivery states for a still-open request would assert delivery of a nonexistent answer." },
+    { "if": { "properties": { "type": { "const": "notify" } }, "required": ["type"] }, "then": { "not": { "required": ["delivery"] } }, "$comment": "A notify has no response track — nothing routes back (spec §5.1); an addressed notify's consumption lives on `mailbox`." },
+    { "if": { "properties": { "type": { "const": "notify" } }, "required": ["type"] }, "then": { "not": { "required": ["response"] } }, "$comment": "A Hub MUST NOT route a Response for a notify (spec §5.1) — the GET can never embed one." },
+    { "if": { "properties": { "status": { "const": "open" } }, "required": ["status"] }, "then": { "not": { "required": ["response"] } }, "$comment": "The embedded Response appears only once terminal (spec §8.2) — an open request has no answer to embed." },
+    { "if": { "allOf": [{ "properties": { "type": { "enum": ["ask", "task"] } }, "required": ["type"] }, { "properties": { "status": { "enum": ["answered", "declined", "cancelled", "expired", "completed", "dismissed"] } }, "required": ["status"] }] }, "then": { "required": ["response"] }, "$comment": "Every terminal ask/task embeds the full Response ENVELOPE (spec §8.2 — resolution_id, round-tripped state, the resolution): a pull-only caller must never lose its resolution or resume data. The inner detail rule and the status<->resolution agreement are the conditionals below." },
+    { "if": { "allOf": [{ "properties": { "type": { "const": "ask" } }, "required": ["type"] }, { "properties": { "status": { "enum": ["answered", "declined", "cancelled", "expired"] } }, "required": ["status"] }] }, "then": { "properties": { "response": { "required": ["response"] } } }, "$comment": "A terminal ask's embedded envelope always carries its inner `response` object (spec §6 — REQUIRED for ask: the value, attested actor, resolved_at); only a task's inner detail is optional." },
+    { "if": { "allOf": [{ "properties": { "type": { "enum": ["ask", "task"] } }, "required": ["type"] }, { "properties": { "status": { "const": "answered" } }, "required": ["status"] }, { "required": ["response"] }] }, "then": { "properties": { "response": { "properties": { "resolution": { "const": "answered" } } } } } },
+    { "if": { "allOf": [{ "properties": { "type": { "enum": ["ask", "task"] } }, "required": ["type"] }, { "properties": { "status": { "const": "declined" } }, "required": ["status"] }, { "required": ["response"] }] }, "then": { "properties": { "response": { "properties": { "resolution": { "const": "declined" } } } } } },
+    { "if": { "allOf": [{ "properties": { "type": { "enum": ["ask", "task"] } }, "required": ["type"] }, { "properties": { "status": { "const": "cancelled" } }, "required": ["status"] }, { "required": ["response"] }] }, "then": { "properties": { "response": { "properties": { "resolution": { "const": "cancelled" } } } } } },
+    { "if": { "allOf": [{ "properties": { "type": { "enum": ["ask", "task"] } }, "required": ["type"] }, { "properties": { "status": { "const": "expired" } }, "required": ["status"] }, { "required": ["response"] }] }, "then": { "properties": { "response": { "properties": { "resolution": { "const": "expired" } } } } } },
+    { "if": { "allOf": [{ "properties": { "type": { "enum": ["ask", "task"] } }, "required": ["type"] }, { "properties": { "status": { "const": "completed" } }, "required": ["status"] }, { "required": ["response"] }] }, "then": { "properties": { "response": { "properties": { "resolution": { "const": "completed" } } } } } },
+    { "if": { "allOf": [{ "properties": { "type": { "enum": ["ask", "task"] } }, "required": ["type"] }, { "properties": { "status": { "const": "dismissed" } }, "required": ["status"] }, { "required": ["response"] }] }, "then": { "properties": { "response": { "properties": { "resolution": { "const": "dismissed" } } } } } },
+    { "if": { "allOf": [{ "properties": { "type": { "const": "notify" } }, "required": ["type"] }, { "properties": { "mailbox": { "properties": { "state": { "const": "queued" } }, "required": ["state"] } }, "required": ["mailbox"] }] }, "then": { "properties": { "status": { "const": "queued" } } } },
+    { "if": { "allOf": [{ "properties": { "type": { "const": "notify" } }, "required": ["type"] }, { "properties": { "mailbox": { "properties": { "state": { "const": "delivered" } }, "required": ["state"] } }, "required": ["mailbox"] }] }, "then": { "properties": { "status": { "const": "delivered" } } } },
+    { "if": { "allOf": [{ "properties": { "type": { "const": "notify" } }, "required": ["type"] }, { "properties": { "mailbox": { "properties": { "state": { "const": "acknowledged" } }, "required": ["state"] } }, "required": ["mailbox"] }] }, "then": { "properties": { "status": { "const": "acknowledged" } } } },
+    { "if": { "allOf": [{ "properties": { "type": { "const": "notify" } }, "required": ["type"] }, { "properties": { "mailbox": { "properties": { "state": { "const": "bounced" } }, "required": ["state"] } }, "required": ["mailbox"] }] }, "then": { "properties": { "status": { "const": "bounced" } } } },
+    { "if": { "allOf": [{ "properties": { "type": { "const": "notify" } }, "required": ["type"] }, { "properties": { "mailbox": { "properties": { "state": { "const": "expired" } }, "required": ["state"] } }, "required": ["mailbox"] }] }, "then": { "properties": { "status": { "const": "expired" } } } }
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "description": "Hub-assigned canonical message id. v0.5-minted ids are in the msg_ ack-key namespace (the conditional below, spec §8.7.1); pre-0.5 ids are grandfathered." },
+    "status": { "enum": ["open", "delivered", "answered", "declined", "cancelled", "expired", "completed", "dismissed", "queued", "bounced", "acknowledged"], "description": "Lifecycle status (spec §7). v0.5 adds `queued`/`bounced`/`acknowledged` for ADDRESSED messages: an addressed notify's lifecycle IS the delivery track (queued -> delivered -> acknowledged, or terminal bounced/expired, spec §14.2); an addressed ask/task keeps the §7 resolution machinery here (open -> terminals — an undeliverable track terminal auto-resolves it cancelled/dismissed) with the outbound track surfaced under `mailbox` and the response track under `delivery`." },
+    "response": {
+      "$ref": "https://ma2h.org/schema/v0.5/response.schema.json",
+      "description": "Present once the message is terminal (ask/task). Embeds the full Response envelope."
+    },
+    "delivery": {
+      "type": "object",
+      "description": "The RESPONSE track (spec §14.2), for ask/task of either leg: did the submitting party get the answer (delivered-to-agent -> acknowledged, plus the v0.5 terminal `expired` = the answer was NEVER seen). Orthogonal to `status`/`response`; present on a Hub offering the ack primitive. For an ADDRESSED ask/task this coexists with the v0.5 `mailbox` object (the outbound track); a notify has no response track (see `mailbox`).",
+      "required": ["state"],
+      "properties": {
+        "state": { "enum": ["delivered-to-agent", "acknowledged", "expired"] },
+        "delivered_at": { "type": "string", "format": "date-time", "description": "When the receiving party got the message (mailbox entry drained, or Response push-2xx / agent GET)." },
+        "acknowledged_at": { "type": "string", "format": "date-time" },
+        "ack": {
+          "$ref": "https://ma2h.org/schema/v0.5/ack.schema.json",
+          "description": "The ack envelope, present once state is `acknowledged`."
+        }
+      },
+      "allOf": [
+        { "if": { "properties": { "state": { "const": "acknowledged" } }, "required": ["state"] }, "then": { "required": ["ack", "acknowledged_at"] }, "else": { "not": { "anyOf": [{ "required": ["ack"] }, { "required": ["acknowledged_at"] }] } } },
+        { "if": { "properties": { "state": { "const": "expired" } }, "required": ["state"] }, "then": { "not": { "required": ["delivered_at"] } }, "$comment": "Delivery honesty (spec §14.2): a track `expired` MUST mean NEVER delivered — a body claiming both would be the exact false belief the track exists to kill." }
+      ]
+    },
+    "mailbox": {
+      "type": "object",
+      "description": "v0.5: the outbound MAILBOX track of an ADDRESSED message on the sender's authoritative §8.2 pull (queued -> delivered -> acknowledged, or terminal bounced/expired, spec §14.2) — did the ADDRESSEE see it. Present only when `to` is present (the root conditional). On `bounced`, a present `delivered_at` means seen-then-orphaned and an absent one never-seen (the receipt `prior` distinction, spec §8.7.1). For an addressed notify this track IS the lifecycle (`status` mirrors it, spec §5.1); for an addressed ask/task it coexists with the response-track `delivery` object.",
+      "required": ["state"],
+      "properties": {
+        "state": { "enum": ["queued", "delivered", "acknowledged", "bounced", "expired"] },
+        "delivered_at": { "type": "string", "format": "date-time", "description": "When the addressee's drain first delivered the entry (spec §14.2; a stream push alone does not stamp it, spec §8.7.2)." },
+        "acknowledged_at": { "type": "string", "format": "date-time" }
+      },
+      "allOf": [
+        { "if": { "properties": { "state": { "enum": ["queued", "expired"] } }, "required": ["state"] }, "then": { "not": { "required": ["delivered_at"] } }, "$comment": "Mailbox honesty (spec §14.2): queued = not delivered yet; a track `expired` MUST mean NEVER delivered. bounced deliberately allows delivered_at: presence = seen-then-orphaned, absence = never-seen." },
+        { "if": { "properties": { "state": { "const": "acknowledged" } }, "required": ["state"] }, "then": { "required": ["acknowledged_at"] }, "else": { "not": { "required": ["acknowledged_at"] } } }
+      ]
+    }
+  }
+}

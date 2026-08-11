@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.5/session.schema.json",
+  "title": "MA2H Session (v0.5)",
+  "description": "A Hub-registered, lease-bound, ephemeral addressing scope under one agent.id (spec §16). The root is the session RESOURCE as the Hub returns it (POST /v1/sessions 201; GET /v1/sessions[/{id}]). A session id is Hub-minted (`^sess_`), is not a secret and not a credential; the session locates one live invocation while the principal (the agent.id + its credential) authenticates and is accountable. $defs carry the register-request and response wrapper shapes.",
+  "type": "object",
+  "required": ["id", "agent_id", "state", "created_at", "expires_at"],
+  "properties": {
+    "id": { "type": "string", "pattern": "^sess_.+$", "description": "Hub-minted session id (spec §16). Not a secret; another principal's session id MUST be indistinguishable from unknown." },
+    "agent_id": { "type": "string", "pattern": "^[^#]+$", "description": "The owning principal. Registration is rejected for an agent.id containing `#` (the address separator, spec §4/§16.1) — schema-enforced here so a session resource that could never be addressed cannot validate." },
+    "state": { "enum": ["active", "closed", "expired"], "description": "active -> closed (explicit DELETE, idempotent) or active -> expired (lease lapse, Hub clock). Both terminal and immutable (first-terminal-wins, spec §16); terminal sessions remain readable for the advertised retention window." },
+    "created_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time", "description": "Current lease expiry (Hub clock). Renewed only by client-originated authenticated activity that references the session (spec §16); a merely-open connection is NOT renewal evidence." },
+    "last_seen": { "type": "string", "format": "date-time", "description": "The session's latest client-originated renewal event (spec §15.1 per-session presence). Optional: absent until first derivable, and exposed under exactly the visibility rules that gate the read itself (spec §16.4)." },
+    "ttl_seconds": { "type": "integer", "minimum": 1, "description": "The lease TTL in effect (the requested value, clamped to the advertised sessions.max_ttl_seconds)." },
+    "closed_at": { "type": "string", "format": "date-time", "description": "When the session reached a terminal state." },
+    "run_id": { "type": "string", "minLength": 1, "description": "The invocation's run_id as supplied at registration (audit label; still non-authorizing, spec §9.1)." },
+    "label": { "type": "string", "description": "Free-form human-readable label (e.g. \"dev-team · issue #612\")." },
+    "kind": { "type": "string", "description": "Free-form deployment vocabulary (e.g. \"worker\", \"overseer\")." },
+    "project": { "type": "string", "description": "Optional grouping key, as on the §4.1 agent descriptor." },
+    "labels": { "type": "object", "additionalProperties": { "type": "string" } }
+  },
+  "$defs": {
+    "registerRequest": {
+      "title": "POST /v1/sessions request",
+      "description": "All fields optional (spec §16). ttl_seconds is a request the Hub MAY clamp to advertised bounds.",
+      "type": "object",
+      "properties": {
+        "run_id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string" },
+        "kind": { "type": "string" },
+        "project": { "type": "string" },
+        "labels": { "type": "object", "additionalProperties": { "type": "string" } },
+        "ttl_seconds": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "sessionEnvelope": {
+      "title": "POST /v1/sessions 201 / GET /v1/sessions/{id} body",
+      "type": "object",
+      "required": ["session"],
+      "properties": {
+        "session": { "$ref": "https://ma2h.org/schema/v0.5/session.schema.json" }
+      }
+    },
+    "sessionList": {
+      "title": "GET /v1/sessions body",
+      "type": "object",
+      "required": ["sessions"],
+      "properties": {
+        "sessions": { "type": "array", "items": { "$ref": "https://ma2h.org/schema/v0.5/session.schema.json" } }
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "id": "sv-018-addressed-ask-session-valid",
+  "class": "schema-validation",
+  "description": "A v0.5 session-addressed ask (`to: agent:<id>#<session>`) is a valid envelope; the first `#` terminates the agent-id segment and the session segment matches ^sess_.",
+  "ref": "spec §4 (v0.5 `to` grammar), §5.2",
+  "target": "v0.5/message.schema.json",
+  "expect": "valid",
+  "input": {
+    "ma2h_version": "0.5",
+    "type": "ask",
+    "created_at": "2026-08-10T12:01:00Z",
+    "agent": {
+      "id": "overseer/fleet",
+      "run_id": "run_01J5OVERSEER01",
+      "runtime": "cli",
+      "session": "sess_01J5OVR0001"
+    },
+    "title": "May I restart your queue consumer?",
+    "idempotency_key": "restart-consumer-01J5",
+    "request": {
+      "mode": "confirm"
+    },
+    "to": "agent:deploybot/dev-team#sess_01J5WRK0007"
+  }
+}

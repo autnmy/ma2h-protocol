@@ -1,0 +1,16 @@
+{
+  "id": "sv-024-capability-bad-entry-kind-invalid",
+  "class": "schema-validation",
+  "description": "inter_agent.entry_kinds is a closed enum (message | response | receipt); an unknown kind is rejected.",
+  "ref": "spec §8.0 (v0.5)",
+  "target": "v0.5/capability.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.5",
+    "inter_agent": {
+      "enabled": true,
+      "entry_kinds": ["message", "broadcast"],
+      "sender_allowlists": true
+    }
+  }
+}
