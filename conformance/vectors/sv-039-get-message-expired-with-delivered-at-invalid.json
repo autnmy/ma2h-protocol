@@ -1,7 +1,7 @@
 {
   "id": "sv-039-get-message-expired-with-delivered-at-invalid",
   "class": "schema-validation",
-  "description": "A GET body claiming delivery-track `expired` AND a delivered_at is rejected — §14.2's invariant: a delivery-track expired MUST mean never delivered, so the authoritative pull can never assert both.",
+  "description": "A GET body claiming mailbox-track `expired` AND a delivered_at is rejected — §14.2's invariant: a track expired MUST mean never delivered, so the authoritative pull can never assert both.",
   "ref": "spec §14.2 (v0.5)",
   "target": "v0.5/get-message.schema.json",
   "expect": "invalid",
@@ -19,7 +19,7 @@
     },
     "title": "Addressed notify that expired unseen",
     "to": "agent:deploybot/dev-team",
-    "delivery": {
+    "mailbox": {
       "state": "expired",
       "delivered_at": "2026-08-10T12:10:00Z"
     }

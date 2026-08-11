@@ -10,8 +10,8 @@
     { "if": { "properties": { "type": { "enum": ["ask", "task"] } }, "required": ["type"] }, "then": { "properties": { "status": { "enum": ["open", "answered", "declined", "cancelled", "expired", "completed", "dismissed"] } } }, "$comment": "An ask/task's top-level status is ALWAYS the §7 resolution track (spec §8.2/§14.2) — mailbox states (queued/bounced/acknowledged/delivered) live under `delivery`; a bounce surfaces here only as its cancelled/dismissed auto-resolution." },
     { "if": { "allOf": [{ "properties": { "type": { "const": "notify" } }, "required": ["type"] }, { "not": { "required": ["to"] } }] }, "then": { "properties": { "status": { "const": "delivered" } } }, "$comment": "A human-inbox notify is delivered-on-acceptance (spec §5.1) and has no other state." },
     { "if": { "allOf": [{ "properties": { "type": { "const": "notify" } }, "required": ["type"] }, { "required": ["to"] }] }, "then": { "properties": { "status": { "enum": ["queued", "delivered", "acknowledged", "bounced", "expired"] } } }, "$comment": "An addressed notify's lifecycle IS the §14.2 delivery track (spec §5.1)." },
-    { "if": { "allOf": [{ "required": ["delivery"] }, { "not": { "required": ["to"] } }] }, "then": { "properties": { "delivery": { "properties": { "state": { "enum": ["delivered-to-agent", "acknowledged", "expired"] } } } } }, "$comment": "Without `to` this GET is the agent->human leg: the delivery object is the RESPONSE track (spec §14.2) — mailbox-only states cannot appear." },
-    { "if": { "allOf": [{ "required": ["delivery"] }, { "required": ["to"] }] }, "then": { "properties": { "delivery": { "properties": { "state": { "enum": ["queued", "delivered", "acknowledged", "bounced", "expired"] } } } } }, "$comment": "With `to` this GET is the sender's authoritative mailbox view (spec §8.2/§14.2) — the response-track delivered-to-agent cannot appear." }
+    { "if": { "not": { "required": ["to"] } }, "then": { "not": { "required": ["mailbox"] } }, "$comment": "The mailbox track exists only for ADDRESSED messages (spec §14.2); a human-inbox message has no outbound mailbox leg." },
+    { "if": { "properties": { "type": { "const": "notify" } }, "required": ["type"] }, "then": { "not": { "required": ["delivery"] } }, "$comment": "A notify has no response track — nothing routes back (spec §5.1); an addressed notify's consumption lives on `mailbox`." }
   ],
   "properties": {
     "id": { "type": "string", "minLength": 1 },
@@ -22,10 +22,10 @@
     },
     "delivery": {
       "type": "object",
-      "description": "Additive receipt track (spec §14.2), orthogonal to `status`/`response`. Present on a Hub offering the ack primitive. For a human-inbox ask/task this is the response track the human reads (delivered-to-agent -> acknowledged, plus the v0.5 terminal `expired` = the answer was NEVER seen, spec §14.2). For an ADDRESSED message this same object on the sender's authoritative §8.2 pull carries the mailbox track (queued -> delivered -> acknowledged, or terminal bounced/expired, spec §14.2): on `bounced`, a present `delivered_at` means seen-then-orphaned and an absent one means never seen (the receipt `prior` distinction, spec §8.7). A delivery-track `expired` always means never delivered.",
+      "description": "The RESPONSE track (spec §14.2), for ask/task of either leg: did the submitting party get the answer (delivered-to-agent -> acknowledged, plus the v0.5 terminal `expired` = the answer was NEVER seen). Orthogonal to `status`/`response`; present on a Hub offering the ack primitive. For an ADDRESSED ask/task this coexists with the v0.5 `mailbox` object (the outbound track); a notify has no response track (see `mailbox`).",
       "required": ["state"],
       "properties": {
-        "state": { "enum": ["queued", "delivered", "delivered-to-agent", "acknowledged", "bounced", "expired"] },
+        "state": { "enum": ["delivered-to-agent", "acknowledged", "expired"] },
         "delivered_at": { "type": "string", "format": "date-time", "description": "When the receiving party got the message (mailbox entry drained, or Response push-2xx / agent GET)." },
         "acknowledged_at": { "type": "string", "format": "date-time" },
         "ack": {
@@ -35,7 +35,21 @@
       },
       "allOf": [
         { "if": { "properties": { "state": { "const": "acknowledged" } }, "required": ["state"] }, "then": { "required": ["ack", "acknowledged_at"] }, "else": { "not": { "anyOf": [{ "required": ["ack"] }, { "required": ["acknowledged_at"] }] } } },
-        { "if": { "properties": { "state": { "enum": ["queued", "expired"] } }, "required": ["state"] }, "then": { "not": { "required": ["delivered_at"] } }, "$comment": "Delivery honesty (spec §14.2): queued = not delivered yet, and a delivery-track `expired` MUST mean NEVER delivered — a body claiming both delivered_at and one of these states would be the exact false belief the track exists to kill. bounced deliberately allows delivered_at: its presence is the seen-then-orphaned signal (receipt prior: delivered), its absence never-seen." }
+        { "if": { "properties": { "state": { "const": "expired" } }, "required": ["state"] }, "then": { "not": { "required": ["delivered_at"] } }, "$comment": "Delivery honesty (spec §14.2): a track `expired` MUST mean NEVER delivered — a body claiming both would be the exact false belief the track exists to kill." }
+      ]
+    },
+    "mailbox": {
+      "type": "object",
+      "description": "v0.5: the outbound MAILBOX track of an ADDRESSED message on the sender's authoritative §8.2 pull (queued -> delivered -> acknowledged, or terminal bounced/expired, spec §14.2) — did the ADDRESSEE see it. Present only when `to` is present (the root conditional). On `bounced`, a present `delivered_at` means seen-then-orphaned and an absent one never-seen (the receipt `prior` distinction, spec §8.7.1). For an addressed notify this track IS the lifecycle (`status` mirrors it, spec §5.1); for an addressed ask/task it coexists with the response-track `delivery` object.",
+      "required": ["state"],
+      "properties": {
+        "state": { "enum": ["queued", "delivered", "acknowledged", "bounced", "expired"] },
+        "delivered_at": { "type": "string", "format": "date-time", "description": "When the addressee's drain first delivered the entry (spec §14.2; a stream push alone does not stamp it, spec §8.7.2)." },
+        "acknowledged_at": { "type": "string", "format": "date-time" }
+      },
+      "allOf": [
+        { "if": { "properties": { "state": { "enum": ["queued", "expired"] } }, "required": ["state"] }, "then": { "not": { "required": ["delivered_at"] } }, "$comment": "Mailbox honesty (spec §14.2): queued = not delivered yet; a track `expired` MUST mean NEVER delivered. bounced deliberately allows delivered_at: presence = seen-then-orphaned, absence = never-seen." },
+        { "if": { "properties": { "state": { "const": "acknowledged" } }, "required": ["state"] }, "then": { "required": ["acknowledged_at"] }, "else": { "not": { "required": ["acknowledged_at"] } } }
       ]
     }
   }
