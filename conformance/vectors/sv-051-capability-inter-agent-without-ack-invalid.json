@@ -1,7 +1,7 @@
 {
   "id": "sv-051-capability-inter-agent-without-ack-invalid",
   "class": "schema-validation",
-  "description": "A capability document advertising inter_agent.enabled without the ack primitive is rejected — the leg's delivery-honesty lifecycle rides the §14 track, so advertising inter_agent without ack is non-conformant (§8.0).",
+  "description": "A capability document advertising inter_agent.enabled without the ack primitive (or without sessions / allowlist support) is rejected — the leg requires the §14 track, sessions, and per-destination sender allowlists (§1, §8.0, §13.5).",
   "ref": "spec §8.0, §14 (v0.5)",
   "target": "v0.5/capability.schema.json",
   "expect": "invalid",
@@ -9,7 +9,11 @@
     "ma2h_version": "0.5",
     "inter_agent": {
       "enabled": true,
-      "entry_kinds": ["message", "response", "receipt"],
+      "entry_kinds": [
+        "message",
+        "response",
+        "receipt"
+      ],
       "sender_allowlists": true
     }
   }

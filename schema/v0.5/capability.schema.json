@@ -84,6 +84,6 @@
     }
   },
   "allOf": [
-    { "if": { "properties": { "inter_agent": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] } }, "required": ["inter_agent"] }, "then": { "required": ["ack"], "properties": { "ack": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] } } }, "$comment": "inter_agent REQUIRES the §14 ack primitive including the v0.5 terminal delivery states (spec §8.0) — advertising the leg without ack is non-conformant, and a sender feature-detecting from this document must not be able to pick an unimplementable lifecycle." }
+    { "if": { "properties": { "inter_agent": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] } }, "required": ["inter_agent"] }, "then": { "required": ["ack", "sessions"], "properties": { "ack": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] }, "sessions": { "properties": { "enabled": { "const": true } }, "required": ["enabled"] }, "inter_agent": { "properties": { "sender_allowlists": { "const": true } }, "required": ["sender_allowlists"] } } }, "$comment": "A Hub advertising the inter-agent leg MUST implement the §14 ack primitive incl. the v0.5 terminal states (spec §8.0), MUST implement sessions (spec §1 — the entry kinds are delivered through session-presenting drains), and MUST support per-destination sender allowlists (spec §8.0/§13.5, a mandatory lateral-movement control) — a sender feature-detecting from this document must not be able to select an unimplementable or under-defended leg." }
   ]
 }
