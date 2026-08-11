@@ -1,0 +1,17 @@
+{
+  "id": "sv-035-directive-bad-session-segment-invalid",
+  "class": "schema-validation",
+  "description": "A session-addressed directive whose session segment fails ^sess_ is rejected — the §4 first-`#` grammar applies to directive destinations too (§13.2 retroactive validation), matching the inter-agent message rule.",
+  "ref": "spec §4, §13.2 (v0.5)",
+  "target": "v0.5/inbound-message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.5",
+    "type": "directive",
+    "id": "dir_01J5DIR0002",
+    "from": "human:alice",
+    "to": "agent:worker#not-a-session",
+    "created_at": "2026-08-10T12:00:00Z",
+    "title": "Misaddressed session directive"
+  }
+}

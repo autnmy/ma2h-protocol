@@ -1,0 +1,14 @@
+{
+  "id": "sv-034-submit-ack-unknown-with-last-seen-invalid",
+  "class": "schema-validation",
+  "description": "destination.state 'unknown' carrying a last_seen is rejected — §8.1 requires exactly {\"state\": \"unknown\"} for a sender without visibility, so a presence-leaking Hub fails validation (mirrors the presence.schema.json unknown conditional).",
+  "ref": "spec §8.1, §15 (v0.5)",
+  "target": "v0.5/submit-ack.schema.json",
+  "expect": "invalid",
+  "input": {
+    "id": "msg_01J5MSG0001",
+    "status": "queued",
+    "poll_url": "https://hub.example/v1/messages/msg_01J5MSG0001",
+    "destination": { "state": "unknown", "last_seen": "2026-08-10T11:20:00Z" }
+  }
+}

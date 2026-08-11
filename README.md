@@ -1,6 +1,6 @@
 # MA2H — Multi-agent to Human Protocol
 
-> **Status:** Draft · **Version:** 0.4 · **Steward:** Autonomy · **License:** Apache-2.0
+> **Status:** Draft · **Version:** 0.5 · **Steward:** Autonomy · **License:** Apache-2.0
 > A vendor- and runtime-neutral protocol that standardizes how autonomous agents coordinate with a human.
 
 ## Overview

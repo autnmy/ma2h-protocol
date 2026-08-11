@@ -20,7 +20,7 @@
         "type": { "const": "directive" },
         "id": { "type": "string", "minLength": 1, "description": "Hub-assigned canonical directive id. The agent's at-most-once dedup key." },
         "from": { "type": "string", "pattern": "^(human|system):.+$", "description": "Hub-attested author (never request-supplied). `human:<id>`; `system:<id>` reserved for Hub-originated directives." },
-        "to": { "type": "string", "pattern": "^agent:.+$", "description": "Addressed agent (`agent:<id>`, or `agent:<id>#<session>` for a session-addressed directive, v0.5 spec §13.2); the mailbox routing key." },
+        "to": { "type": "string", "pattern": "^agent:[^#]+(#sess_.+)?$", "description": "Addressed agent (`agent:<id>`, or `agent:<id>#<session>` for a session-addressed directive, v0.5 spec §13.2); the mailbox routing key. The §4 first-`#` grammar applies to directives too (spec §13.2, retroactive destination validation): the session segment must match ^sess_." },
         "created_at": { "type": "string", "format": "date-time" },
         "title": { "type": "string", "minLength": 1, "maxLength": 200 },
         "body": { "type": "string", "contentMediaType": "text/markdown", "description": "Human-authored Markdown detail. UNTRUSTED agent input (the inbound mirror of §9.6): a directive drives agent behavior, so treat it as a prompt-/command-injection surface until the signature is verified." },

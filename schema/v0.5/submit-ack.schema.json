@@ -12,14 +12,20 @@
     "review_url": { "type": "string", "format": "uri", "description": "Human-facing deep link." },
     "destination": {
       "type": "object",
-      "description": "REQUIRED on the ack for an addressed submit (v0.5, spec §8.1): the destination's reachability at send time. When the sender lacks visibility for the destination, exactly {\"state\": \"unknown\"} with no last_seen. Its absence on an addressed-submit ack means a pre-0.5 Hub misrouted the message to the human inbox — a 0.5 sender MUST treat that as a failure (spec §8.1).",
+      "description": "REQUIRED on the ack for an addressed submit (v0.5, spec §8.1): the destination's reachability at send time. When the sender lacks visibility for the destination, exactly {\"state\": \"unknown\"} with no last_seen (schema-enforced below, mirroring presence.schema.json). Its absence on an addressed-submit ack means a pre-0.5 Hub misrouted the message to the human inbox — a 0.5 sender MUST treat that as a failure (spec §8.1).",
       "required": ["state"],
       "properties": {
         "state": { "enum": ["online", "offline", "unknown"] },
         "last_seen": { "type": "string", "format": "date-time" }
       },
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        { "if": { "properties": { "state": { "const": "unknown" } }, "required": ["state"] }, "then": { "not": { "required": ["last_seen"] } } }
+      ]
     }
   },
-  "additionalProperties": false
+  "additionalProperties": false,
+  "allOf": [
+    { "if": { "properties": { "status": { "const": "queued" } }, "required": ["status"] }, "then": { "required": ["destination"] } }
+  ]
 }
