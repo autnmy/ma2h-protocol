@@ -17,7 +17,8 @@
       "type": "object",
       "properties": {
         "requests_per_minute": { "type": "integer", "minimum": 0 },
-        "inbox_depth": { "type": "integer", "minimum": 0 }
+        "inbox_depth": { "type": "integer", "minimum": 0 },
+        "inter_agent_requests_per_minute": { "type": "integer", "minimum": 0, "description": "OPTIONAL separate per-agent.id budget for addressed (to-carrying) submits (v0.5, spec §8.6), so inter-agent chatter cannot starve the human leg. Absent = addressed submits share requests_per_minute." }
       }
     },
     "retention_days": { "type": "integer", "minimum": 1 },
@@ -59,7 +60,7 @@
       "properties": {
         "enabled": { "type": "boolean" },
         "entry_kinds": { "type": "array", "items": { "enum": ["message", "response", "receipt"] }, "description": "The v0.5 mailbox entry kinds this Hub delivers to session-presenting drains (spec §8.7)." },
-        "sender_allowlists": { "type": "boolean", "description": "Hub support for per-destination sender restriction. Support is REQUIRED of a conformant Hub offering inter_agent; whether any allowlist is configured is per-account policy (spec §9.8)." }
+        "sender_allowlists": { "type": "boolean", "description": "Hub support for per-destination sender restriction. Support is REQUIRED of a conformant Hub offering inter_agent; whether any allowlist is configured is per-account policy (spec §13.5). A submit blocked by an allowlist is rejected 422 unknown_destination, indistinguishable from a nonexistent destination (spec §8.5)." }
       }
     },
     "ack": {

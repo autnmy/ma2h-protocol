@@ -11,6 +11,7 @@
     "state": { "enum": ["active", "closed", "expired"], "description": "active -> closed (explicit DELETE, idempotent) or active -> expired (lease lapse, Hub clock). Both terminal and immutable (first-terminal-wins, spec §16); terminal sessions remain readable for the advertised retention window." },
     "created_at": { "type": "string", "format": "date-time" },
     "expires_at": { "type": "string", "format": "date-time", "description": "Current lease expiry (Hub clock). Renewed only by client-originated authenticated activity that references the session (spec §16); a merely-open connection is NOT renewal evidence." },
+    "last_seen": { "type": "string", "format": "date-time", "description": "The session's latest client-originated renewal event (spec §15.1 per-session presence). Optional: absent until first derivable, and exposed under exactly the visibility rules that gate the read itself (spec §16.4)." },
     "ttl_seconds": { "type": "integer", "minimum": 1, "description": "The lease TTL in effect (the requested value, clamped to the advertised sessions.max_ttl_seconds)." },
     "closed_at": { "type": "string", "format": "date-time", "description": "When the session reached a terminal state." },
     "run_id": { "type": "string", "minLength": 1, "description": "The invocation's run_id as supplied at registration (audit label; still non-authorizing, spec §9.1)." },
