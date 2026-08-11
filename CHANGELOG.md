@@ -75,7 +75,7 @@ See [MIGRATION.md](MIGRATION.md#v04--v05-the-inter-agent-leg).
 - **Schemas** — `schema/v0.5/` full snapshot (no existing `$id` changes): `message` gains
   `to`/`agent.session`; closed `submit-ack` lists `queued` + `destination`; `get-message` carries the
   v0.5 delivery states; `capability` gains the v0.5 objects; `inbound-message` becomes the four-kind
-  delivered-entry union; new `session.schema.json` + `resolve-request.schema.json`.
+  delivered-entry union; `response` types the task checklist and pins the `res_` ack-key namespace (§8.7.1's disjoint id namespaces are schema-enforced); new `session.schema.json` + `resolve-request.schema.json`.
 - **Resolve binding (§8.8)** — `POST /v1/messages/{id}/resolve` pinned on the wire
   (`resolve-request.schema.json`): the §14.3-named sub-action v0.4 kept product-internal becomes
   interoperable, because the inter-agent addressee resolves over the wire — body

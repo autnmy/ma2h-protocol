@@ -103,7 +103,7 @@
           "type": ["string", "object", "null"],
           "description": "For select: MUST be a member of options[].value (Hub-enforced + conformance vector). For input: an object validating against `schema`, or null."
         },
-        "allowed_resolvers": { "type": "array", "items": { "type": "string", "pattern": "^(human|agent|system):.+$" } },
+        "allowed_resolvers": { "type": "array", "items": { "type": "string", "pattern": "^(human|system):.+$|^agent:[^#]+(#sess_.+)?$" }, "description": "Who may resolve (spec §9.1). v0.5: an agent-form entry follows the §4 address grammar — principal form matches any session of that principal; a session-qualified form (#sess_...) matches only that exact session. A malformed agent entry could never match an attested actor, leaving the message unresolvable (an explicit list replaces the default)." },
         "callback": { "$ref": "#/$defs/callback" }
       },
       "allOf": [
@@ -119,7 +119,7 @@
         "instructions": { "type": "string" },
         "checklist": { "type": "array", "items": { "type": "object", "required": ["text"], "properties": { "text": { "type": "string" }, "done": { "type": "boolean", "default": false } } } },
         "verification": { "type": "string" },
-        "allowed_resolvers": { "type": "array", "items": { "type": "string", "pattern": "^(human|agent|system):.+$" } },
+        "allowed_resolvers": { "type": "array", "items": { "type": "string", "pattern": "^(human|system):.+$|^agent:[^#]+(#sess_.+)?$" }, "description": "Who may resolve (spec §9.1). v0.5: an agent-form entry follows the §4 address grammar — principal form matches any session of that principal; a session-qualified form (#sess_...) matches only that exact session. A malformed agent entry could never match an attested actor, leaving the message unresolvable (an explicit list replaces the default)." },
         "callback": { "$ref": "#/$defs/callback" }
       }
     },

@@ -1,0 +1,16 @@
+{
+  "id": "sv-047-response-bad-resolution-id-namespace-invalid",
+  "class": "schema-validation",
+  "description": "A Response whose resolution_id sits outside the res_ namespace is rejected — v0.5 pins the ack-key namespaces disjoint (§8.7.1), so a resolution_id colliding with a receipt's rcpt_ key cannot validate.",
+  "ref": "spec §8.7.1, §6 (v0.5)",
+  "target": "v0.5/response.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.5",
+    "in_reply_to": "msg_01J5MSG0002",
+    "resolution_id": "rcpt_01J5COLLIDE01",
+    "agent": { "id": "overseer/fleet", "run_id": "run_01J5OVERSEER01" },
+    "resolution": "answered",
+    "response": { "value": "approve", "actor": "agent:deploybot/dev-team#sess_01J5WRK0007", "resolved_at": "2026-08-10T12:05:00Z" }
+  }
+}
