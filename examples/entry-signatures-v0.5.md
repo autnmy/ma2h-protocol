@@ -25,7 +25,8 @@ any `request.callback` stripped, spec §8.7).
 ### 1a. `payload_sha256` — SHA-256 of JCS(`{ "message": <content> }`)
 
 The content object carries exactly the delivered envelope's **present** fields among `type`, `title`,
-`body`, `priority`, `tags`, `context`, `request`, `action` (here: `type`, `title`, `request`).
+`body`, `priority`, `tags`, `context`, `request`, `action`, `sensitive` (here: `type`, `title`,
+`request`).
 Transport/Hub metadata (`id`, `from`, `to`, `created_at`, `expires_at`) is excluded — `from`/`id`/`to`
 are bound as top-level signed fields instead — and the advisory `agent` descriptor and inert
 `idempotency_key` are excluded exactly as §9.2 leaves the Response's top-level `agent` unbound:
