@@ -1,4 +1,4 @@
-# MA2H Conformance Vectors (v0.4)
+# MA2H Conformance Vectors (v0.5)
 
 These vectors let an implementer prove conformance. **Read this first** — it states what the vectors can
 and cannot verify, so green ≠ false confidence (spec §12).
@@ -46,6 +46,15 @@ pnpm dlx ajv-cli@5 validate \
 
 or load all eight schemas into any Draft 2020-12 validator and check each vector's `input` against its
 `target`, asserting the declared `expect`.
+
+**Version-prefixed targets (v0.5).** A bare `target` (e.g. `message.schema.json`) validates against
+`schema/v0.4/`. A target prefixed `v0.5/` (e.g. `v0.5/inbound-message.schema.json`) validates against
+the `schema/v0.5/` snapshot — swap the `-s`/`-r` paths above accordingly (nine schemas in v0.5,
+including `session.schema.json`). The reference runner (`npm run vectors`) routes both automatically.
+The v0.5 **signature** obligations (the §9.8 `message`/`response`/`receipt` entry contexts, worked in
+[`examples/entry-signatures-v0.5.md`](../examples/entry-signatures-v0.5.md)) land as deterministic
+`dp-*` fixtures with the vectors issue (#27), alongside the downstream proofs for sessions, routing,
+and delivery honesty (spec §12).
 
 ## Downstream proof obligations (the Hub must discharge)
 

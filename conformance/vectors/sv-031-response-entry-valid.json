@@ -1,0 +1,22 @@
+{
+  "id": "sv-031-response-entry-valid",
+  "class": "schema-validation",
+  "description": "A §6 Response delivered as a mailbox entry to the submitting session validates as an inbound entry (the Response body is byte-for-byte the v0.4 shape; the destination is bound only in the §9.8 signed context).",
+  "ref": "spec §6, §8.7 (v0.5 entry kinds)",
+  "target": "v0.5/inbound-message.schema.json",
+  "expect": "valid",
+  "input": {
+    "ma2h_version": "0.5",
+    "in_reply_to": "msg_01J5MSG0002",
+    "resolution_id": "res_01J5RSLV0001",
+    "agent": { "id": "overseer/fleet", "run_id": "run_01J5OVERSEER01" },
+    "resolution": "answered",
+    "response": {
+      "value": "approve",
+      "edited": false,
+      "actor": "agent:deploybot/dev-team#sess_01J5WRK0007",
+      "resolved_at": "2026-08-10T12:05:00Z"
+    },
+    "state": { "sealed": "v1.demo.MOCK-SEALED-STATE-BLOB" }
+  }
+}

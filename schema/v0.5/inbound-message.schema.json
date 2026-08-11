@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.5/inbound-message.schema.json",
+  "title": "MA2H Inbound Entry (v0.5)",
+  "description": "Hub->Agent delivered mailbox entry payload (spec §8.7, §13). v0.4 delivered a single kind — the human->agent `directive`. v0.5 adds three entry kinds, delivered ONLY to session-presenting drains (spec §8.7): `message` (an addressed §4 envelope, agent-authored notify/ask/task, with Hub-assigned `id` and Hub-attested `from`), `response` (a §6 Response delivered to the submitting session's mailbox), and `receipt` (a Hub-originated delivery-status notification to a sender). Each drained entry pairs its payload with a detached signature — `{ \"directive\"|\"message\"|\"response\"|\"receipt\": <payload>, \"signature\": ... }` — signed per spec §9.7 (directive) or §9.8 (v0.5 entry kinds), re-signed with a fresh t/jti at each delivery. This schema validates the delivered PAYLOAD (any of the four kinds); a consuming agent MUST validate the payload shape before acting (spec §13.4), because the payload digests bind only content fields — an on-path injector can add unsigned fields without breaking the signature.",
+  "oneOf": [
+    { "$ref": "#/$defs/directive" },
+    { "$ref": "#/$defs/interAgentMessage" },
+    { "$ref": "#/$defs/responseEntry" },
+    { "$ref": "#/$defs/receipt" }
+  ],
+  "$defs": {
+    "directive": {
+      "title": "directive (human->agent, v0.4)",
+      "description": "The DELIVERED form of a human->agent directive (spec §13.1): `id` and `from` are Hub-assigned/attested, never agent- or request-supplied. No `request`/`action` (human->agent ask/task is deferred) and no `state` (not an agent-owned resume blob).",
+      "type": "object",
+      "required": ["ma2h_version", "type", "id", "from", "to", "created_at", "title"],
+      "properties": {
+        "ma2h_version": { "type": "string", "pattern": "^0\\.([4-9]|[1-9]\\d+)$", "description": "Directives are a v0.4 feature; the minor MUST be >= 4 (a pre-0.4 recipient would not know the §9.7 signature/addressee semantics)." },
+        "type": { "const": "directive" },
+        "id": { "type": "string", "minLength": 1, "description": "Hub-assigned canonical directive id. The agent's at-most-once dedup key." },
+        "from": { "type": "string", "pattern": "^(human|system):.+$", "description": "Hub-attested author (never request-supplied). `human:<id>`; `system:<id>` reserved for Hub-originated directives." },
+        "to": { "type": "string", "pattern": "^agent:.+$", "description": "Addressed agent (`agent:<id>`, or `agent:<id>#<session>` for a session-addressed directive, v0.5 spec §13.2); the mailbox routing key." },
+        "created_at": { "type": "string", "format": "date-time" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "body": { "type": "string", "contentMediaType": "text/markdown", "description": "Human-authored Markdown detail. UNTRUSTED agent input (the inbound mirror of §9.6): a directive drives agent behavior, so treat it as a prompt-/command-injection surface until the signature is verified." },
+        "priority": { "enum": ["low", "normal", "high", "urgent"], "default": "normal" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "context": { "type": "array", "items": { "$ref": "https://ma2h.org/schema/v0.5/message.schema.json#/$defs/part" } },
+        "expires_at": { "type": "string", "format": "date-time", "description": "RFC 3339. After this the Hub stops delivering and drops the directive (no response leg). MUST be in the future at author time." },
+        "sensitive": { "type": "boolean", "description": "Message-level sensitivity; excludes value(s) from export/telemetry." }
+      },
+      "not": { "anyOf": [{ "required": ["request"] }, { "required": ["action"] }, { "required": ["state"] }] }
+    },
+    "interAgentMessage": {
+      "title": "message (agent->agent, v0.5)",
+      "description": "The DELIVERED form of an addressed §4 envelope (spec §8.7): the submitted notify/ask/task plus Hub-assigned `id` and Hub-attested `from` (`agent:<id>`, session-qualified when the submit carried `agent.session`). The Hub strips submitter-side machinery before delivery — `state` (the submitter's opaque resume blob, round-tripped only in the §6 Response), `client_ref` (§9.1 forbids exposing it to resolvers), and any `request.callback`/`action.callback` (the submitter's delivery config) — and this branch FORBIDS them so a consuming agent's shape validation rejects unsigned injected copies (they are outside the §9.8 payload digest). The `agent` descriptor is delivered but ADVISORY (unbound, like §9.2's top-level agent); the attested identity is `from`.",
+      "allOf": [
+        { "$ref": "https://ma2h.org/schema/v0.5/message.schema.json" },
+        {
+          "type": "object",
+          "required": ["id", "from", "to"],
+          "properties": {
+            "ma2h_version": { "type": "string", "pattern": "^0\\.([5-9]|[1-9]\\d+)$", "description": "Inter-agent message entries are a v0.5 feature; the minor MUST be >= 5." },
+            "id": { "type": "string", "minLength": 1, "description": "Hub-assigned canonical message id. The recipient's at-most-once dedup key (spec §13.4 applied wholesale)." },
+            "from": { "type": "string", "pattern": "^agent:[^#]+(#sess_.+)?$", "description": "Hub-attested submitter (never request-supplied): `agent:<id>`, session-qualified when the submit carried `agent.session`." },
+            "request": { "not": { "required": ["callback"] } },
+            "action": { "not": { "required": ["callback"] } }
+          },
+          "not": { "anyOf": [{ "required": ["state"] }, { "required": ["client_ref"] }] }
+        }
+      ]
+    },
+    "responseEntry": {
+      "title": "response (Hub->submitting session, v0.5)",
+      "description": "A §6 Response delivered as a mailbox entry to the submitting session (spec §8.7): the return leg for an agent-addressed ask/task, and available to any session-registered Caller in place of a webhook. The Response body is byte-for-byte the v0.4 shape; the delivery destination is bound only in the §9.8 signed context (`to`), which the drainer reconstructs from its own presented identity. Enqueued only when the submitting session is live at resolution time; otherwise delivery falls back to the unchanged §8.2 pull / §8.3 callback with no bounce. Dedup on (in_reply_to, resolution_id).",
+      "$ref": "https://ma2h.org/schema/v0.5/response.schema.json"
+    },
+    "receipt": {
+      "title": "receipt (Hub->sender, v0.5)",
+      "description": "A Hub-originated delivery-status notification to a SENDER (spec §8.7, §14.2): v0.5 uses it for the bounce. Best-effort, at-most-once-meaningful — the recipient dedups on (in_reply_to, event) — delivered only to live sessions of the sender, and a receipt MUST NOT itself generate receipts. The sender's §8.2 pull remains authoritative.",
+      "type": "object",
+      "required": ["ma2h_version", "type", "in_reply_to", "event", "prior", "at", "session", "to"],
+      "properties": {
+        "ma2h_version": { "type": "string", "pattern": "^0\\.([5-9]|[1-9]\\d+)$", "description": "Receipt entries are a v0.5 feature; the minor MUST be >= 5." },
+        "type": { "const": "receipt" },
+        "in_reply_to": { "type": "string", "minLength": 1, "description": "The affected entry/message id — also the dedup key together with `event`." },
+        "event": { "enum": ["bounced"], "description": "The delivery-track event this receipt reports. `bounced` in v0.5; future minors may add events." },
+        "prior": { "enum": ["queued", "delivered"], "description": "The delivery-track state the entry bounced FROM: `queued` = never seen; `delivered` = drained-but-unacked when the destination session went terminal (seen-then-orphaned, spec §14.2)." },
+        "at": { "type": "string", "format": "date-time", "description": "When the bounce fired (Hub clock)." },
+        "session": { "type": "string", "pattern": "^sess_.+$", "description": "The terminal destination session whose death bounced the entry." },
+        "to": { "type": "string", "pattern": "^agent:[^#]+#sess_.+$", "description": "The sender session this receipt is delivered to (receipts are delivered only to live sender sessions); bound in the §9.8 signed context against cross-destination replay, and checked by the recipient like every entry's addressee (spec §13.4)." }
+      },
+      "not": { "anyOf": [{ "required": ["request"] }, { "required": ["action"] }, { "required": ["state"] }] }
+    }
+  }
+}

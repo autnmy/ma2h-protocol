@@ -1,0 +1,18 @@
+{
+  "id": "sv-025-submit-ack-queued-destination-valid",
+  "class": "schema-validation",
+  "description": "The ack for an addressed submit: `status: queued` (never delivered-on-acceptance) plus the destination reachability snapshot.",
+  "ref": "spec §8.1 (v0.5)",
+  "target": "v0.5/submit-ack.schema.json",
+  "expect": "valid",
+  "input": {
+    "id": "msg_01J5MSG0001",
+    "status": "queued",
+    "poll_url": "https://hub.example/v1/messages/msg_01J5MSG0001",
+    "review_url": "https://hub.example/inbox/msg_01J5MSG0001",
+    "destination": {
+      "state": "offline",
+      "last_seen": "2026-08-10T11:20:00Z"
+    }
+  }
+}

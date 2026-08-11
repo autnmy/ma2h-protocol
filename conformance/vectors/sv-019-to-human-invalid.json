@@ -1,0 +1,16 @@
+{
+  "id": "sv-019-to-human-invalid",
+  "class": "schema-validation",
+  "description": "`to: human:...` is rejected — multi-human routing remains a non-goal in 0.5; `to` addresses agents only.",
+  "ref": "spec §4 (v0.5), §2",
+  "target": "v0.5/message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.5",
+    "type": "notify",
+    "created_at": "2026-08-10T12:02:00Z",
+    "agent": { "id": "overseer/fleet", "run_id": "run_01J5OVERSEER01", "runtime": "cli" },
+    "title": "Misaddressed",
+    "to": "human:alice"
+  }
+}

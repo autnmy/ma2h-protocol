@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.5/get-message.schema.json",
+  "title": "MA2H GET Message Body (v0.5)",
+  "description": "Body of GET /v1/messages/{id}: the original message plus current `status`, the Hub-assigned `id`, and (once terminal) the embedded `response`.",
+  "type": "object",
+  "required": ["id", "status"],
+  "allOf": [
+    { "$ref": "https://ma2h.org/schema/v0.5/message.schema.json" }
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["open", "delivered", "answered", "declined", "cancelled", "expired", "completed", "dismissed", "queued", "bounced"], "description": "Lifecycle status (spec §7). v0.5 adds `queued` and `bounced` for ADDRESSED messages: an addressed notify's lifecycle IS the delivery track (queued -> delivered | bounced | expired, spec §14.2); an addressed ask/task keeps the §7 resolution machinery here (open -> terminals — a bounce auto-resolves it cancelled/dismissed) with the mailbox track surfaced under `delivery`." },
+    "response": {
+      "$ref": "https://ma2h.org/schema/v0.5/response.schema.json",
+      "description": "Present once the message is terminal (ask/task). Embeds the full Response envelope."
+    },
+    "delivery": {
+      "type": "object",
+      "description": "Additive receipt track (spec §14.2), orthogonal to `status`/`response`. Present on a Hub offering the ack primitive. For a human-inbox ask/task this is the response track the human reads (delivered-to-agent -> acknowledged, plus the v0.5 terminal `expired` = the answer was NEVER seen, spec §14.2). For an ADDRESSED message this same object on the sender's authoritative §8.2 pull carries the mailbox track (queued -> delivered -> acknowledged, or terminal bounced/expired, spec §14.2): on `bounced`, a present `delivered_at` means seen-then-orphaned and an absent one means never seen (the receipt `prior` distinction, spec §8.7). A delivery-track `expired` always means never delivered.",
+      "required": ["state"],
+      "properties": {
+        "state": { "enum": ["queued", "delivered", "delivered-to-agent", "acknowledged", "bounced", "expired"] },
+        "delivered_at": { "type": "string", "format": "date-time", "description": "When the receiving party got the message (mailbox entry drained, or Response push-2xx / agent GET)." },
+        "acknowledged_at": { "type": "string", "format": "date-time" },
+        "ack": {
+          "$ref": "https://ma2h.org/schema/v0.5/ack.schema.json",
+          "description": "The ack envelope, present once state is `acknowledged`."
+        }
+      },
+      "allOf": [
+        { "if": { "properties": { "state": { "const": "acknowledged" } }, "required": ["state"] }, "then": { "required": ["ack", "acknowledged_at"] }, "else": { "not": { "anyOf": [{ "required": ["ack"] }, { "required": ["acknowledged_at"] }] } } }
+      ]
+    }
+  }
+}

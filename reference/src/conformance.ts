@@ -13,6 +13,7 @@ import {
   validateMessage,
   validatePresence,
   validateResponse,
+  validateV05,
   type ValidationResult,
 } from "./envelope.js";
 import {
@@ -57,6 +58,11 @@ export interface VectorReport {
 const VECTORS_DIR = new URL("../../conformance/vectors/", import.meta.url);
 
 function validateAgainst(target: string, data: unknown): ValidationResult {
+  // v0.5-targeted vectors name their schema as "v0.5/<file>" (schema/v0.5/,
+  // spec/v0.5.md); everything else keeps validating against the v0.4 snapshot.
+  if (target.startsWith("v0.5/")) {
+    return validateV05(target.slice("v0.5/".length), data);
+  }
   switch (target) {
     case "message.schema.json":
       return validateMessage(data);

@@ -1,0 +1,18 @@
+{
+  "id": "sv-029-receipt-bounced-valid",
+  "class": "schema-validation",
+  "description": "A bounce receipt to the sender: the destination session went terminal while the entry was queued (prior: queued = never seen).",
+  "ref": "spec §8.7 (v0.5 entry kinds), §14.2",
+  "target": "v0.5/inbound-message.schema.json",
+  "expect": "valid",
+  "input": {
+    "ma2h_version": "0.5",
+    "type": "receipt",
+    "in_reply_to": "msg_01J5MSG0002",
+    "event": "bounced",
+    "prior": "queued",
+    "at": "2026-08-10T12:20:00Z",
+    "session": "sess_01J5WRK0007",
+    "to": "agent:overseer/fleet#sess_01J5OVR0001"
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.5/capability.schema.json",
+  "title": "MA2H Capability Document (v0.5)",
+  "description": "Body of GET /.well-known/ma2h. A Hub responding here is MA2H-conformant. All fields beyond ma2h_version are SHOULD.",
+  "type": "object",
+  "required": ["ma2h_version"],
+  "properties": {
+    "ma2h_version": { "type": "string", "pattern": "^0\\.(0|[1-9]\\d*)$" },
+    "max_body_bytes": { "type": "integer", "minimum": 1 },
+    "max_part_bytes": { "type": "integer", "minimum": 1 },
+    "max_context_parts": { "type": "integer", "minimum": 0 },
+    "auth_schemes": { "type": "array", "items": { "enum": ["bearer", "apikey"] } },
+    "callback_auth_schemes": { "type": "array", "items": { "enum": ["hmac", "bearer", "apikey"] } },
+    "signature_algs": { "type": "array", "items": { "enum": ["hmac-sha256", "ed25519"] } },
+    "rate_limit": {
+      "type": "object",
+      "properties": {
+        "requests_per_minute": { "type": "integer", "minimum": 0 },
+        "inbox_depth": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "retention_days": { "type": "integer", "minimum": 1 },
+    "replay_window_seconds": { "type": "integer", "minimum": 1 },
+    "inbound": {
+      "type": "object",
+      "description": "Human->agent inbound leg (v0.4, spec §13). Absent on a v0.3-only Hub or a Hub that does not offer inbound directives.",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean", "description": "True iff this Hub delivers human->agent directives." },
+        "poll_url": { "type": "string", "format": "uri", "description": "GET drain endpoint (spec §8.7); the agent's bearer credential selects the mailbox." },
+        "ack_url": { "type": "string", "format": "uri", "description": "POST consume/ack endpoint (spec §8.7)." },
+        "max_batch": { "type": "integer", "minimum": 1, "description": "Max directives returned by one drain." },
+        "visibility_timeout_seconds": { "type": "integer", "minimum": 1, "description": "How long a drained-but-unacked directive stays invisible before redelivery (at-least-once)." },
+        "retention_days": { "type": "integer", "minimum": 1, "description": "How long an unacked directive stays deliverable before the Hub drops it." },
+        "signature_algs": { "type": "array", "items": { "enum": ["hmac-sha256", "ed25519"] }, "description": "Algs the Hub signs directive deliveries with (spec §9.7)." },
+        "webhook_supported": { "type": "boolean", "description": "True iff the Hub can push directives to a pre-registered, §9.4-verified agent callback." },
+        "session_param": { "type": "boolean", "description": "True iff GET /v1/inbox accepts ?session= (v0.5, spec §8.7). A session-presenting drain additionally receives the v0.5 entry kinds; a session-less drain returns exactly the v0.4 shape." },
+        "stream_url": { "type": "string", "format": "uri", "description": "OPTIONAL SSE binding (v0.5, spec §8.7): the same authenticated, session-scoped entries as the drain, pushed over a held connection. Acks remain explicit POSTs; a stream push is provisional (the delivery track advances only on client-originated evidence)." },
+        "stream_max_hold_seconds": { "type": "integer", "minimum": 1, "description": "Bound on each stream hold (v0.5, spec §8.7); MUST be <= the presence freshness window. The Hub closes the stream at the bound and the client's reconnect is the lease/presence renewal (the zombie-socket rule)." }
+      }
+    },
+    "sessions": {
+      "type": "object",
+      "description": "Session primitive (v0.5, spec §16). Absent on a Hub that does not offer sessions.",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "max_ttl_seconds": { "type": "integer", "minimum": 1, "description": "Upper bound the Hub clamps a requested ttl_seconds to (spec §16)." },
+        "max_live_per_agent": { "type": "integer", "minimum": 1, "description": "Cap on live sessions per agent.id; over-cap registration -> 429 (spec §16)." },
+        "agent_list_visibility": { "type": "boolean", "description": "True iff same-account agents may list/read account sessions (spec §16). Own-session visibility is unconditional regardless of this policy; the account's human always may list/read. Cross-account: never." },
+        "terminal_retention_seconds": { "type": "integer", "minimum": 0, "description": "How long a terminal (closed/expired) session remains readable before it is purged (spec §16)." }
+      }
+    },
+    "inter_agent": {
+      "type": "object",
+      "description": "Inter-agent leg (v0.5, spec §4/§8.7/§9.8). Account-opt-in: `enabled` defaults false, and a Hub MUST NOT accept `to`-addressed submits for an account that has not opted in. A Hub advertising inter_agent MUST implement the ack primitive (§14) including the v0.5 terminal states (spec §8.0).",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "entry_kinds": { "type": "array", "items": { "enum": ["message", "response", "receipt"] }, "description": "The v0.5 mailbox entry kinds this Hub delivers to session-presenting drains (spec §8.7)." },
+        "sender_allowlists": { "type": "boolean", "description": "Hub support for per-destination sender restriction. Support is REQUIRED of a conformant Hub offering inter_agent; whether any allowlist is configured is per-account policy (spec §9.8)." }
+      }
+    },
+    "ack": {
+      "type": "object",
+      "description": "Acknowledgment/receipt primitive (v0.4, spec §14). Absent on a Hub that does not offer acks.",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "signature_algs": { "type": "array", "items": { "enum": ["hmac-sha256", "ed25519"] }, "description": "Algs the Hub signs a PUSHED ack with (spec §14.4). Pulled acks are transport-trusted and unsigned." }
+      }
+    },
+    "presence": {
+      "type": "object",
+      "description": "Presence/'listening' signal (v0.4, spec §15). Absent on a Hub that does not offer presence.",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "freshness_seconds": { "type": "integer", "minimum": 1, "description": "Window after which a `last_seen` reads `offline` (spec §15.2)." }
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "sv-026-submit-ack-bad-destination-state-invalid",
+  "class": "schema-validation",
+  "description": "destination.state is a closed enum (online | offline | unknown); anything else is rejected.",
+  "ref": "spec §8.1 (v0.5)",
+  "target": "v0.5/submit-ack.schema.json",
+  "expect": "invalid",
+  "input": {
+    "id": "msg_01J5MSG0001",
+    "status": "queued",
+    "poll_url": "https://hub.example/v1/messages/msg_01J5MSG0001",
+    "destination": { "state": "away" }
+  }
+}

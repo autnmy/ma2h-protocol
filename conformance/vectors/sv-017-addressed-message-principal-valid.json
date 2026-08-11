@@ -1,0 +1,22 @@
+{
+  "id": "sv-017-addressed-message-principal-valid",
+  "class": "schema-validation",
+  "description": "A v0.5 principal-addressed notify (`to: agent:<id>`) with a registered session on the agent descriptor is a valid envelope.",
+  "ref": "spec §4, §4.1, §16 (v0.5)",
+  "target": "v0.5/message.schema.json",
+  "expect": "valid",
+  "input": {
+    "ma2h_version": "0.5",
+    "type": "notify",
+    "created_at": "2026-08-10T12:00:00Z",
+    "agent": {
+      "id": "overseer/fleet",
+      "run_id": "run_01J5OVERSEER01",
+      "runtime": "cli",
+      "session": "sess_01J5OVR0001"
+    },
+    "title": "Milestone: staging deploy is green",
+    "body": "All 14 spokes reported green on the staging deploy.",
+    "to": "agent:deploybot/dev-team"
+  }
+}

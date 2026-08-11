@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.5/ack.schema.json",
+  "title": "MA2H Acknowledgment / Receipt (v0.5)",
+  "description": "A one-shot, terminal receipt (spec §14): the receiving party confirms it got the other party's message/answer, optionally with a short note. Cross-cutting — applied to a human->agent directive (§13) and an agent->human ask/task response (§6). The Hub produces it and attests `by`; a pushed ack is signed per §14.4.",
+  "type": "object",
+  "required": ["ma2h_version", "type", "in_reply_to", "by", "acked_at"],
+  "properties": {
+    "ma2h_version": { "type": "string", "pattern": "^0\\.([4-9]|[1-9]\\d+)$", "description": "The ack primitive is a v0.4 feature; the minor MUST be >= 4." },
+    "type": { "const": "ack" },
+    "in_reply_to": { "type": "string", "minLength": 1, "description": "The acknowledged id: a directive `id` (§13.1) or an ask/task message `id` (§6)." },
+    "by": { "type": "string", "pattern": "^(human|agent|system):.+$", "description": "Hub-attested acking party (never request-supplied). `agent:<id>` in v0.4's two applications; direction-agnostic." },
+    "acked_at": { "type": "string", "format": "date-time" },
+    "note": { "type": "string", "description": "Optional short, human-readable note. UNTRUSTED agent->human text — the Hub sanitizes it to the §9.6 no-raw-HTML profile before rendering." },
+    "resolution_id": { "type": "string", "description": "For an ask/task ack: the `resolution_id` of the Response being acknowledged (disambiguates which resolution)." }
+  }
+}
