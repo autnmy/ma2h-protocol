@@ -61,10 +61,13 @@ Smoke-test end to end: have the human send a throwaway directive to this agent (
 surface), drain it, confirm the signature verifies and the ack removes it (a second drain returns nothing).
 
 *(If you generated the v0.5 session-scoped mode)* also verify the session path: register a session,
-drain with `?session=`, and confirm a `message` entry addressed to this agent arrives (a
-**session-less** drain must **not** return it) and that acking with `?session=` consumes it. Then
-close the session and confirm a drain presenting it returns `410` (re-register and continue) — not
-`404`, which is what a *foreign* session id must return.
+drain with `?session=`, confirm a **directive** still verifies and acks on this path, and confirm a
+closed session's drain returns `410` (re-register and continue) — not the `404` a *foreign* session
+id must return. If an addressed `message` entry appears, confirm the generated skill **refuses it
+un-acked** (this helper ports only the §9.7 directive primitives — acking an entry it cannot verify
+would report `acknowledged` to the sender for work nobody checked or did). Consuming those entries
+for real is `build-bridge`'s job: it ports `receiveEntry` plus the §9.8 `message`/`response`/`receipt`
+verifiers and gathers the declared sender policy.
 
 ### 4. Hand off
 Tell the user how their agent triggers the drain (one-shot vs loop), and which env/secrets must be present
@@ -151,7 +154,15 @@ curl -sS -X POST "<ACK_URL>" \
 ```
 
 **v0.5 Hub? Route through the session-scoped drain** — required to also receive `message` /
-`response` / `receipt` entries, and it renews the session's lease:
+`response` / `receipt` entries, and it renews the session's lease.
+
+> **Only drain what this skill taught you to verify.** A session-scoped drain returns the v0.5 entry
+> kinds, and the helper generated in step 2 ports the **§9.7 directive** primitives only. **Never ack
+> a `message` / `response` / `receipt` entry you have not verified per §9.8** — acking it advances
+> the *sender's* mailbox track to `acknowledged` (§8.7.1), telling them the work was received and
+> handled when nothing verified it, policy-checked it, or did it. If this agent should genuinely
+> consume the v0.5 entry kinds, run **`build-bridge`** (it ports the §9.8 verify twins and the
+> declared sender policy); if it should not, keep the session-less drain and stay directives-only.
 
 ```bash
 # 1) register this run's session:
@@ -159,7 +170,9 @@ curl -sS -X POST "<HUB_URL>/v1/sessions" -H "Authorization: Bearer $<AUTH_ENV>" 
   -H "Content-Type: application/json" -d '{ "label": "<app> inbox" }'
 # → 201 { "session": { "id": "sess_…", … } }
 
-# 2) drain + 3) ack presenting it (ack keys: directive/message → id; response → resolution_id; receipt → id):
+# 2) drain, then verify + act on each entry, and only THEN 3) ack it, presenting the session
+#    (ack keys: directive/message → id; response → resolution_id; receipt → id).
+#    Never ack an entry kind this skill's helper cannot verify — see the note above.
 curl -sS "<POLL_URL>?session=<sess>&wait=25" -H "Authorization: Bearer $<AUTH_ENV>"
 curl -sS -X POST "<ACK_URL>?session=<sess>" -H "Authorization: Bearer $<AUTH_ENV>" \
   -H "Content-Type: application/json" -d '{ "ids": ["<ack-key>"] }'

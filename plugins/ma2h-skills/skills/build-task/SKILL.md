@@ -52,9 +52,11 @@ sees `resolution: "completed"`, and acts **once** (a replay is a no-op).
 *(If you generated the v0.5 addressing block)* also send one **addressed** test `task` to a known
 agent and confirm: the ack is `"status": "open"` **with** a `destination` object (a missing one is a
 misroute to surface, not a pass); the **addressee** can complete it while the submitter cannot; and a
-bogus `to` is rejected `422 unknown_destination`. Kill the addressee's session while the task is
-queued and confirm the sender reads the `system:undeliverable` auto-`dismissed` rather than waiting
-forever.
+bogus `to` is rejected `422 unknown_destination`. To exercise the undeliverable path, address the
+test **session-qualified** (`agent:<dest-id>#<sess_…>`) and kill that session while the task is
+queued — confirm the sender reads the `system:undeliverable` auto-`dismissed` rather than waiting
+forever. A **principal**-addressed task does not bounce on one session's death (a sibling session can
+still claim it); it only terminates when retention lapses, so it will not show this immediately.
 
 ### 4. Hand off
 Document how agents invoke it, the callback/resume wiring, and required secrets.
@@ -126,11 +128,16 @@ false) — feature-detect before using `to`; addressed sends require `ma2h_versi
   **`response` entry** in that session's mailbox (dedup on `(in_reply_to, resolution_id)` exactly as
   below; a terminal session falls back to pull/callback, no bounce). Run `build-bridge` for the
   draining side.
-- **Undeliverable is honest:** if the addressee's session dies (or mailbox retention lapses) before it
-  acks, the task **auto-resolves `dismissed` with `response.actor: "system:undeliverable"`** — "nobody
-  ever saw it / will see it", not a refusal. The GET body's **`mailbox`** object
-  (`queued → delivered → acknowledged` | `bounced` | `expired`) is the authoritative delivery view;
-  `expired` means **never delivered**.
+- **Undeliverable is honest — but read *which* undeliverable:** if a **session-addressed** task's
+  destination session dies before it acks (a **principal**-addressed one does not bounce on one
+  session's death — a sibling can still claim it; it terminates when retention lapses), the task **auto-resolves `dismissed` with
+  `response.actor: "system:undeliverable"`** — not a refusal, and not automatically "nobody saw it".
+  Check the GET body's authoritative **`mailbox`** object
+  (`queued → delivered → acknowledged` | `bounced` | `expired`): `expired`, and `bounced` with the
+  receipt's `prior: "queued"`, mean **never delivered**; `bounced` carrying a `delivered_at` means
+  **seen-then-orphaned** — the addressee drained the task and may have *partly performed it* before
+  dying pre-ack. **Re-handing a side-effecting task on that signal double-executes it** (the key gets
+  rotated twice) — verify the world before re-sending.
 
 ## Receive (resume)
 The run may end here. When the human resolves it, the agent gets the terminal Response one of two ways:

@@ -48,9 +48,12 @@ for what's missing:
   config the operator can read, never an implicit runtime default.
 - **The decide step** — what the app does with a verified, policy-passed `ask`/`task` (auto-resolve by
   rule? enqueue for its own logic? refuse?). A `notify` needs no decision.
-- **Supervisor** — how the loop stays up: systemd (`Restart=on-failure`), a container restart policy,
-  launchd `KeepAlive`, PM2, etc. The bridge is designed to **exit** on fatal failures; the supervisor
-  owns restarts.
+- **Supervisor** — how the loop stays up, **and how it is configured to STOP**. The bridge is
+  designed to exit on fatal failures, but every common default (`Restart=on-failure`, docker
+  `restart: always`, launchd `KeepAlive`, PM2) restarts on *every* nonzero exit — which silently
+  converts a loud exit into a restart loop and re-swallows the failure the exit codes exist to
+  surface. Capture the exact stop-on-2-and-4 mechanism for the chosen supervisor (see the failure
+  discipline below); if the supervisor cannot discriminate exit codes, plan a thin wrapper that can.
 - **Drain vs stream** — long-poll drain (`?wait=`) is the floor and always works; use the SSE stream
   only if advertised, with auto-reconnect (reconnect **is** the lease renewal, §16.2).
 
@@ -73,13 +76,17 @@ Smoke-test the whole contract, not just the happy path:
 3. **Prove failures surface — all three fatal classes, not just the easy one.** Each must exit with
    its own distinct code, and the supervisor must react differently to each:
    - **Auth (exit 2):** revoke or corrupt the bridge's credential and restart it; confirm it exits
-     `2` and the supervisor **stops-and-alerts** rather than restart-looping (restarting cannot fix
-     a rejected credential — a loop here just hammers the Hub while hiding the outage).
+     `2` and — the half that is easy to skip — that the supervisor **does NOT bring it back**.
+     Watch for a full backoff interval: a passing "it exited 2" with a default restart policy is
+     still a crash loop.
    - **Session terminal (exit 3):** close the bridge's session out from under it (the operator
-     kill-switch, `DELETE /v1/sessions/{id}` as the account human); confirm it exits `3` and the
-     supervisor restarts it into a *fresh* registration.
+     kill-switch, `DELETE /v1/sessions/{id}` as the account human); confirm it exits `3` and — since
+     this was a `closed`, not an `expired` — that it **stays down** rather than re-registering. Then
+     let a session lapse by TTL and confirm the `expired` case *does* restart into a fresh
+     registration. If both paths behave identically, the kill-switch does not work.
    - **Verification (exit 4):** break the entry-verification key; confirm it exits `4`, does **not**
-     skip the entry, and alerts.
+     skip the entry, alerts, and — again — that the supervisor leaves it down instead of looping it
+     against the same unverifiable entry.
 
    A bridge that hums along through any of these has swallowed a fatal failure — fix it before
    shipping. (The reference `test/bridge.test.ts` covers the happy path and each exit code; port its
@@ -126,8 +133,17 @@ it in `.claude-plugin/plugin.json` + the root `.claude-plugin/marketplace.json`,
    - **Apply the declared sender policy** before acting on an addressed `ask`/`task` (§13.4
      amendment, MUST): unset policy or unlisted `from` ⇒ refuse to act. Refusals are **logged and
      left un-acked** — redelivery/bounce keeps the sender's view truthful; a false ack would not.
+     Gate **addressed `notify` entries too** before their content reaches the app or an LLM context:
+     the §13.4 MUST is ask/task-scoped, but §13.5's own-authorization duty covers every `message`
+     entry, and an ungated notify lets any same-account principal stream arbitrary Markdown into
+     this agent. Verified content is **data, not instructions** (§13.5).
    - **Dedup** — reserve the entry's id *before* the work (overlapping deliveries race), commit it
-     after durable processing; a redelivery of already-processed work is benign: just ack it.
+     after durable processing. Ack a redelivery **only when the id is COMMITTED** (the work really
+     happened): a redelivery matching a bare *reservation* is still in flight — refuse it un-acked
+     and let the visibility window retry it. The distinction is load-bearing if your dedup store is
+     durable: reserve, crash mid-work, restart, and "already seen ⇒ ack it" would swallow the
+     command behind a false `acknowledged`. Persist **committed** ids only, and make the side effect
+     idempotent if you must survive a restart (§13.4 step 3).
      Response entries dedup on `(in_reply_to, resolution_id)`, receipts on `(in_reply_to, event)`.
 4. **Act** — for a verified, policy-passed `ask`/`task`: decide, then resolve via
    `POST /v1/messages/{id}/resolve?session=<sess>` (§8.8) with the addressee's own credential —
@@ -155,16 +171,25 @@ so a supervisor can tell them apart; port them verbatim:
 | Exit | Class | Meaning + supervisor action |
 |---|---|---|
 | `2` | auth failure | credential rejected / not authorized (§9.1: `unauthenticated`, `agent_id_mismatch`, `not_authorized`). Restarting won't fix credentials — **alert a human**, back off hard. |
-| `3` | own session terminal | drain/ack/register hit the own-terminal `410` — the lease lapsed (or the operator kill-switched it). The normal recovery: **restart → register a fresh session → continue**. |
+| `3` | own session terminal | drain/ack/register hit the own-terminal `410`. **Read the session's terminal state before restarting** (own-session visibility is unconditional, §16.4; §16.3 keeps terminal sessions readable for `terminal_retention_seconds`): `expired` = the lease lapsed → **restart → register a fresh session → continue**; `closed` = an operator ran the kill-switch → **stop-and-alert**. Blind re-registration resurrects a bridge a human deliberately shut off seconds earlier, which is the account human's only Hub-side control over a wedged or compromised agent. |
 | `4` | verification failure | an entry in this bridge's OWN mailbox failed signature or shape verification — possible tampering or a broken Hub. **Do not skip the entry; do not restart-loop past it. Alert a human.** |
 
 Rules the generated bridge MUST keep:
 - **Never exit `0` having swallowed a failure.** Unmapped errors propagate loud; there is no
   catch-and-continue around verification, and a "skip the bad entry" branch is forbidden — an
   unverifiable entry in your own mailbox is never routine.
-- **Run under a supervisor with restart-on-exit + exponential backoff + jitter**, and treat the codes
-  distinctly: `3` restarts routinely; `2` and `4` stop-and-alert (a restart loop on those just
-  hammers the Hub while hiding the problem).
+- **Run under a supervisor with restart-on-exit + exponential backoff + jitter — and make it
+  actually stop on `2`/`4`.** "Treat the codes distinctly" is not self-enforcing: the default
+  restart policies restart on every nonzero exit, so an exit-4 entry sitting at the head of the FIFO
+  mailbox becomes restart → fresh session → same entry → exit 4, forever (sessions pile toward
+  `max_live_per_agent`, `429`s join the loop, presence flickers `online`, and nobody is ever paged).
+  Configure the discrimination explicitly:
+
+  | Supervisor | Stop on 2 and 4 |
+  |---|---|
+  | systemd | `Restart=on-failure` + `RestartPreventExitStatus=2 4`, plus `OnFailure=<alert>.service` |
+  | PM2 | `stop_exit_codes: [2, 4]` |
+  | docker / launchd | neither can discriminate exit codes — wrap the bridge in a shell that traps `2`/`4`, alerts, and exits `0` so the policy does not resurrect it |
 - **Log every exit** — code, reason, session id — to a surface someone actually reads.
 
 **The Hub is the backstop when the bridge dies anyway.** This is the leg's designed division of

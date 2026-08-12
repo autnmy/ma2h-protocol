@@ -143,11 +143,15 @@ false) — feature-detect before using `to`; addressed sends require `ma2h_versi
   **`response` entry** in that session's mailbox (drain with `?session=`; dedup on
   `(in_reply_to, resolution_id)` exactly as below; a terminal session just falls back to pull/callback,
   no bounce). Run `build-bridge` for the always-on draining side.
-- **Undeliverable is honest:** if the addressee's session dies (or mailbox retention lapses) before it
-  acks, the ask **auto-resolves `cancelled` with `response.actor: "system:undeliverable"`** — read that
-  as "nobody ever saw it / will see it", not a decision. The GET body's **`mailbox`** object
-  (`queued → delivered → acknowledged` | `bounced` | `expired`) is the authoritative delivery view;
-  `expired` means **never delivered**.
+- **Undeliverable is honest — but read *which* undeliverable:** if a **session-addressed** ask's
+  destination session dies before it acks (a **principal**-addressed one does not bounce on one
+  session's death — a sibling can still claim it; it terminates when retention lapses), the ask **auto-resolves `cancelled` with
+  `response.actor: "system:undeliverable"`**. That is not a decision — but it is not automatically
+  "nobody saw it" either. Check the GET body's authoritative **`mailbox`** object
+  (`queued → delivered → acknowledged` | `bounced` | `expired`): `expired`, and `bounced` with the
+  receipt's `prior: "queued"`, mean **never delivered**; `bounced` carrying a `delivered_at` means
+  **seen-then-orphaned** — the addressee drained it and may have acted before dying pre-ack. Confirm
+  before re-sending anything with side effects.
 
 ## Receive (resume)
 The run may end here. When the human resolves it, the agent gets the terminal Response one of two ways:
