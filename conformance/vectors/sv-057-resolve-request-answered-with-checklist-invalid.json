@@ -1,0 +1,15 @@
+{
+  "id": "sv-057-resolve-request-answered-with-checklist-invalid",
+  "class": "schema-validation",
+  "description": "A resolve request carrying `checklist` with an ask resolution is rejected: checklists are task-only state (§5.3) and MUST NOT appear for ask resolutions (`answered`/`declined`). Exercises the schema's ask-side checklist prohibition (sv-056 covers the task-side positive).",
+  "ref": "spec §8.8, §5.3",
+  "target": "v0.5/resolve-request.schema.json",
+  "expect": "invalid",
+  "input": {
+    "resolution": "answered",
+    "value": "approve",
+    "checklist": [
+      { "text": "Restart the queue consumer", "done": true }
+    ]
+  }
+}

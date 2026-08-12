@@ -1,0 +1,16 @@
+{
+  "id": "sv-056-resolve-request-completed-checklist-valid",
+  "class": "schema-validation",
+  "description": "A task resolution carrying the final checklist state validates: `completed` takes no `value`, and `checklist` (each item's text + doneness) is carried into the Response per §8.8/§6.",
+  "ref": "spec §8.8, §5.3",
+  "target": "v0.5/resolve-request.schema.json",
+  "expect": "valid",
+  "input": {
+    "resolution": "completed",
+    "comment": "Key rotated; webhook re-signed and verified.",
+    "checklist": [
+      { "text": "Generate a new key in the secret manager", "done": true },
+      { "text": "Update prod secret", "done": true }
+    ]
+  }
+}
