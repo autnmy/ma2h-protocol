@@ -495,9 +495,11 @@ export class Agent {
       return { acted: false, reason: "agent identity + current session required to reconstruct the §9.8 context" };
     }
     // §8.7.1: a consuming agent MUST validate the delivered payload's shape before acting — the
-    // sibling directive/message/receipt handlers all do. Validate against the v0.5 response entry
-    // shape before hashing so a malformed body is refused cleanly, not fed to the canonicalizer.
-    const shape = validateV05("response.schema.json", response);
+    // sibling directive/message/receipt handlers all do. Validate against the inbound-entry UNION
+    // (not the general response resource schema) so the responseEntry branch's normative `>= 0.5`
+    // constraint is enforced: a mailbox response entry cannot predate v0.5 (delivery requires a
+    // registered submitting session), and the resource schema would wrongly accept a 0.4 body.
+    const shape = validateV05("inbound-message.schema.json", response);
     if (!shape.valid) return { acted: false, reason: `invalid response entry: ${shape.errors.join("; ")}` };
     let sig: ParsedSignature;
     try {

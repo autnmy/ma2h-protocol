@@ -198,6 +198,8 @@ export interface ResolveInput {
   resolution: Resolution;
   value?: string | JsonObject;
   comment?: string;
+  /** Task resolutions only (v0.5, spec §6/§8.8): the final §5.3 checklist state, carried into the Response. */
+  checklist?: { text: string; done: boolean }[];
 }
 
 /** `POST /v1/messages/{id}/resolve` body (spec §8.8, v0.5) — the agent-resolver wire binding. */
@@ -850,6 +852,10 @@ export class Hub {
    * carrying the existing `{ id, status, resolution }` (§8.4 `409`).
    */
   cancel(id: string, principal: string, nowMs?: number): A2hResponse {
+    // Settle session leases first (§7/§16.3): a session-addressed ask whose destination lease
+    // already elapsed must let its `system:undeliverable` bounce win the CAS over a late cancel,
+    // exactly as resolve() — the same "applies a terminal without touching a session" path.
+    this.settleSessions(nowMs ?? this.now());
     const record = this.store.get(id);
     if (!record || record.message.agent.id !== principal) {
       throw new HubError("not_found", `unknown message: ${id}`);
@@ -893,6 +899,13 @@ export class Hub {
 
   /** Human/inbox resolution. Enforces fail-closed authz + expiry-vs-answer precedence. */
   resolve(id: string, input: ResolveInput, nowMs?: number): A2hResponse {
+    const t = nowMs ?? this.now();
+    // Settle session leases FIRST (§7/§16.3): a session-addressed ask/task that lists a human
+    // resolver but whose destination lease already elapsed must have its `system:undeliverable`
+    // bounce win the first-terminal CAS — a human answer applied before the settle would wrongly
+    // stand (a later sweep cannot replace a terminal Response). Every session touchpoint settles;
+    // this human-facing path is the one that could apply a terminal without touching a session.
+    this.settleSessions(t);
     const record = this.store.get(id);
     if (!record) throw new HubError("not_found", `unknown message: ${id}`);
     if (record.message.type === "notify") {
@@ -900,7 +913,6 @@ export class Hub {
     }
     if (record.status !== "open") return record.response as A2hResponse; // first-terminal-wins
 
-    const t = nowMs ?? this.now();
     this.assertAuthorized(record.message, input.actor);
 
     // expiry-vs-answer: an answer strictly after expires_at loses to the default.
@@ -915,6 +927,7 @@ export class Hub {
       resolution_id: newResolutionId(),
       ...(input.value !== undefined ? { value: input.value } : {}),
       ...(input.comment !== undefined ? { comment: input.comment } : {}),
+      ...(input.checklist !== undefined ? { checklist: input.checklist } : {}),
       ...(record.message.state !== undefined ? { state: record.message.state } : {}),
     });
     if (res.applied) this.emitResponse(record);

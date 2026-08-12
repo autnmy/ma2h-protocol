@@ -318,6 +318,79 @@ test("receiveDirective validates a >= 0.5 directive against the v0.5 schema (dir
   assert.match(res.acted === false ? res.reason : "", /invalid directive/);
 });
 
+// ---- codex round 3 #1: settle sessions before a human resolution ----
+
+test("a human resolve after the destination lease elapsed loses to the system:undeliverable bounce (§7/§16.3)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const workerSession = hub.registerSession(WORKER, { ttl_seconds: 60 }).session;
+  const withHuman = ask({ to: `agent:${WORKER}#${workerSession.id}` });
+  withHuman.request.allowed_resolvers = [`agent:${WORKER}`, OWNER]; // the human is an explicit resolver
+  const { id } = hub.submit(withHuman);
+
+  now.t = T0 + 120_000; // the lease lapsed at T+60s; no session touchpoint has run since
+  // The human tries to answer the (now-undeliverable) ask. The settle must bounce the dead session
+  // FIRST, so the auto-cancellation wins the CAS and the human answer is the no-op.
+  const out = hub.resolve(id, { actor: OWNER, resolution: "answered", value: "approve" });
+  assert.equal(out.resolution, "cancelled");
+  assert.equal(out.response?.actor, "system:undeliverable");
+  assert.equal(hub.get(id, SENDER)?.status, "cancelled");
+});
+
+// ---- codex round 3 #2: response entries validate against the entry union (>= 0.5) ----
+
+test("receiveResponseEntry refuses a pre-0.5 response body — entries require v0.5 (§8.7.1)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const senderSession = hub.registerSession(SENDER).session;
+  const workerSession = hub.registerSession(WORKER).session;
+  const { id } = hub.submit(ask({ to: `agent:${WORKER}`, session: senderSession.id }));
+  hub.drainInbox(WORKER, { session: workerSession.id });
+  const resolved = hub.resolveAsAgent(id, WORKER, { resolution: "answered", value: "approve" }, { session: workerSession.id });
+  const entries = hub.drainInbox(SENDER, { session: senderSession.id });
+  const entry = entries.find((e) => "response" in e);
+  if (!entry || !("response" in entry)) return assert.fail("expected a response entry");
+  void resolved;
+
+  const senderAgent = new Agent({
+    callbackUrl: "https://overseer.example/r",
+    callbackKey: KEY,
+    sealKey: randomBytes(32),
+    agentId: `agent:${SENDER}`,
+    session: senderSession.id,
+  });
+  // A response ENTRY declaring a pre-0.5 version is malformed for the mailbox union (delivery
+  // requires a registered submitting session, a >= 0.5 feature) — the resource schema alone would
+  // have accepted it.
+  const downgraded = { ...entry.response, ma2h_version: "0.4" as const };
+  const res = senderAgent.receiveResponseEntry(downgraded, entry.signature, now.t);
+  assert.equal(res.acted, false);
+  assert.match(res.acted === false ? res.reason : "", /invalid response entry/);
+});
+
+// ---- codex round 3 #3: the human task-resolution path carries the checklist ----
+
+test("a human task resolve carries the final checklist into the Response (§6/§8.8)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const task = {
+    ma2h_version: "0.5" as const,
+    type: "task" as const,
+    created_at: new Date(T0).toISOString(),
+    agent: { id: SENDER, run_id: "run_01", runtime: "cli" as const },
+    title: "Rotate the key",
+    idempotency_key: "rot",
+    action: { instructions: "rotate", checklist: [{ text: "rotate", done: false }] },
+  };
+  const { id } = hub.submit(task);
+  const out = hub.resolve(id, {
+    actor: `agent:${SENDER}`,
+    resolution: "completed",
+    checklist: [{ text: "rotate", done: true }],
+  });
+  assert.deepEqual(out.response?.checklist, [{ text: "rotate", done: true }]);
+});
+
 // ---- correctness #7: the addressed-submit expires_at check ----
 
 test("an addressed submit with a past expires_at is rejected, not accepted as a corpse (§4/§8.5)", () => {
