@@ -1,0 +1,44 @@
+{
+  "id": "dp-013-entry-response-signature",
+  "class": "downstream-proof",
+  "description": "Deterministic signature fixture for the v0.5 `response` entry (§9.8) — §9.2's context with the mailbox destination in place of the callback binding. `payload_sha256` is computed exactly as §9.2 (SHA-256 of JCS({\"response\": <response|null>, \"state\": <state|null>}) — shared code path with the callback verifier). The §6 Response body is byte-for-byte unchanged and carries no `to`: the verifier RECONSTRUCTS `to` from its own presented drain identity (its agent.id + the session it presented), exactly as a §9.2 verifier reconstructs callback_url from its own endpoint. `id` is reconstructed from the delivered `in_reply_to` (always equal — both name the original message record); `resolved_at` is the Response's response.resolved_at (present here; see dp-015 for the absent case). Matches examples/entry-signatures-v0.5.md §2.",
+  "ref": "spec §9.8 (response entry), §9.2, §6, §8.7.1",
+  "obligation": "Reproduce header `v1` from JCS(response_signed_context) + HMAC-SHA256(test_key); recompute payload_sha256 from the delivered {response, state} (never trusting a transmitted digest); reconstruct `to` from the verifier's own drain identity and `id` from the received in_reply_to; dedup on (in_reply_to, resolution_id) — the same Response may also arrive via §8.2 pull or a §8.3 callback with the same resolution_id. Expected runner wiring (#26): mirror the dp-001 branch with the §9.8 response context builder — sign the fixture context, compare v1 + canonical_jcs, recompute the payload digest from `entry`'s response/state.",
+  "test_key": "ma2h-test-secret-key-0123456789ab",
+  "signature_alg": "hmac-sha256",
+  "drain_identity": {
+    "agent_id": "overseer/fleet",
+    "session": "sess_01J5OVR0001",
+    "reconstructed_to": "agent:overseer/fleet#sess_01J5OVR0001"
+  },
+  "entry": {
+    "ma2h_version": "0.5",
+    "in_reply_to": "msg_01J5MSG0002",
+    "resolution_id": "res_01J5RSLV0001",
+    "agent": { "id": "overseer/fleet", "run_id": "run_01J5OVERSEER01" },
+    "resolution": "answered",
+    "response": {
+      "value": "approve",
+      "edited": false,
+      "actor": "agent:deploybot/dev-team#sess_01J5WRK0007",
+      "resolved_at": "2026-08-10T12:05:00Z"
+    },
+    "state": { "sealed": "v1.demo.MOCK-SEALED-STATE-BLOB" }
+  },
+  "payload_canonical_jcs": "{\"response\":{\"actor\":\"agent:deploybot/dev-team#sess_01J5WRK0007\",\"edited\":false,\"resolved_at\":\"2026-08-10T12:05:00Z\",\"value\":\"approve\"},\"state\":{\"sealed\":\"v1.demo.MOCK-SEALED-STATE-BLOB\"}}",
+  "signed_context": {
+    "id": "msg_01J5MSG0002",
+    "in_reply_to": "msg_01J5MSG0002",
+    "jti": "jti_01J5RSPDEMOFIX",
+    "ma2h_version": "0.5",
+    "payload_sha256": "21bf7d8c7b9245170bbe80d0256de0779fa2490a08cc96c3c4e02568a33f997f",
+    "resolution": "answered",
+    "resolution_id": "res_01J5RSLV0001",
+    "resolved_at": "2026-08-10T12:05:00Z",
+    "t": "1786752060",
+    "to": "agent:overseer/fleet#sess_01J5OVR0001"
+  },
+  "canonical_jcs": "{\"id\":\"msg_01J5MSG0002\",\"in_reply_to\":\"msg_01J5MSG0002\",\"jti\":\"jti_01J5RSPDEMOFIX\",\"ma2h_version\":\"0.5\",\"payload_sha256\":\"21bf7d8c7b9245170bbe80d0256de0779fa2490a08cc96c3c4e02568a33f997f\",\"resolution\":\"answered\",\"resolution_id\":\"res_01J5RSLV0001\",\"resolved_at\":\"2026-08-10T12:05:00Z\",\"t\":\"1786752060\",\"to\":\"agent:overseer/fleet#sess_01J5OVR0001\"}",
+  "header": "MA2H-Signature: t=1786752060,jti=jti_01J5RSPDEMOFIX,v1=ML7nxivSFOMqQ8CerEeBJmMV6919d9GZ5GbSd49n36c",
+  "v1": "ML7nxivSFOMqQ8CerEeBJmMV6919d9GZ5GbSd49n36c"
+}

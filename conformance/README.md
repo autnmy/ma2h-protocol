@@ -52,9 +52,13 @@ or load all eight schemas into any Draft 2020-12 validator and check each vector
 the `schema/v0.5/` snapshot — swap the `-s`/`-r` paths above accordingly (nine schemas in v0.5,
 including `session.schema.json`). The reference runner (`npm run vectors`) routes both automatically.
 The v0.5 **signature** obligations (the §9.8 `message`/`response`/`receipt` entry contexts, worked in
-[`examples/entry-signatures-v0.5.md`](../examples/entry-signatures-v0.5.md)) land as deterministic
-`dp-*` fixtures with the vectors issue (#27), alongside the downstream proofs for sessions, routing,
-and delivery honesty (spec §12).
+[`examples/entry-signatures-v0.5.md`](../examples/entry-signatures-v0.5.md)) are pinned as the
+deterministic fixtures `dp-011`..`dp-018`, and the v0.5 downstream proofs for sessions, routing, and
+delivery honesty are stated in `dp-019`..`dp-024` (spec §12; the full clause-by-clause map is the
+[v0.5 coverage map](#v05-coverage-map) below). The deterministic `dp-011`..`dp-018` fixtures carry
+their expected runner wiring per-fixture and are reported as *skipped* by the runner until the
+reference implementation lands the §9.8 signing/verifying code paths (issue #26) — a skip there means
+"not yet wired", never "proven".
 
 ## Downstream proof obligations (the Hub must discharge)
 
@@ -97,9 +101,98 @@ and delivery honesty (spec §12).
 13. **Ack + presence behaviour** (`dp-010`) — ack terminal-once + submitter-bound + directive-consume-fold +
     the delivery track; presence derivation, states, and owner-only read (§14/§15). Behavioural; exercised
     by the reference `ack.test.ts` / `presence.test.ts`.
+14. **`message`-entry signature** (`dp-011`, `dp-012`) — the §9.8 inter-agent mirror of §9.7: reproduce
+    `v1` from JCS(`message_signed_context`) + HMAC, recompute `payload_sha256` from the delivered
+    entry's content fields (`type` and `sensitive` bound on this leg), and reject a tampered
+    `from`/`to`/payload with a signature mismatch after the honest control verifies.
+15. **`response`-entry signature** (`dp-013`, `dp-014`, `dp-015`) — §9.2's context with `to` (the
+    delivery destination) in place of `callback_url` and the identical payload digest: the verifier
+    reconstructs `to` from its **own** presented drain identity and `id` from the received
+    `in_reply_to`, so an entry signed for one session fails verification replayed to any other —
+    including another session of the *same* principal (`dp-014`). `dp-015` pins the §9.8
+    reconstruction for a response-less task Response: `resolved_at` and the digest's `response`/`state`
+    members serialize as JSON `null`, never dropped keys.
+16. **`receipt`-entry signature** (`dp-016`, `dp-017`) — the §14.4 pattern applied to the bounce
+    receipt: `receipt_sha256` over the fixed six-key wrapper (absent members as `null`, the ack-key
+    `id` bound inside), `in_reply_to`/`to` bound top-level; a flipped `prior` (the seen-ness lie), a
+    rebound `in_reply_to`, or a cross-destination replay fails verification.
+17. **Per-delivery re-signing** (`dp-018`) — every delivery of a mailbox entry carries a fresh
+    `t`/`jti` over the otherwise-identical context (two pinned deliveries, two distinct signatures);
+    consumers reject an out-of-window `t` and a replayed `jti` (cache TTL ≥ window).
+18. **Sessions** (`dp-019`) — lease CAS (close/expiry first-terminal-wins, immutable), renewal by
+    client-originated activity only, the account-human kill-switch, registration bounds (`#`-id
+    rejection, TTL clamps, live-session cap), unconditional own-session visibility, and
+    foreign-session indistinguishability (§16).
+19. **Session-scoped drain + claim** (`dp-020`) — drain/ack/resolve session ownership (foreign/unknown
+    → `404`, own-terminal → `410`), session-less drains isolated to the v0.4 shape (and the webhook
+    directives-only), first-claim-wins for principal-addressed entries with crashed-claimant rescue,
+    Hub-attested `from` carrying exactly the submitted session qualifier, the strip rule, the pinned
+    per-kind ack keys, and human auditability (§8.7.1).
+20. **Stream liveness + provisionality** (`dp-021`) — the zombie-socket rule (an open SSE socket is
+    not liveness; bounded holds with a nonzero pre-expiry margin; reconnect is the renewal), the
+    schema-inexpressible `stream_max_hold_seconds` ≤ `presence.freshness_seconds` cross-field, stream
+    pushes advancing nothing without client-originated receipt evidence, and the §15 truthfulness
+    split for addressed-message reachability (§8.7.2/§15).
+21. **Delivery honesty** (`dp-022`, `dp-023`, `dp-024`) — bounce coverage on session death (drained-
+    but-unacked included, `prior` preserving never-seen vs seen-then-orphaned, the principal-orphan
+    terminal, `response`/`receipt` entries never bouncing), the `system:undeliverable`
+    auto-resolutions on **both** undeliverable terminals, receipt dedup with no cascade, `expired` ⇒
+    never delivered on both tracks (§14.2/§7); submit-time destination validation with the
+    collapsed-`422` policy rules, the honest addressed ack (`queued`/`open` + the REQUIRED
+    `destination` snapshot, including the schema-inexpressible addressed-`open` case), the sender-side
+    misroute detector, and run-independent idempotent replay with the original session bound as Caller
+    (§4/§8.1); the addressee resolver default with session-qualified matching, the §8.8 resolve
+    binding, and the §13.4 v0.5 addressee duties (current-session check, explicit sender-authz policy)
+    (§9.1/§13.4).
 
 The **schema-validation** class also gains the inbound envelope: `sv-008` (valid directive), `sv-009`
 (missing `to`), `sv-010` (a non-`human`/`system` `from`), `sv-011` (cross-type `request` rejected), `sv-012`
 (a pre-0.4 `ma2h_version` rejected — directives are a v0.4 feature); and the cross-cutting primitives:
 `sv-013` (valid ack), `sv-014` (pre-0.4 ack rejected), `sv-015` (valid presence), `sv-016` (bad presence
 state rejected).
+
+## v0.5 coverage map
+
+Every v0.5 obligation enumerated in spec §12's inter-agent paragraph, mapped to its coverage. Classes:
+**sv** = schema-validation (executable now), **dp** = downstream-proof (`dp-011`..`dp-018`
+deterministic — runner wiring lands with the reference issue #26; `dp-019`..`dp-024` behavioural —
+proven against a conformant Hub), **pa** = prose-audit (`pa-002`, human sign-off). Numbers in
+parentheses are the numbered sub-obligations inside a `dp` vector's `obligation` field.
+
+| §12 clause (v0.5) | Coverage |
+|-------------------|----------|
+| `to` grammar — principal/session forms valid; `human:` rejected; first-`#` split; bad session segment | sv-017, sv-018, sv-019, sv-020 |
+| `#`-bearing agent ids — inexpressible in `to`, rejected as addressed senders and session owners | sv-040, sv-044; dp-019 (2), dp-023 (5) |
+| `agent.session` shape | sv-021 |
+| Version-gated addressing (`to`/`agent.session`/entry kinds declare minor ≥ 5) | sv-038, sv-043, sv-049, sv-054 |
+| Session resource, register/read shapes | sv-022, sv-044 |
+| v0.5 capability objects (incl. dependency gates) | sv-023, sv-024, sv-051, sv-053, sv-054 |
+| Submit-ack `queued` + `destination` (required for addressed statuses; exactly-unknown; terminal replays) | sv-025, sv-026, sv-033, sv-034, sv-036, sv-037, sv-048 |
+| §8.8 resolve request (incl. both conditional branches) | sv-041, sv-042, sv-055, sv-056, sv-057 |
+| The four delivered entry kinds (strip rule; per-kind ack keys; `res_` namespace; ≥ 0.5 gates; union regression) | sv-027..sv-032, sv-035, sv-045, sv-047 |
+| §14.2 never-delivered conditionals on the GET body | sv-039, sv-050, sv-052 |
+| `message`-entry signature: known input → known signature; digest recomputed; tampered `from`/`to`/payload rejected | dp-011, dp-012 |
+| `response`-entry signature: `to`/`id` reconstruction; cross-session replay rejected; `resolved_at: null` pinning | dp-013, dp-014, dp-015 |
+| `receipt`-entry signature: six-key wrapper; `prior`/`in_reply_to`/`to` tamper rejected | dp-016, dp-017 |
+| Fresh `t`/`jti` per delivery; replayed `jti` rejected | dp-018 (with dp-011/dp-012 obligations) |
+| Session lease CAS (first terminal wins; renewal races; human kill-switch close) | dp-019 (4)–(7) |
+| First-claim-wins under concurrent session-presenting drains + crashed-claimant rescue | dp-020 (6), (7) |
+| Stream-liveness truthfulness (zombie socket offline + lease lapse; reconnect-at-bound stays online) | dp-021 (1)–(3) |
+| `stream_max_hold_seconds` ≤ `presence.freshness_seconds` (schema-inexpressible cross-field) | dp-021 (4); pa-002 (§8.0/§8.7.2) |
+| Drain ownership (`?session=` foreign/unknown → `404`; own-terminal → `410`) | dp-020 (1), (2) |
+| Stream-delivery provisionality (never-acked push reverts to queued; track never left `queued`) | dp-021 (5), (6) |
+| Bounce-on-terminal for un-acked command entries (drained-but-unacked; `prior` distinction; principal-orphan; `response`/`receipt` never bounce) | dp-022 (1)–(4) |
+| Ask auto-`cancelled` / task auto-`dismissed` as `system:undeliverable` on **both** undeliverable terminals | dp-022 (5) |
+| Receipts deduped on `(in_reply_to, event)`, best-effort, never cascading | dp-022 (6) |
+| Delivery-track truthfulness (`expired` ⇒ never delivered on both tracks; no `online` without qualifying activity) | dp-022 (7)–(9); dp-021 (6), (7) |
+| Addressed-ack honesty (notify `queued`, ask/task `open`; **every** addressed ack — `open` included — carries `destination`) | dp-023 (7), (8) |
+| Submit-time destination validation (unknown/terminal/cross-account; allowlist-block collapse; policy-tied `{"state": "unknown"}`) | dp-023 (1)–(4), (6) |
+| Misroute detector (addressed ack sans `destination` → sender surfaces failure, cancels ask) | dp-023 (9) |
+| Idempotent replay from a new session/run → original ack, original session bound as Caller | dp-023 (10) |
+| Addressee-only resolver default (submitter's resolve rejected; account human rejected absent listing) | dp-024 (1), (2) |
+| Session-qualified `allowed_resolvers` matching (entry grammar + behaviour) | sv-046; dp-024 (3), (4) |
+| Session-qualified addressee check on the recipient (§13.4, incl. explicit sender-authz policy) | dp-024 (6)–(8) |
+| Attested `from` carries exactly the submitted `agent.session` qualifier (cross-field equality) | dp-020 (8) |
+| 0.4 session-less drain isolation (never receives the v0.5 entry kinds; webhook directives-only) | dp-020 (3), (4) |
+| v0.5 durability (un-acked entries of any kind; active leases; pending bounce obligations survive restart) | pa-002 (§3.1) |
+| Normative v0.5 spec text present and correctly scoped (grammar, opt-in gates, §9.8 discipline, §10 additivity, §13.4/§13.5 duties, §14.2 terminals, §15/§16 rules) | pa-002 (23 asserts) |

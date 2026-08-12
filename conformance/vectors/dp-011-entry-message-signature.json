@@ -1,0 +1,42 @@
+{
+  "id": "dp-011-entry-message-signature",
+  "class": "downstream-proof",
+  "description": "Deterministic signature fixture for the v0.5 `message` entry (§9.8) — the inter-agent mirror of §9.7, same key set. The Hub MUST reproduce header `v1` from JCS(message_signed_context) + HMAC-SHA256(test_key). `payload_sha256` is the lowercase-hex SHA-256 of JCS({\"message\": <content>}) where <content> carries exactly the delivered entry's PRESENT fields among type/title/body/priority/tags/context/request/action/sensitive (here: request, title, type) — `type` is bound because flipping notify/ask/task changes what the recipient does; `sensitive` is bound on this leg (unlike §9.7). Hub/transport metadata (id, from, to, created_at, expires_at) is excluded from the digest — from/id/to are bound as top-level signed fields — and the advisory `agent` descriptor and inert `idempotency_key` are excluded. The verifier MUST recompute the digest from the entry it received and rebuild the context from that entry (from/id/to) plus the header's t/jti. Matches examples/entry-signatures-v0.5.md §1.",
+  "ref": "spec §9.8 (message entry), §8.7.1, §13.4",
+  "obligation": "Reproduce header `v1`; reproduce `payload_sha256` from the delivered entry's content fields (never trusting a transmitted digest — none is transmitted); reject a tampered from/to/payload (dp-012); reject a replayed `jti` within the window (cache TTL >= window) and a `t` outside +/-replay_window_seconds; re-sign every delivery with a fresh t/jti (dp-018). Expected runner wiring (#26): mirror the dp-005 branch with the §9.8 message context builder — build context, sign, compare v1 + canonical_jcs, recompute the content digest from `entry`.",
+  "test_key": "ma2h-test-secret-key-0123456789ab",
+  "signature_alg": "hmac-sha256",
+  "entry": {
+    "ma2h_version": "0.5",
+    "type": "ask",
+    "id": "msg_01J5MSG0002",
+    "from": "agent:overseer/fleet#sess_01J5OVR0001",
+    "to": "agent:deploybot/dev-team#sess_01J5WRK0007",
+    "created_at": "2026-08-10T12:01:00Z",
+    "agent": {
+      "id": "overseer/fleet",
+      "run_id": "run_01J5OVERSEER01",
+      "runtime": "cli",
+      "session": "sess_01J5OVR0001"
+    },
+    "title": "May I restart your queue consumer?",
+    "idempotency_key": "restart-consumer-01J5",
+    "request": {
+      "mode": "confirm",
+      "allowed_resolvers": ["agent:deploybot/dev-team"]
+    }
+  },
+  "content_canonical_jcs": "{\"message\":{\"request\":{\"allowed_resolvers\":[\"agent:deploybot/dev-team\"],\"mode\":\"confirm\"},\"title\":\"May I restart your queue consumer?\",\"type\":\"ask\"}}",
+  "signed_context": {
+    "from": "agent:overseer/fleet#sess_01J5OVR0001",
+    "id": "msg_01J5MSG0002",
+    "jti": "jti_01J5MSGDEMOFIX",
+    "ma2h_version": "0.5",
+    "payload_sha256": "f5d7fe8d3c10f59cf353375d9dd078bf36c74cb7cf503ed76fcdb2de3ad719ee",
+    "t": "1786752000",
+    "to": "agent:deploybot/dev-team#sess_01J5WRK0007"
+  },
+  "canonical_jcs": "{\"from\":\"agent:overseer/fleet#sess_01J5OVR0001\",\"id\":\"msg_01J5MSG0002\",\"jti\":\"jti_01J5MSGDEMOFIX\",\"ma2h_version\":\"0.5\",\"payload_sha256\":\"f5d7fe8d3c10f59cf353375d9dd078bf36c74cb7cf503ed76fcdb2de3ad719ee\",\"t\":\"1786752000\",\"to\":\"agent:deploybot/dev-team#sess_01J5WRK0007\"}",
+  "header": "MA2H-Signature: t=1786752000,jti=jti_01J5MSGDEMOFIX,v1=4ppFPmg1vtR0F4Fu0LWHWxKXCXyM-CUdMgkFF_xswPA",
+  "v1": "4ppFPmg1vtR0F4Fu0LWHWxKXCXyM-CUdMgkFF_xswPA"
+}

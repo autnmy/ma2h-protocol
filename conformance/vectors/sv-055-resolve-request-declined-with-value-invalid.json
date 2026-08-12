@@ -1,0 +1,13 @@
+{
+  "id": "sv-055-resolve-request-declined-with-value-invalid",
+  "class": "schema-validation",
+  "description": "A resolve request carrying `value` with a non-`answered` resolution is rejected: `value` is REQUIRED iff `resolution: \"answered\"` and MUST NOT appear for any other resolution (a declined ask carries no chosen option). Exercises the else-branch of the schema's value conditional (sv-041/042 cover the answered branch).",
+  "ref": "spec §8.8 (v0.5)",
+  "target": "v0.5/resolve-request.schema.json",
+  "expect": "invalid",
+  "input": {
+    "resolution": "declined",
+    "value": "approve",
+    "comment": "Not comfortable approving this restart window."
+  }
+}

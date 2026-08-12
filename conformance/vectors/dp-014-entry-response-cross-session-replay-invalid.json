@@ -1,0 +1,72 @@
+{
+  "id": "dp-014-entry-response-cross-session-replay-invalid",
+  "class": "downstream-proof",
+  "description": "Cross-endpoint replay defense for the v0.5 `response` entry (§9.8): the signed context binds `to` — the session-qualified address the entry is delivered to — but the §6 body carries no `to`, so the binding only holds because the verifier reconstructs `to` from its OWN presented drain identity. The honest control (entry verified at the session it was signed for, sess_01J5OVR0001) MUST pass first. Replayed unmodified to a DIFFERENT session of the same principal (sess_01J5OVR0002 — the sharpest case: same credential, same agent.id), the reconstructed context diverges and verification MUST fail with a signature mismatch. A payload tamper (response.value flipped) likewise diverges the recomputed §9.2 digest, and a correlation rebind (in_reply_to flipped to another live ask) diverges the reconstructed `id`/`in_reply_to` pair — the response-side analogue of dp-017's receipt rebind.",
+  "ref": "spec §9.8 (response entry), §9.2",
+  "obligation": "Verify the honest control at drain identity agent:overseer/fleet#sess_01J5OVR0001; then (1) reject the SAME entry + header verified at drain identity agent:overseer/fleet#sess_01J5OVR0002 (reconstructed `to` diverges — cross-session replay), (2) reject the tampered entry (response.value approve->deny; recomputed payload_sha256 diverges) at the honest identity, and (3) reject the rebound entry (in_reply_to flipped to a different live ask; the reconstructed `id` := in_reply_to diverges with it, so a real approval cannot be misdirected onto another ask) at the honest identity — all with a signature mismatch, not a window/jti rejection. Expected runner wiring (#26): mirror the dp-003/dp-006 branch — reconstruct the context per case (verifier-supplied `to`, recomputed digest, entry's in_reply_to as `id`) and verify against `v1`.",
+  "test_key": "ma2h-test-secret-key-0123456789ab",
+  "signature_alg": "hmac-sha256",
+  "t": "1786752060",
+  "jti": "jti_01J5RSPDEMOFIX",
+  "v1": "ML7nxivSFOMqQ8CerEeBJmMV6919d9GZ5GbSd49n36c",
+  "honest_drain_identity": {
+    "agent_id": "overseer/fleet",
+    "session": "sess_01J5OVR0001",
+    "reconstructed_to": "agent:overseer/fleet#sess_01J5OVR0001"
+  },
+  "replay_drain_identity": {
+    "agent_id": "overseer/fleet",
+    "session": "sess_01J5OVR0002",
+    "reconstructed_to": "agent:overseer/fleet#sess_01J5OVR0002"
+  },
+  "honest_entry": {
+    "ma2h_version": "0.5",
+    "in_reply_to": "msg_01J5MSG0002",
+    "resolution_id": "res_01J5RSLV0001",
+    "agent": { "id": "overseer/fleet", "run_id": "run_01J5OVERSEER01" },
+    "resolution": "answered",
+    "response": {
+      "value": "approve",
+      "edited": false,
+      "actor": "agent:deploybot/dev-team#sess_01J5WRK0007",
+      "resolved_at": "2026-08-10T12:05:00Z"
+    },
+    "state": { "sealed": "v1.demo.MOCK-SEALED-STATE-BLOB" }
+  },
+  "tampered_entries": [
+    {
+      "reason": "answer tamper — response.value flipped approve->deny in transit; the verifier recomputes the §9.2 digest from the payload it received, so the flipped answer diverges payload_sha256",
+      "entry": {
+        "ma2h_version": "0.5",
+        "in_reply_to": "msg_01J5MSG0002",
+        "resolution_id": "res_01J5RSLV0001",
+        "agent": { "id": "overseer/fleet", "run_id": "run_01J5OVERSEER01" },
+        "resolution": "answered",
+        "response": {
+          "value": "deny",
+          "edited": false,
+          "actor": "agent:deploybot/dev-team#sess_01J5WRK0007",
+          "resolved_at": "2026-08-10T12:05:00Z"
+        },
+        "state": { "sealed": "v1.demo.MOCK-SEALED-STATE-BLOB" }
+      }
+    },
+    {
+      "reason": "correlation rebind — in_reply_to flipped to a different live ask of the same submitter: the verifier reconstructs `id` from the received in_reply_to, so both bound fields diverge and a genuine approval cannot be misdirected onto another ask",
+      "entry": {
+        "ma2h_version": "0.5",
+        "in_reply_to": "msg_01J5MSG0009",
+        "resolution_id": "res_01J5RSLV0001",
+        "agent": { "id": "overseer/fleet", "run_id": "run_01J5OVERSEER01" },
+        "resolution": "answered",
+        "response": {
+          "value": "approve",
+          "edited": false,
+          "actor": "agent:deploybot/dev-team#sess_01J5WRK0007",
+          "resolved_at": "2026-08-10T12:05:00Z"
+        },
+        "state": { "sealed": "v1.demo.MOCK-SEALED-STATE-BLOB" }
+      }
+    }
+  ]
+}
