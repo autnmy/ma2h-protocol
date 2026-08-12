@@ -1,14 +1,25 @@
 {
   "id": "dp-017-entry-receipt-tamper-invalid",
   "class": "downstream-proof",
-  "description": "Tamper rejection for the v0.5 `receipt` entry (§9.8): the sender recomputes receipt_sha256 from the receipt it RECEIVED (fixed-key/null wrapper) and reconstructs the context (in_reply_to top-level, `to` from its own drain identity). Receipts drive no action, but verification is a MUST — a fabricated or altered bounce could trick a sender into abandoning a live ask, and a flipped `prior` lies about whether the destination ever SAW the message (queued = never seen; delivered = seen-then-orphaned, §14.2) — exactly the false belief the delivery-honesty rules exist to kill. The honest control MUST verify first; each tampered variant MUST fail with a signature mismatch.",
+  "description": "Tamper rejection for the v0.5 `receipt` entry (§9.8): the sender recomputes receipt_sha256 from the receipt it RECEIVED (fixed-key/null wrapper) and reconstructs the context — `in_reply_to` from the received receipt, `to` from its OWN drain identity (never from the wire: the received body's `to` is untrusted routing convenience, and the digest wrapper deliberately excludes it). Receipts drive no action, but verification is a MUST — a fabricated or altered bounce could trick a sender into abandoning a live ask, and a flipped `prior` lies about whether the destination ever SAW the message (queued = never seen; delivered = seen-then-orphaned, §14.2) — exactly the false belief the delivery-honesty rules exist to kill. The honest control MUST verify first; each tampered variant MUST fail with a signature mismatch, and the unmodified entry replayed to a different sender session MUST fail via the verifier's own-identity `to` reconstruction (the same cross-endpoint defense as dp-014 — a verifier that sources `to` from the received body instead would wrongly accept that replay).",
   "ref": "spec §9.8 (receipt entry), §14.2, §8.7.1",
-  "obligation": "Verify the honest receipt (positive control), then reject every tampered variant with a signature mismatch: (1) `prior` flipped queued->delivered (the seen-ness lie — bound inside receipt_sha256); (2) `in_reply_to` rebound to a different message (rebinding a real bounce onto a live ask — bound top-level AND inside the digest); (3) `to` redirected to a different sender session (cross-destination replay — the reconstructed context diverges). Expected runner wiring (#26): mirror the dp-009 branch — rebuild the wrapper + context from each received receipt and verify against the fixture `v1`.",
+  "obligation": "Verify the honest receipt (positive control) at the honest drain identity, then: (1) reject `prior` flipped queued->delivered (the seen-ness lie — bound inside receipt_sha256, so the recomputed digest diverges); (2) reject `in_reply_to` rebound to a different message (rebinding a real bounce onto a live ask — bound top-level AND inside the digest); (3) reject the UNMODIFIED honest entry + header verified at drain identity agent:overseer/fleet#sess_01J5OVR0002 (cross-destination replay — the reconstructed `to` diverges; discriminates an own-identity verifier from a wire-trusting one, which this case MUST catch). All failures are signature mismatches, not window/jti rejections. Expected runner wiring (#26): mirror the dp-009 branch — rebuild the wrapper from each received receipt and the context with the per-case drain identity as `to`, never the received body's `to`, and verify against the fixture `v1`.",
   "test_key": "ma2h-test-secret-key-0123456789ab",
   "signature_alg": "hmac-sha256",
   "t": "1786752120",
   "jti": "jti_01J5RCPDEMOFIX",
   "v1": "-80T4jjtirjLy6Fri6osKG_gPS-CQhfd9uXgV0_9l78",
+  "honest_drain_identity": {
+    "agent_id": "overseer/fleet",
+    "session": "sess_01J5OVR0001",
+    "reconstructed_to": "agent:overseer/fleet#sess_01J5OVR0001"
+  },
+  "replay_drain_identity": {
+    "reason": "cross-destination replay — the UNMODIFIED honest entry + header presented at a different session of the sender principal; the verifier reconstructs `to` from its own drain identity, so the context diverges from the signed one",
+    "agent_id": "overseer/fleet",
+    "session": "sess_01J5OVR0002",
+    "reconstructed_to": "agent:overseer/fleet#sess_01J5OVR0002"
+  },
   "honest_entry": {
     "ma2h_version": "0.5",
     "type": "receipt",
@@ -47,20 +58,6 @@
         "at": "2026-08-10T12:20:00Z",
         "session": "sess_01J5WRK0007",
         "to": "agent:overseer/fleet#sess_01J5OVR0001"
-      }
-    },
-    {
-      "reason": "cross-destination replay — `to` redirected to a different session of the sender: a receipt signed for sess_01J5OVR0001's mailbox fails when the reconstructed drain identity is sess_01J5OVR0002",
-      "entry": {
-        "ma2h_version": "0.5",
-        "type": "receipt",
-        "id": "rcpt_01J5RCPT0001",
-        "in_reply_to": "msg_01J5MSG0003",
-        "event": "bounced",
-        "prior": "queued",
-        "at": "2026-08-10T12:20:00Z",
-        "session": "sess_01J5WRK0007",
-        "to": "agent:overseer/fleet#sess_01J5OVR0002"
       }
     }
   ]

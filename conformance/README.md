@@ -195,4 +195,4 @@ parentheses are the numbered sub-obligations inside a `dp` vector's `obligation`
 | Attested `from` carries exactly the submitted `agent.session` qualifier (cross-field equality) | dp-020 (8) |
 | 0.4 session-less drain isolation (never receives the v0.5 entry kinds; webhook directives-only) | dp-020 (3), (4) |
 | v0.5 durability (un-acked entries of any kind; active leases; pending bounce obligations survive restart) | pa-002 (§3.1) |
-| Normative v0.5 spec text present and correctly scoped (grammar, opt-in gates, §9.8 discipline, §10 additivity, §13.4/§13.5 duties, §14.2 terminals, §15/§16 rules) | pa-002 (22 asserts) |
+| Normative v0.5 spec text present and correctly scoped (grammar, opt-in gates, §9.8 discipline, §10 additivity, §13.4/§13.5 duties, §14.2 terminals, §15/§16 rules) | pa-002 (23 asserts) |
