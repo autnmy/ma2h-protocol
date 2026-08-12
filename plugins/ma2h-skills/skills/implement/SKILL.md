@@ -25,10 +25,10 @@ an instruction to a specific agent. A Hub that omits it stays fully conformant a
 `inbound` in its capability document.
 
 **v0.5 adds an optional inter-agent leg** (agent→agent, one account only — spec §16, §8.7.1, §14.2). Also
-additive and OPTIONAL, and layered on the §6 mailbox: **sessions** make a live invocation addressable, an
+additive and OPTIONAL, and layered on the inbound-leg mailbox (section 6): **sessions** make a live invocation addressable, an
 envelope **`to`** parks a message in the destination agent's mailbox as a signed **`message` entry**, and
 **delivery honesty** guarantees a sender is never left believing a lie. Add it via §7 only if this
-account's agents should coordinate through this Hub; it requires the §6 mailbox plus the ack primitive,
+account's agents should coordinate through this Hub; it requires that same mailbox plus the ack primitive,
 and it is **account-opt-in** (`inter_agent.enabled` defaults **false**, spec §8.0).
 
 **You bring the protocol; the implementer brings the stack.** Do not assume a language or framework — read
@@ -64,8 +64,8 @@ Implement these over **HTTPS only** (plaintext MUST NOT be offered, §8). Paths 
 | POST | `/v1/messages/{id}/cancel` | the agent withdraws an open `ask` → terminal `cancelled`, which **emits a terminal Response** delivered like a resolve (push and/or embedded for pull) so the agent gets closure |
 | GET | `/.well-known/ma2h` | advertise limits + supported auth schemes (standardized discovery) |
 | GET | `/v1/stream` *(optional)* | SSE live tail for a live inbox |
-| POST · GET · DELETE | `/v1/sessions`, `/v1/sessions/{id}` *(v0.5, optional — required for the inter-agent leg, §7)* | register / read / close a **session** (spec §16): the Hub mints `sess_` ids; `ttl_seconds` is clamped to the advertised bounds; over the `max_live_per_agent` cap → `429`; `DELETE` is idempotent, and the account's authenticated **human** may close any account session (the kill-switch). Own-session listing is unconditional; foreign sessions are indistinguishable from unknown |
-| GET / POST | `/v1/inbox?session=…` · `/v1/inbox/ack?session=…` *(v0.5)* | the §6 drain/ack, **session-scoped** (spec §8.7.1): required to deliver the v0.5 entry kinds (§7) and to renew the presenting session's lease. Foreign/unknown session → `404`; own-but-**terminal** → `410` ("re-register and continue"). A session-less drain returns **exactly the v0.4 shape** |
+| POST · GET · DELETE | `/v1/sessions`, `/v1/sessions/{id}` *(v0.5, optional — required for the inter-agent leg, section 7)* | register / read / close a **session** (spec §16): the Hub mints `sess_` ids; `ttl_seconds` is clamped to the advertised bounds; over the `max_live_per_agent` cap → `429`; `DELETE` is idempotent, and the account's authenticated **human** may close any account session (the kill-switch). Own-session listing is unconditional; foreign sessions are indistinguishable from unknown |
+| GET / POST | `/v1/inbox?session=…` · `/v1/inbox/ack?session=…` *(v0.5)* | the inbound-leg drain/ack, **session-scoped** (spec §8.7.1): required to deliver the v0.5 entry kinds (section 7) and to renew the presenting session's lease. Foreign/unknown session → `404`; own-but-**terminal** → `410` ("re-register and continue"). A session-less drain returns **exactly the v0.4 shape** |
 | GET | `inbound.stream_url` *(v0.5, optional)* | SSE push of the same session-scoped entries (spec §8.7.2); each hold bounded by `stream_max_hold_seconds` (MUST be ≤ the presence freshness window) and closed with a nonzero margin before lease expiry — the client's **reconnect is the renewal**. Long-poll drain remains the conformance floor |
 
 ## 3. The Hub MUSTs — your definition of done
@@ -90,7 +90,10 @@ implementation is done when each MUST below holds **and** the vectors pass.
 - [ ] **Capability discovery** advertises `max_body_bytes` / `max_part_bytes` / `max_context_parts` / auth schemes, and the Hub **enforces** those limits at ingest.
 - [ ] **Submit returns `202`; GET reads are idempotent** (a terminal message returns the same body), and a **resolved message stays pull-available for the advertised retention TTL** (§8.2, RECOMMENDED 30 days) — do **not** purge terminal records at resolution, or a pull-only / missed-push agent's `poll_url` `404`/`410`s before it reads the embedded Response (a **deleted** message returns `410 Gone`; an **unknown** id `404`).
 
-### 3.5 The v0.5 inter-agent MUSTs (only if you offer `sessions` + `inter_agent` — see §7)
+### 3.5 The v0.5 inter-agent MUSTs (only if you offer `sessions` + `inter_agent` — see section 7)
+
+Every `§` reference in this block is a **spec** section (<https://ma2h.org/spec/v0.5.md>); this
+skill's own parts are called out as "section N".
 
 Skip this block for a human-inbox-only Hub. If you offer the leg, every item is normative and the v0.5
 vectors are the bar:
@@ -187,7 +190,7 @@ detached-signature framing, same `jti`.
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/v1/inbox` | drain up to `?max=N` pending directives (FIFO), each paired with its `MA2H-Signature`; supports `?wait=<seconds>` long-poll like `GET /v1/messages/{id}`. *(v0.5: also accepts `?session=` — the session-scoped form that delivers the §7 entry kinds; session-less stays exactly this v0.4 shape)* |
+| GET | `/v1/inbox` | drain up to `?max=N` pending directives (FIFO), each paired with its `MA2H-Signature`; supports `?wait=<seconds>` long-poll like `GET /v1/messages/{id}`. *(v0.5: also accepts `?session=` — the session-scoped form that delivers the section-7 entry kinds; session-less stays exactly this v0.4 shape)* |
 | POST | `/v1/inbox/ack` | `{ "ids": [...] }` — consume (remove) processed directives; idempotent. *(v0.5: MAY present `?session=` — lease attribution only, never authorization; covers all §7 entry kinds by their ack keys)* |
 
 Plus a **human-facing authoring action** (Hub-internal, like `/…/resolve` — *not* a normative agent wire
@@ -206,17 +209,19 @@ it. And advertise the leg in the capability document.
 The agent side (verify the §9.7 signature, validate shape, confirm `to` is itself, dedup on `id`, ack after
 durable processing) is scaffolded by **`build-inbox`** — not your job here.
 
-## 7. (Optional) The inter-agent leg — agent ↔ agent (v0.5, §16 · §8.7.1 · §14.2)
+## 7. (Optional) The inter-agent leg — agent ↔ agent (v0.5, spec §16 · §8.7.1 · §14.2)
 
 Add this only if **one account's agents** should coordinate **through this Hub** — hub-mediated,
 store-and-forward, and strictly within the account (cross-account is a non-goal and is rejected as
-unknown). It layers on §6's mailbox: a **session** (§16) makes one live invocation addressable
-(`agent:<id>#<sess>`); an envelope **`to`** (§4 grammar: the **first `#`** splits the agent id from a
-`^sess_` session segment) routes the message into the destination's mailbox as a signed **`message`
-entry** instead of the human inbox; the addressee resolves an addressed `ask`/`task` via the §8.8
-resolve binding with its own agent credential; the Response routes back to the submitting session as a
-**`response` entry**; and §3.5's honesty rules keep every party told the truth. Build the §2 v0.5 rows
-(sessions, session-scoped drain, optional stream), satisfy §3.5, and sign per §9.8.
+unknown). It layers on the inbound-leg mailbox (section 6 above): a **session** (spec §16) makes one
+live invocation addressable
+(`agent:<id>#<sess>`); an envelope **`to`** (spec §4 grammar: the **first `#`** splits the agent id
+from a `^sess_` session segment) routes the message into the destination's mailbox as a signed
+**`message` entry** instead of the human inbox; the addressee resolves an addressed `ask`/`task` via
+the spec §8.8 resolve binding with its own agent credential; the Response routes back to the
+submitting session as a **`response` entry**; and the honesty rules in section 3.5 keep every party
+told the truth. Build the v0.5 rows from section 2 (sessions, session-scoped drain, optional stream),
+satisfy section 3.5, and sign per spec §9.8.
 
 **The three v0.5 entry kinds** (delivered ONLY to session-presenting drains; the delivered payloads
 validate against `inbound-message.schema.json`, the four-kind union):
@@ -230,12 +235,12 @@ validate against `inbound-message.schema.json`, the four-kind union):
 Routing: **session-addressed** entries are visible only to drains presenting that session;
 **principal-addressed** entries are first-claim-wins across the destination principal's
 session-presenting drains, with visibility-timeout redelivery rescuing a dead claimant (why the §14.2
-bounce rules are scoped to session-addressed mail). The §6 **webhook stays directives-only** in v0.5 —
+bounce rules are scoped to session-addressed mail). The inbound-leg **webhook stays directives-only** in v0.5 —
 entry kinds travel by drain/stream alone.
 
 The agent side is not your job here: senders gain `to` via the `build-notify` / `build-ask` /
 `build-task` v0.5 addressing blocks, and the always-on consuming bridge is scaffolded by
-**`build-bridge`**. Mirror the §9.8 signing from the reference exactly as §4 directs
+**`build-bridge`**. Mirror the spec §9.8 signing from the reference exactly as section 4 directs
 (`signing.ts`: `buildMessageEntrySignedContext` / `computeMessageEntryPayloadSha256`,
 `buildResponseEntrySignedContext`, `buildReceiptSignedContext` / `computeReceiptSha256` and their
 verify twins); the deterministic worked fixtures are in
@@ -245,7 +250,7 @@ verify twins); the deterministic worked fixtures are in
 
 Run the **conformance vectors** against the implementation and add Hub scenario tests for each invariant
 (idempotency dedup, first-terminal-wins, signed-callback round-trip + verify, SSRF refusal, fail-closed
-authz, body sanitization; if you built §6: directive signing/verify `dp-005`, tamper/cross-agent-replay
+authz, body sanitization; if you built section 6: directive signing/verify `dp-005`, tamper/cross-agent-replay
 `dp-006`, and mailbox at-least-once/consume/isolation `dp-007`; and if you built §7, the v0.5 families —
 the `sv-017..043` schema vectors, the §9.8 entry-signature fixtures (known input → known signature for
 all three kinds; tampered `from`/`to`/payload and replayed `jti` rejected), and the §12 downstream proofs:
@@ -259,9 +264,9 @@ are not done until they pass.** That is the bar — in any language.
 ## 9. Hand off
 
 Tell the implementer: the Hub is up at `<base-url>` with `<auth>`. **To let agents send to it, run
-`build-notify` / `build-ask` / `build-task`**; if you built the inbound leg (§6), **run `build-inbox`** in
+`build-notify` / `build-ask` / `build-task`**; if you built the inbound leg (section 6), **run `build-inbox`** in
 the apps whose agents should drain human→agent directives from this Hub; and if you built the inter-agent
-leg (§7), **run `build-bridge`** in the apps whose agents should hold an always-on session bridge (the
+leg (section 7), **run `build-bridge`** in the apps whose agents should hold an always-on session bridge (the
 sender builders' v0.5 addressing blocks cover the sending side).
 
 ## References
