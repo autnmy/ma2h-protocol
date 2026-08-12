@@ -35,6 +35,9 @@ Inspect the repo (`AGENTS.md` / `CLAUDE.md` / `.env.example` / config), then ask
 - **State-seal key** *(if you send `state`)* — a per-`agent.id` secret **pre-positioned in the agent runtime**
   that **survives re-invocation**, is **distinct from the callback credential**, and is **never embedded in
   `state`** — the resumed run uses it to open the sealed blob. (Separate from the response-signature key.)
+- **Inter-agent addressing** *(v0.5, optional)* — should this skill also hand tasks to **another agent**
+  (a `to` destination)? Only when the Hub advertises `inter_agent.enabled: true` (**account-opt-in**,
+  default false). If yes, keep the template's addressing block; if not, drop it.
 
 ### 2. Generate the skill
 Write `<skills-dir>/<app>-task/SKILL.md` from the template below. For verification + sealing, prefer a
@@ -45,6 +48,15 @@ re-deriving crypto — see the [reference implementation](https://github.com/aut
 Smoke-test the full loop: send a test `task`, mark it **done** in the inbox, confirm the agent receives the
 Response (**push:** verifies the signature; **pull:** reads the terminal response from the ack's `poll_url`),
 sees `resolution: "completed"`, and acts **once** (a replay is a no-op).
+
+*(If you generated the v0.5 addressing block)* also send one **addressed** test `task` to a known
+agent and confirm: the ack is `"status": "open"` **with** a `destination` object (a missing one is a
+misroute to surface, not a pass); the **addressee** can complete it while the submitter cannot; and a
+bogus `to` is rejected `422 unknown_destination`. To exercise the undeliverable path, address the
+test **session-qualified** (`agent:<dest-id>#<sess_…>`) and kill that session while the task is
+queued — confirm the sender reads the `system:undeliverable` auto-`dismissed` rather than waiting
+forever. A **principal**-addressed task does not bounce on one session's death (a sibling session can
+still claim it); it only terminates when retention lapses, so it will not show this immediately.
 
 ### 4. Hand off
 Document how agents invoke it, the callback/resume wiring, and required secrets.
@@ -72,7 +84,7 @@ description: Ask a human to perform a manual, out-of-band action via <APP>'s MA2
 - **Endpoint:** `POST <HUB_URL>/v1/messages`  ·  **Auth:** the Hub's advertised scheme (capability `auth_schemes`) — `Authorization: Bearer $<AUTH_ENV>` for `bearer`, or the API-key header for `apikey`
 
 **Envelope** (`type: "task"`):
-- `ma2h_version`: `"0.4"`, `created_at`: ISO now
+- `ma2h_version`: `"0.5"`, `created_at`: ISO now
 - `agent`: `{ "id": "<AGENT_ID>", "run_id": "<RUN_ID>", "runtime": "<RUNTIME>", "project": "<PROJECT>" }`  *(every value is a JSON string — keep the quotes)*
 - `title`, `body` (Markdown), `priority?`, `tags?`
 - **`idempotency_key`** (REQUIRED): stable per logical task.
@@ -90,7 +102,42 @@ description: Ask a human to perform a manual, out-of-band action via <APP>'s MA2
 
 Expect `202` with `{ id, status: "open", poll_url }` — **persist `poll_url`** (pull mode polls it to resume). On a lost `202`, **persist the exact submitted envelope and replay it byte-for-byte** (same
 `idempotency_key` **and** same `created_at`) → same `id`, no duplicate. A fresh `created_at` makes it a
-**different** payload → `409` (§8.1), not the original task.
+**different** payload → `409` (§8.1), not the original task. (v0.5: `agent.session` and `agent.run_id`
+are **excluded** from that comparison — a retry from a new run/session recovers the original ack, and the
+**original** submit's session stays the bound Caller.)
+
+## (Optional, v0.5) Hand the task to another agent
+
+To hand this task to **another agent of the same account**, add `"to": "agent:<dest-id>"` — or
+`"agent:<dest-id>#<sess_…>"` for one specific live session (the **first `#`** splits the id). Gate: the
+Hub must advertise `inter_agent.enabled: true` in `/.well-known/ma2h` (**account-opt-in**, default
+false) — feature-detect before using `to`; addressed sends require `ma2h_version` ≥ `"0.5"`.
+
+- **Resolver default flips to the addressee** (§9.1): with `action.allowed_resolvers` absent, only the
+  `to` principal (any of its sessions) may complete it — not the submitter, and the account's **human is
+  NOT a default resolver** for agent-addressed tasks (list `human:<id>` explicitly to include one).
+  `agent:<id>` matches any session; `agent:<id>#<sess>` only that exact session.
+- **Submit-time rejections, not dead letters:** `422 unknown_destination` (unknown, cross-account,
+  allowlist-blocked, or visibility-denied — indistinguishable by design) or `410 destination_gone`.
+- **The ack still says `"status": "open"`** but MUST carry a **`destination`** reachability snapshot
+  (`online` / `offline` / `unknown`; exactly `{ "state": "unknown" }` when visibility is denied).
+  **Misroute detector (MUST):** an addressed ack **without** `destination` means a pre-0.5 Hub routed
+  this to the **human inbox** — surface the failure to the caller.
+- **The completion comes back the normal ways** — and, if this agent registered a **session** (§16),
+  put it in `agent.session`, and that session is still **live at resolution time**, ALSO as a signed
+  **`response` entry** in that session's mailbox (dedup on `(in_reply_to, resolution_id)` exactly as
+  below; a terminal session falls back to pull/callback, no bounce). Run `build-bridge` for the
+  draining side.
+- **Undeliverable is honest — but read *which* undeliverable:** if a **session-addressed** task's
+  destination session dies before it acks (a **principal**-addressed one does not bounce on one
+  session's death — a sibling can still claim it; it terminates when retention lapses), the task **auto-resolves `dismissed` with
+  `response.actor: "system:undeliverable"`** — not a refusal, and not automatically "nobody saw it".
+  Check the GET body's authoritative **`mailbox`** object
+  (`queued → delivered → acknowledged` | `bounced` | `expired`): `expired`, and `bounced` with the
+  receipt's `prior: "queued"`, mean **never delivered**; `bounced` carrying a `delivered_at` means
+  **seen-then-orphaned** — the addressee drained the task and may have *partly performed it* before
+  dying pre-ack. **Re-handing a side-effecting task on that signal double-executes it** (the key gets
+  rotated twice) — verify the world before re-sending.
 
 ## Receive (resume)
 The run may end here. When the human resolves it, the agent gets the terminal Response one of two ways:
@@ -127,6 +174,6 @@ platform's ed25519 primitive, **not** that helper (it returns `alg not implement
 ````
 
 ## References
-- Spec: <https://ma2h.org/spec/v0.4.md> (§5 verbs, §6 response, §7 lifecycle, §9 security)
-- Schemas: <https://ma2h.org/schema/v0.4/message.schema.json> · <https://ma2h.org/schema/v0.4/response.schema.json>
+- Spec: <https://ma2h.org/spec/v0.5.md> (§5 verbs, §6 response, §7 lifecycle, §9 security; v0.5: §4 `to`, §8.1 addressed acks, §9.1 addressee default, §14.2 delivery honesty)
+- Schemas: <https://ma2h.org/schema/v0.5/message.schema.json> · <https://ma2h.org/schema/v0.5/response.schema.json>
 - Reference impl (verify/seal): <https://github.com/autnmy/ma2h-protocol/tree/main/reference>

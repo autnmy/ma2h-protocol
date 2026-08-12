@@ -2,7 +2,9 @@
 
 **The agent-native toolkit for [MA2H](https://ma2h.org)** — the Multi-agent to Human
 Protocol: a vendor-neutral way for an agent fleet to coordinate with a human (`notify` · `ask` · `task`),
-and — as of **v0.4** — for a human to send a **directive** back to a specific agent.
+— as of **v0.4** — for a human to send a **directive** back to a specific agent, and — as of **v0.5** —
+for **one account's agents to reach each other** through the same Hub (sessions, addressed messages,
+delivery honesty).
 
 MA2H has a Hub (the receiver) and spokes (the agents); this plugin has a skill for each role:
 
@@ -12,7 +14,8 @@ MA2H has a Hub (the receiver) and spokes (the agents); this plugin has a skill f
 | `/ma2h-skills:build-notify` | agent → human | Generate an app-specific `<app>-notify` skill — fire-and-forget notifications (digests, status, FYIs). |
 | `/ma2h-skills:build-ask` | agent → human | Generate an app-specific `<app>-ask` skill — ask a human a decision; the signed answer routes back. |
 | `/ma2h-skills:build-task` | agent → human | Generate an app-specific `<app>-task` skill — ask a human to do a manual action, then mark it done. |
-| `/ma2h-skills:build-inbox` | **human → agent** | Generate an app-specific `<app>-inbox` skill — drain this agent's mailbox and act on human→agent **directives** (verify the §9.7 signature, dedup, ack). The inbound leg (v0.4). |
+| `/ma2h-skills:build-inbox` | **human → agent** | Generate an app-specific `<app>-inbox` skill — drain this agent's mailbox and act on human→agent **directives** (verify the §9.7 signature, dedup, ack). The inbound leg (v0.4); on a v0.5 Hub it routes through the session-scoped drain. |
+| `/ma2h-skills:build-bridge` | **agent ↔ agent** | Generate an app-specific `<app>-bridge` skill + loop helper — an **always-on session bridge** for the v0.5 inter-agent leg: register a session, drain/stream, verify every entry (§9.8), act under an explicit sender policy, ack, and fail loud under supervision (distinct fatal exit codes). |
 
 The skills are **independent** — use only the ones you need. Building a Hub? Run `implement`. Only need
 your agents to fire off notifications to an existing Hub? Just run `build-notify`. Want your agent to pick up
@@ -33,7 +36,10 @@ instructions a human sent it? Run `build-inbox` (against a Hub that offers the v
    *send* to that Hub, generate the app-specific verb skills, wired to its URL + auth.
 3. **`/ma2h-skills:build-inbox`** — in the apps whose agents should *receive* human→agent directives,
    generate the mailbox-drain skill (v0.4 inbound leg; needs a Hub that advertises `inbound`).
-4. The builders can also **package the generated skills as a plugin** in your repo, so your whole team
+4. **`/ma2h-skills:build-bridge`** — in the apps whose agents should be *addressable by other agents*
+   (v0.5 inter-agent leg; needs `sessions` + `inter_agent` advertised and the account opted in),
+   generate the always-on bridge. The sender skills' v0.5 addressing blocks cover the sending side.
+5. The builders can also **package the generated skills as a plugin** in your repo, so your whole team
    installs them and points their agents at your Hub.
 
 (They also auto-trigger from intent, e.g. "implement MA2H in my app", "add MA2H notify", or "let my agent
