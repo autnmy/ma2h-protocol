@@ -47,6 +47,9 @@ Inspect the repo (`AGENTS.md` / `CLAUDE.md` / `.env.example` / config), then ask
   (a CI/Actions secret, a vault env var) that **survives re-invocation**, is **distinct from the callback
   credential**, and is **never embedded in `state`** — the resumed run uses it to open the sealed blob.
   (This is separate from the response-signature key above; provision it whenever the skill resumes via `state`.)
+- **Inter-agent addressing** *(v0.5, optional)* — should this skill also ask **another agent** (a `to`
+  destination)? Only when the Hub advertises `inter_agent.enabled: true` (**account-opt-in**, default
+  false). If yes, keep the template's addressing block; if not, drop it.
 
 ### 2. Generate the skill
 Write `<skills-dir>/<app>-ask/SKILL.md` from the template below. For verification + sealing, prefer a small
@@ -85,7 +88,7 @@ description: Ask a human a decision via <APP>'s MA2H Hub and route the signed an
 - **Endpoint:** `POST <HUB_URL>/v1/messages`  ·  **Auth:** the Hub's advertised scheme (capability `auth_schemes`) — `Authorization: Bearer $<AUTH_ENV>` for `bearer`, or the API-key header for `apikey`
 
 **Envelope** (`type: "ask"`):
-- `ma2h_version`: `"0.4"`, `created_at`: ISO now
+- `ma2h_version`: `"0.5"`, `created_at`: ISO now
 - `agent`: `{ "id": "<AGENT_ID>", "run_id": "<RUN_ID>", "runtime": "<RUNTIME>", "project": "<PROJECT>" }`  *(every value is a JSON string — keep the quotes)*
 - `title`, `body` (Markdown), `priority?`, `tags?`
 - **`idempotency_key`** (REQUIRED): stable per logical request (e.g. a hash of the decision context).
@@ -104,7 +107,40 @@ description: Ask a human a decision via <APP>'s MA2H Hub and route the signed an
 Expect `202` with `{ id, status: "open", poll_url }` — **persist `poll_url`** (pull mode polls it to resume). If a `202` is lost, **persist the exact submitted envelope and replay it byte-for-byte** (same
 `idempotency_key` **and** same `created_at`) — you'll get the same `id` back, never a duplicate decision.
 Do **not** rebuild the envelope with a fresh `created_at`: the same key with a **different** payload is a
-`409` (§8.1), not the original decision.
+`409` (§8.1), not the original decision. (v0.5: `agent.session` and `agent.run_id` are **excluded** from
+that comparison — a crashed agent retrying from a new run/session still recovers the original ack, and
+the **original** submit's session stays the bound Caller.)
+
+## (Optional, v0.5) Ask another agent
+
+To put this decision in front of **another agent of the same account**, add `"to": "agent:<dest-id>"` —
+or `"agent:<dest-id>#<sess_…>"` for one specific live session (the **first `#`** splits the id). Gate:
+the Hub must advertise `inter_agent.enabled: true` in `/.well-known/ma2h` (**account-opt-in**, default
+false) — feature-detect before using `to`; addressed sends require `ma2h_version` ≥ `"0.5"`.
+
+- **Resolver default flips to the addressee** (§9.1): with `allowed_resolvers` absent, only the `to`
+  principal (any of its sessions) may resolve — the submitter never may, and the account's **human is
+  NOT a default resolver** for agent-addressed asks. List `["agent:<dest-id>", "human:<id>"]` explicitly
+  if a human should also be able to answer. `agent:<id>` matches the principal under any session;
+  `agent:<id>#<sess>` matches only that exact session.
+- **Submit-time rejections, not dead letters:** `422 unknown_destination` (unknown, cross-account,
+  allowlist-blocked, or visibility-denied — indistinguishable by design) or `410 destination_gone` (a
+  dead session). Surface them.
+- **The ack still says `"status": "open"`** but MUST carry a **`destination`** reachability snapshot
+  (`online` / `offline` / `unknown`; exactly `{ "state": "unknown" }` when the Hub denies visibility).
+  **Misroute detector (MUST):** an addressed ack **without** `destination` means a pre-0.5 Hub routed
+  this to the **human inbox** — surface the failure, and **SHOULD cancel** the misrouted ask via
+  `POST /v1/messages/{id}/cancel`.
+- **The answer comes back the normal ways** — and, if this agent registered a **session** (§16), put it
+  in `agent.session`, and that session is still **live at resolution time**, ALSO as a signed
+  **`response` entry** in that session's mailbox (drain with `?session=`; dedup on
+  `(in_reply_to, resolution_id)` exactly as below; a terminal session just falls back to pull/callback,
+  no bounce). Run `build-bridge` for the always-on draining side.
+- **Undeliverable is honest:** if the addressee's session dies (or mailbox retention lapses) before it
+  acks, the ask **auto-resolves `cancelled` with `response.actor: "system:undeliverable"`** — read that
+  as "nobody ever saw it / will see it", not a decision. The GET body's **`mailbox`** object
+  (`queued → delivered → acknowledged` | `bounced` | `expired`) is the authoritative delivery view;
+  `expired` means **never delivered**.
 
 ## Receive (resume)
 The run may end here. When the human resolves it, the agent gets the terminal Response one of two ways:
@@ -145,6 +181,6 @@ platform's ed25519 primitive, **not** that helper (it returns `alg not implement
 ````
 
 ## References
-- Spec: <https://ma2h.org/spec/v0.4.md> (§5 verbs, §6 response, §7 lifecycle, §9 security)
-- Schemas: <https://ma2h.org/schema/v0.4/message.schema.json> · <https://ma2h.org/schema/v0.4/response.schema.json>
+- Spec: <https://ma2h.org/spec/v0.5.md> (§5 verbs, §6 response, §7 lifecycle, §9 security; v0.5: §4 `to`, §8.1 addressed acks, §9.1 addressee default, §14.2 delivery honesty)
+- Schemas: <https://ma2h.org/schema/v0.5/message.schema.json> · <https://ma2h.org/schema/v0.5/response.schema.json>
 - Reference impl (verify/seal): <https://github.com/autnmy/ma2h-protocol/tree/main/reference>

@@ -89,6 +89,19 @@ See [MIGRATION.md](MIGRATION.md#v04--v05-the-inter-agent-leg).
   second ajv registry (v0.4 suite untouched, 110/110). §12 enumerates the v0.5 signature +
   downstream-proof obligations, which land with the reference implementation (#26) and vectors (#27)
   issues per the conformance gate.
+- **`ma2h-skills` plugin (v0.3.0)** — the skills teach the leg (#28): `implement` gains the v0.5 Hub
+  surface (§2 sessions / session-scoped drain / stream rows, the §8.8 resolve note, a §3.5
+  inter-agent MUST block — destination validation, addressed-ack honesty, delivery honesty,
+  addressee-default resolvers, the three §9.8 signing duties, zombie-socket/lease rules, account
+  opt-in — and a §7 leg overview); `build-notify` / `build-ask` / `build-task` gain optional
+  capability-gated `to` addressing with the `destination` snapshot + the pre-0.5 **misroute
+  detector**; `build-inbox` routes through the session-scoped drain (the v0.4 session-less path stays
+  documented for pre-0.5 Hubs); and the new **`build-bridge`** skill scaffolds the always-on bridge
+  mirroring the reference `runBridgeLoop` — register → drain/stream (reconnect-as-renewal) → §13.4
+  verify order (session-qualified addressee check) → explicit declared sender policy → §8.8 resolve →
+  ack-after-durable-processing → close — with supervision guidance (restart-on-exit, backoff+jitter,
+  never-silent) and the distinct fatal exit codes (2 auth / 3 session-terminal / 4 verification), the
+  Hub's delivery honesty framed as the backstop when the client dies anyway.
 
 ### Added (v0.4 — cross-cutting acknowledgment + presence primitives, §14/§15) — SCP #21
 Two primitives that enrich **both** directions (the shipped v0.3 response leg *and* the new inbound leg),
