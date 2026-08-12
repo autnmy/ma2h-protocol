@@ -1,0 +1,37 @@
+{
+  "id": "dp-015-entry-response-null-resolved-at-signature",
+  "class": "downstream-proof",
+  "description": "The §9.8 pinned reconstruction for a response-less Response: §6 permits a task Response to omit the `response` detail entirely (nothing to carry — no comment, no checklist), which would leave a verifier nothing to rebuild `resolved_at` from. For the response-entry context, `resolved_at` is the Response's response.resolved_at when the response object is present, and JSON null when it is absent — the same absent-optional-as-null convention as §14.4's digest wrapper — so the context is always reconstructible from exactly the delivered body. The payload digest is over {\"response\": null, \"state\": null} (both absent). A verifier that drops the key instead of serializing null, or substitutes an empty string, diverges from the pinned canonical bytes. (The §9.2 push context predates this rule and leaves its response-less case unpinned; that pre-existing gap is tracked separately and is NOT covered by this fixture.)",
+  "ref": "spec §9.8 (response entry — resolved_at reconstruction), §6, §14.4",
+  "obligation": "Reproduce header `v1` over the context with resolved_at: null; recompute payload_sha256 over the fixed-key {response: null, state: null} wrapper; reconstruct `to` from the drain identity and `id` from in_reply_to as in dp-013. Expected runner wiring (#26): same branch as dp-013 — the null-handling is in the context builder/digest helper, which MUST serialize absent response/state/resolved_at as JSON null.",
+  "test_key": "ma2h-test-secret-key-0123456789ab",
+  "signature_alg": "hmac-sha256",
+  "drain_identity": {
+    "agent_id": "overseer/fleet",
+    "session": "sess_01J5OVR0001",
+    "reconstructed_to": "agent:overseer/fleet#sess_01J5OVR0001"
+  },
+  "entry": {
+    "ma2h_version": "0.5",
+    "in_reply_to": "msg_01J5MSG0004",
+    "resolution_id": "res_01J5RSLV0002",
+    "agent": { "id": "overseer/fleet", "run_id": "run_01J5OVERSEER01" },
+    "resolution": "completed"
+  },
+  "payload_canonical_jcs": "{\"response\":null,\"state\":null}",
+  "signed_context": {
+    "id": "msg_01J5MSG0004",
+    "in_reply_to": "msg_01J5MSG0004",
+    "jti": "jti_01J5RSPDEMOFI2",
+    "ma2h_version": "0.5",
+    "payload_sha256": "f8e362f091afdac944ab8f6a17e234c1662f1e39f846c0242824d0abc07b440c",
+    "resolution": "completed",
+    "resolution_id": "res_01J5RSLV0002",
+    "resolved_at": null,
+    "t": "1786752180",
+    "to": "agent:overseer/fleet#sess_01J5OVR0001"
+  },
+  "canonical_jcs": "{\"id\":\"msg_01J5MSG0004\",\"in_reply_to\":\"msg_01J5MSG0004\",\"jti\":\"jti_01J5RSPDEMOFI2\",\"ma2h_version\":\"0.5\",\"payload_sha256\":\"f8e362f091afdac944ab8f6a17e234c1662f1e39f846c0242824d0abc07b440c\",\"resolution\":\"completed\",\"resolution_id\":\"res_01J5RSLV0002\",\"resolved_at\":null,\"t\":\"1786752180\",\"to\":\"agent:overseer/fleet#sess_01J5OVR0001\"}",
+  "header": "MA2H-Signature: t=1786752180,jti=jti_01J5RSPDEMOFI2,v1=E1Uz2ExkFJFLSSwLdI5WGFvRffGtR98ptlp-f7F5ecw",
+  "v1": "E1Uz2ExkFJFLSSwLdI5WGFvRffGtR98ptlp-f7F5ecw"
+}
