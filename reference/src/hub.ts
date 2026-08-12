@@ -1786,6 +1786,13 @@ export class Hub {
         rec.acked = true; // superseded by / best-effort beside the durable pull state
         continue;
       }
+      // Expiry-vs-bounce, same clock (§7/§14.2): a NEVER-delivered entry whose `expires_at` already
+      // fired was never seen — its mailbox track is `expired` (and an ask/task auto-resolves via
+      // expireEntry's default expiry), NOT `bounced`, so a corpse the Hub should have dropped is not
+      // reported as seen-then-lost with a receipt. A DELIVERED-but-unacked entry stays a bounce
+      // (`prior:"delivered"` — seen-then-orphaned) regardless of its own expiry, since `expired`
+      // MUST mean never delivered (§14.2); so only settle expiry on the not-yet-delivered path.
+      if (rec.deliveredAtMs === undefined && this.expireEntry(rec, atMs)) continue;
       this.bounceEntry(rec, dead.session.id, atMs);
     }
     this.mailboxes.set(

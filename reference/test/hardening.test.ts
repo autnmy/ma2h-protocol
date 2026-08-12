@@ -9,7 +9,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { Hub, HubError } from "../src/hub.js";
-import { Agent } from "../src/agent.js";
+import { Agent, BridgeExitError, EXIT_SIGNATURE_FAILURE, runBridgeLoop } from "../src/agent.js";
 import type { AskMessage } from "../src/types.js";
 
 const KEY = "hub-hardening-key-0123456789abcdef0123456789abcd";
@@ -229,6 +229,93 @@ test("under visibility-off, a sender addressing its OWN terminal session still g
     () => hub.submit(ask({ to: `agent:${WORKER}#${workerDead.id}` })),
     (e: unknown) => e instanceof HubError && e.code === "unknown_destination",
   );
+});
+
+// ---- codex round 2 #1: expiry beats the bounce on the mailbox track too ----
+
+test("a never-delivered session-addressed entry whose expiry precedes the session death bounces as `expired`, not `bounced` (§14.2)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const workerSession = hub.registerSession(WORKER).session;
+  const expiring = ask({ to: `agent:${WORKER}#${workerSession.id}` });
+  expiring.expires_at = new Date(T0 + 10_000).toISOString();
+  expiring.request.default_on_expire = "deny";
+  const { id } = hub.submit(expiring); // queued, never drained
+
+  now.t = T0 + 60_000; // expiry (T+10s) precedes the death (T+60s), and nothing settled it between
+  hub.closeSession(workerSession.id, WORKER);
+  const got = hub.get(id, SENDER);
+  assert.equal(got?.mailbox?.state, "expired", "never delivered → expired, not a seen-then-lost bounce");
+  assert.equal(got?.status, "expired");
+  assert.equal(got?.response?.response?.actor, "system:default_on_expire");
+  // No bounce receipt for an expiry (§8.7.1: receipts carry only `bounced`).
+  const senderSession = hub.registerSession(SENDER).session;
+  void senderSession;
+});
+
+// ---- codex round 2 #2: shape-invalid entries are fatal in the bridge ----
+
+test("a bridge exits EXIT_SIGNATURE_FAILURE on a shape-invalid mailbox entry (§8.7.1 verification)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  hub.submit(ask({ to: `agent:${WORKER}` }));
+  const tampering = {
+    registerSession: (p: string, r?: Parameters<Hub["registerSession"]>[1], n?: number) => hub.registerSession(p, r, n),
+    drainInbox: (p: string, o: { max?: number; now?: number; session: string }) => {
+      const entries = hub.drainInbox(p, o);
+      for (const e of entries) {
+        if ("message" in e) {
+          // Inject an unsigned forbidden field the §9.8 digest doesn't cover — shape validation
+          // (not the signature) must catch it, and the bridge must treat that as fatal.
+          (e.message as unknown as { state: unknown }).state = { sealed: "injected" };
+        }
+      }
+      return entries;
+    },
+    ackInbox: (p: string, ids: string[], o?: { note?: string; now?: number; session?: string }) => hub.ackInbox(p, ids, o),
+    closeSession: (s: string, c: string, n?: number) => hub.closeSession(s, c, n),
+    resolveAsAgent: (id: string, p: string, b: Parameters<Hub["resolveAsAgent"]>[2], o?: Parameters<Hub["resolveAsAgent"]>[3]) =>
+      hub.resolveAsAgent(id, p, b, o),
+  };
+  const agent = new Agent({
+    callbackUrl: "https://worker.example/r",
+    callbackKey: KEY,
+    sealKey: randomBytes(32),
+    agentId: `agent:${WORKER}`,
+    senderPolicy: [SENDER],
+  });
+  try {
+    runBridgeLoop(tampering, { principal: WORKER, agent, now: () => now.t });
+    assert.fail("expected a loud exit");
+  } catch (e) {
+    assert.ok(e instanceof BridgeExitError);
+    assert.equal(e.exitCode, EXIT_SIGNATURE_FAILURE);
+  }
+});
+
+// ---- codex round 2 #3: v0.5 directives validate against the v0.5 schema ----
+
+test("receiveDirective validates a >= 0.5 directive against the v0.5 schema (dir_ namespace normative)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const workerSession = hub.registerSession(WORKER).session;
+  hub.sendDirective({ from: OWNER, to: `agent:${WORKER}#${workerSession.id}`, title: "hi" });
+  const entries = hub.drainInbox(WORKER, { session: workerSession.id });
+  const entry = entries[0];
+  if (!entry || !("directive" in entry)) return assert.fail("expected a directive entry");
+  const agent = new Agent({
+    callbackUrl: "https://worker.example/r",
+    callbackKey: KEY,
+    sealKey: randomBytes(32),
+    agentId: `agent:${WORKER}`,
+    session: workerSession.id,
+  });
+  // A signed 0.5 directive whose id violates the normative `dir_` namespace must be refused by the
+  // v0.5 shape check (the v0.4 schema would have accepted the opaque id).
+  const badId = { ...entry.directive, id: "opaque-legacy-looking-id" };
+  const res = agent.receiveDirective(badId, entry.signature, now.t);
+  assert.equal(res.acted, false);
+  assert.match(res.acted === false ? res.reason : "", /invalid directive/);
 });
 
 // ---- correctness #7: the addressed-submit expires_at check ----

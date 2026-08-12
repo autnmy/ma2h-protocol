@@ -293,7 +293,15 @@ export class Agent {
     // otherwise reach computeDirectivePayloadSha256 and throw in the JCS canonicalizer instead of a clean
     // refusal. The schema also forbids `request`/`action`/`state` — `payload_sha256` binds only the
     // content fields, so an on-path injector can add cross-type data without breaking the signature.
-    const shape = validateInboundMessage(directive);
+    // Version-aware (§10): a >= 0.5 directive validates against the v0.5 schema, which makes the
+    // `dir_` ack-key namespace and the first-`#` address grammar NORMATIVE (the v0.4 schema does not
+    // enforce them) — otherwise a signed v0.5 directive with a colliding id or a malformed qualifier
+    // could pass before the session-qualified addressee check even interprets the address.
+    const dv = /^0\.(0|[1-9]\d*)$/.exec(directive.ma2h_version);
+    const shape =
+      dv !== null && Number(dv[1]) >= 5
+        ? validateV05("inbound-message.schema.json", directive)
+        : validateInboundMessage(directive);
     if (!shape.valid) return { acted: false, reason: `invalid directive: ${shape.errors.join("; ")}` };
 
     let sig: ParsedSignature;
@@ -746,8 +754,11 @@ export function runBridgeLoop(hub: BridgeHub, opts: BridgeOptions): BridgeReport
       if (!r.acted) {
         // §13.4 discipline: a failed VERIFICATION is fatal and loud — an entry in the bridge's own
         // mailbox that does not verify means tampering or a broken Hub, never something to skip
-        // past. Dedup refusals are benign (the work already happened durably): ack the redelivery.
-        if (r.reason.startsWith("signature:") || r.reason.startsWith("replay:")) {
+        // past. SHAPE validation (`invalid …`) is part of the same §8.7.1 verification step — a
+        // malformed entry or one carrying unsigned forbidden fields is unverifiable Hub output, so
+        // it is fatal too, not a skippable refusal. Dedup refusals are benign (the work already
+        // happened durably): ack the redelivery.
+        if (r.reason.startsWith("signature:") || r.reason.startsWith("replay:") || r.reason.startsWith("invalid ")) {
           throw new BridgeExitError(EXIT_SIGNATURE_FAILURE, `entry failed verification: ${r.reason}`);
         }
         if (r.reason.includes("already acted") || r.reason.includes("already seen")) {
