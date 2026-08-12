@@ -8,3 +8,7 @@ export const newResolutionId = (): string => `res_${randomUUID()}`;
 export const newJti = (): string => `jti_${randomUUID()}`;
 /** Inbound directive id (spec §13.1) — the agent's at-most-once dedup key. */
 export const newDirectiveId = (): string => `dir_${randomUUID()}`;
+/** Receipt entry id (spec §8.7.1, v0.5) — the entry's ack key, in the normative `rcpt_` namespace. */
+export const newReceiptId = (): string => `rcpt_${randomUUID()}`;
+/** Session id (spec §16.1, v0.5) — Hub-minted, `^sess_`; not a secret and not a credential. */
+export const newSessionId = (): string => `sess_${randomUUID()}`;

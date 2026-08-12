@@ -13,6 +13,8 @@ export interface MessageRecord {
   status: Status;
   createdAtMs: number;
   expiresAtMs: number | null;
+  /** When the record reached a terminal resolution (Hub clock) — the §8.2 retention anchor. */
+  resolvedAtMs?: number;
   resolution_id: string | null;
   response: A2hResponse | null;
 }
@@ -28,6 +30,8 @@ export interface ResolveInput {
   resolution_id: string;
   value?: string | JsonObject;
   comment?: string;
+  /** Task resolutions only (v0.5, spec §6/§8.8): the final checklist state. */
+  checklist?: { text: string; done: boolean }[];
   defaulted?: boolean;
   state?: JsonObject;
 }
@@ -49,11 +53,16 @@ export function applyResolution(record: MessageRecord, input: ResolveInput): Tra
       actor: input.actor,
       resolved_at: input.resolved_at,
       ...(input.comment !== undefined ? { comment: input.comment } : {}),
+      ...(input.checklist !== undefined ? { checklist: input.checklist } : {}),
     },
     ...(input.state !== undefined ? { state: input.state } : {}),
   };
   record.status = input.resolution;
   record.resolution_id = input.resolution_id;
   record.response = response;
+  // Retention anchor (§8.2): a resolved message stays pull-available for the TTL AFTER resolution.
+  // Prefer the resolution timestamp; fall back to the record's creation only if it can't be parsed.
+  const resolvedMs = Date.parse(input.resolved_at);
+  record.resolvedAtMs = Number.isFinite(resolvedMs) ? resolvedMs : record.createdAtMs;
   return { applied: true, record };
 }

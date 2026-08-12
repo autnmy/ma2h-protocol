@@ -19,25 +19,43 @@ import {
 import {
   buildAckSignedContext,
   buildInboundSignedContext,
+  buildMessageEntrySignedContext,
+  buildReceiptSignedContext,
+  buildResponseEntrySignedContext,
   buildSignedContext,
   computeAckSha256,
   computeDirectivePayloadSha256,
+  computeMessageEntryPayloadSha256,
   computePayloadSha256,
+  computeReceiptSha256,
   signAck,
   signInbound,
+  signMessageEntry,
+  signReceipt,
   signResponse,
+  signResponseEntry,
   verifyAck,
   verifyInbound,
+  verifyMessageEntry,
+  verifyReceipt,
   verifyResponse,
+  verifyResponseEntry,
 } from "./signing.js";
 import { canonicalize } from "./canonicalize.js";
 import type {
+  A2hResponse,
   Ack,
   AckSignedContext,
+  AgentAddress,
   InboundDirective,
   InboundSignedContext,
+  InterAgentMessage,
   JsonObject,
+  MessageEntrySignedContext,
+  ReceiptEntry,
+  ReceiptSignedContext,
   ResponseDetail,
+  ResponseEntrySignedContext,
   SignedContext,
 } from "./types.js";
 
@@ -253,6 +271,224 @@ function runOne(id: string, cls: string, v: Record<string, unknown>): VectorResu
       return { id, cls, status: "fail", detail: `tampered ack rejected for the wrong reason: ${res.reason}` };
     }
     return { id, cls, status: "pass" };
+  }
+  if (cls === "downstream-proof" && id.startsWith("dp-011")) {
+    // §9.8 `message` entry signature: mirror of dp-001/dp-005 for the inter-agent leg. Reproduce
+    // header `v1` from JCS(message_signed_context) + HMAC, and prove `payload_sha256` binds the
+    // delivered entry's content fields by recomputing it from `entry`.
+    const sc = v["signed_context"] as MessageEntrySignedContext;
+    const key = String(v["test_key"]);
+    const { v1, canonical } = signMessageEntry(buildMessageEntrySignedContext(sc), { key });
+    let ok = v1 === v["v1"] && canonical === v["canonical_jcs"];
+    let detail = "signature/canonical mismatch";
+    const entry = v["entry"] as InterAgentMessage | undefined;
+    if (entry && computeMessageEntryPayloadSha256(entry) !== sc.payload_sha256) {
+      ok = false;
+      detail = "payload_sha256 does not bind the entry content (recompute mismatch)";
+    }
+    return ok ? { id, cls, status: "pass" } : { id, cls, status: "fail", detail };
+  }
+  if (cls === "downstream-proof" && id.startsWith("dp-012")) {
+    // §9.8 message-entry tamper proof: honest control verifies, every tampered variant (redirected
+    // `to`, flipped `from`, altered content) fails with a signature mismatch — mirror of dp-006.
+    const key = String(v["test_key"]);
+    const v1 = String(v["v1"]);
+    const jti = String(v["jti"]);
+    const t = String(v["t"]);
+    const now = Number(t) * 1000 + 5000;
+    const scFrom = (m: InterAgentMessage): MessageEntrySignedContext =>
+      buildMessageEntrySignedContext({
+        from: m.from,
+        id: m.id,
+        jti,
+        ma2h_version: m.ma2h_version,
+        payload_sha256: computeMessageEntryPayloadSha256(m),
+        t,
+        to: m.to,
+      });
+    const honest = v["honest_entry"] as InterAgentMessage;
+    const honestRes = verifyMessageEntry(scFrom(honest), v1, { key, now });
+    if (!honestRes.ok) {
+      return { id, cls, status: "fail", detail: `honest control did not verify (${honestRes.reason}) — tamper proof inconclusive` };
+    }
+    const tampered = v["tampered_entries"] as Array<{ entry: InterAgentMessage; reason: string }>;
+    for (const t2 of tampered) {
+      const res = verifyMessageEntry(scFrom(t2.entry), v1, { key, now });
+      if (res.ok) return { id, cls, status: "fail", detail: `tampered entry verified ok (${t2.reason}) — binding broken` };
+      if (res.reason !== "signature mismatch") {
+        return { id, cls, status: "fail", detail: `tampered entry rejected for the wrong reason: ${res.reason}` };
+      }
+    }
+    return { id, cls, status: "pass" };
+  }
+  if (cls === "downstream-proof" && (id.startsWith("dp-013") || id.startsWith("dp-015"))) {
+    // §9.8 `response` entry signature (dp-015: the null-`resolved_at` reconstruction for a
+    // detail-less task Response). The verifier reconstructs the context from exactly the delivered
+    // body + its OWN drain identity: `to` from the per-case drain identity, `id` from
+    // `in_reply_to`, the digest via the §9.2-identical computePayloadSha256.
+    const sc = v["signed_context"] as ResponseEntrySignedContext;
+    const key = String(v["test_key"]);
+    const entry = v["entry"] as A2hResponse;
+    const identity = v["drain_identity"] as { reconstructed_to: string };
+    const reconstructed = buildResponseEntrySignedContext({
+      id: entry.in_reply_to,
+      in_reply_to: entry.in_reply_to,
+      jti: sc.jti,
+      ma2h_version: entry.ma2h_version,
+      payload_sha256: computePayloadSha256(entry.response, entry.state),
+      resolution: entry.resolution,
+      resolution_id: entry.resolution_id,
+      resolved_at: entry.response?.resolved_at ?? null,
+      t: sc.t,
+      to: identity.reconstructed_to as AgentAddress,
+    });
+    const { v1, canonical } = signResponseEntry(reconstructed, { key });
+    if (canonicalize(reconstructed) !== canonicalize(sc)) {
+      return { id, cls, status: "fail", detail: "reconstructed context diverges from the fixture signed_context" };
+    }
+    if (v1 !== v["v1"] || canonical !== v["canonical_jcs"]) {
+      return { id, cls, status: "fail", detail: "signature/canonical mismatch" };
+    }
+    return { id, cls, status: "pass" };
+  }
+  if (cls === "downstream-proof" && id.startsWith("dp-014")) {
+    // §9.8 response-entry cross-session replay + tamper proof: the honest control verifies at the
+    // honest drain identity; the SAME entry+header fails at any other session (the verifier's
+    // reconstructed `to` diverges); tampered bodies fail at the honest identity.
+    const key = String(v["test_key"]);
+    const v1 = String(v["v1"]);
+    const jti = String(v["jti"]);
+    const t = String(v["t"]);
+    const now = Number(t) * 1000 + 5000;
+    const scFor = (entry: A2hResponse, to: string): ResponseEntrySignedContext =>
+      buildResponseEntrySignedContext({
+        id: entry.in_reply_to,
+        in_reply_to: entry.in_reply_to,
+        jti,
+        ma2h_version: entry.ma2h_version,
+        payload_sha256: computePayloadSha256(entry.response, entry.state),
+        resolution: entry.resolution,
+        resolution_id: entry.resolution_id,
+        resolved_at: entry.response?.resolved_at ?? null,
+        t,
+        to: to as AgentAddress,
+      });
+    const honest = v["honest_entry"] as A2hResponse;
+    const honestTo = (v["honest_drain_identity"] as { reconstructed_to: string }).reconstructed_to;
+    const replayTo = (v["replay_drain_identity"] as { reconstructed_to: string }).reconstructed_to;
+    const honestRes = verifyResponseEntry(scFor(honest, honestTo), v1, { key, now });
+    if (!honestRes.ok) {
+      return { id, cls, status: "fail", detail: `honest control did not verify (${honestRes.reason}) — proof inconclusive` };
+    }
+    const replayRes = verifyResponseEntry(scFor(honest, replayTo), v1, { key, now });
+    if (replayRes.ok) return { id, cls, status: "fail", detail: "cross-session replay verified ok — destination binding broken" };
+    if (!replayRes.ok && replayRes.reason !== "signature mismatch") {
+      return { id, cls, status: "fail", detail: `replay rejected for the wrong reason: ${replayRes.reason}` };
+    }
+    const tampered = v["tampered_entries"] as Array<{ entry: A2hResponse; reason: string }>;
+    for (const t2 of tampered) {
+      const res = verifyResponseEntry(scFor(t2.entry, honestTo), v1, { key, now });
+      if (res.ok) return { id, cls, status: "fail", detail: `tampered entry verified ok (${t2.reason}) — binding broken` };
+      if (res.reason !== "signature mismatch") {
+        return { id, cls, status: "fail", detail: `tampered entry rejected for the wrong reason: ${res.reason}` };
+      }
+    }
+    return { id, cls, status: "pass" };
+  }
+  if (cls === "downstream-proof" && id.startsWith("dp-016")) {
+    // §9.8 `receipt` entry signature: reproduce `receipt_sha256` via the fixed six-key/null wrapper
+    // from the received receipt, reconstruct `to` from the verifier's OWN drain identity (never the
+    // wire body's `to`), and reproduce the header `v1`.
+    const sc = v["signed_context"] as ReceiptSignedContext;
+    const key = String(v["test_key"]);
+    const entry = v["entry"] as ReceiptEntry;
+    const identity = v["drain_identity"] as { reconstructed_to: string };
+    const digest = computeReceiptSha256(entry);
+    if (digest !== v["receipt_sha256"] || digest !== sc.receipt_sha256) {
+      return { id, cls, status: "fail", detail: "receipt_sha256 does not bind the receipt (recompute mismatch)" };
+    }
+    const reconstructed = buildReceiptSignedContext({
+      in_reply_to: entry.in_reply_to,
+      jti: sc.jti,
+      ma2h_version: entry.ma2h_version,
+      receipt_sha256: digest,
+      t: sc.t,
+      to: identity.reconstructed_to as AgentAddress,
+    });
+    const { v1, canonical } = signReceipt(reconstructed, { key });
+    if (v1 !== v["v1"] || canonical !== v["canonical_jcs"]) {
+      return { id, cls, status: "fail", detail: "signature/canonical mismatch" };
+    }
+    return { id, cls, status: "pass" };
+  }
+  if (cls === "downstream-proof" && id.startsWith("dp-017")) {
+    // §9.8 receipt tamper + cross-destination replay proof: a flipped `prior` (the seen-ness lie)
+    // and a rebound `in_reply_to` diverge the digest/context; the UNMODIFIED entry + header fail at
+    // any other session because the verifier reconstructs `to` from its own drain identity.
+    const key = String(v["test_key"]);
+    const v1 = String(v["v1"]);
+    const jti = String(v["jti"]);
+    const t = String(v["t"]);
+    const now = Number(t) * 1000 + 5000;
+    const scFor = (entry: ReceiptEntry, to: string): ReceiptSignedContext =>
+      buildReceiptSignedContext({
+        in_reply_to: entry.in_reply_to,
+        jti,
+        ma2h_version: entry.ma2h_version,
+        receipt_sha256: computeReceiptSha256(entry),
+        t,
+        to: to as AgentAddress,
+      });
+    const honest = v["honest_entry"] as ReceiptEntry;
+    const honestTo = (v["honest_drain_identity"] as { reconstructed_to: string }).reconstructed_to;
+    const replayTo = (v["replay_drain_identity"] as { reconstructed_to: string }).reconstructed_to;
+    const honestRes = verifyReceipt(scFor(honest, honestTo), v1, { key, now });
+    if (!honestRes.ok) {
+      return { id, cls, status: "fail", detail: `honest control did not verify (${honestRes.reason}) — proof inconclusive` };
+    }
+    const replayRes = verifyReceipt(scFor(honest, replayTo), v1, { key, now });
+    if (replayRes.ok) return { id, cls, status: "fail", detail: "cross-destination replay verified ok — destination binding broken" };
+    if (!replayRes.ok && replayRes.reason !== "signature mismatch") {
+      return { id, cls, status: "fail", detail: `replay rejected for the wrong reason: ${replayRes.reason}` };
+    }
+    const tampered = v["tampered_entries"] as Array<{ entry: ReceiptEntry; reason: string }>;
+    for (const t2 of tampered) {
+      const res = verifyReceipt(scFor(t2.entry, honestTo), v1, { key, now });
+      if (res.ok) return { id, cls, status: "fail", detail: `tampered receipt verified ok (${t2.reason}) — binding broken` };
+      if (res.reason !== "signature mismatch") {
+        return { id, cls, status: "fail", detail: `tampered receipt rejected for the wrong reason: ${res.reason}` };
+      }
+    }
+    return { id, cls, status: "pass" };
+  }
+  if (cls === "downstream-proof" && id.startsWith("dp-018")) {
+    // §9.8 per-delivery re-signing: the SAME entry delivered twice carries the same bound context
+    // fields but a fresh t/jti each time — reproduce BOTH pinned signatures, and prove they differ
+    // (a replayed earlier header is non-conformant Hub behavior).
+    const key = String(v["test_key"]);
+    const base = v["signed_context_base"] as Omit<MessageEntrySignedContext, "t" | "jti">;
+    const deliveries = v["deliveries"] as Array<{ t: string; jti: string; canonical_jcs: string; v1: string }>;
+    const seen: string[] = [];
+    for (const d of deliveries) {
+      const sc = buildMessageEntrySignedContext({ ...base, t: d.t, jti: d.jti });
+      const { v1, canonical } = signMessageEntry(sc, { key });
+      if (v1 !== d.v1 || canonical !== d.canonical_jcs) {
+        return { id, cls, status: "fail", detail: `delivery (t=${d.t}) signature/canonical mismatch` };
+      }
+      seen.push(v1);
+    }
+    if (new Set(seen).size !== seen.length) {
+      return { id, cls, status: "fail", detail: "re-signed deliveries produced identical signatures" };
+    }
+    return { id, cls, status: "pass" };
+  }
+  if (cls === "downstream-proof" && /^dp-(019|020|021|022|023|024)/.test(id)) {
+    // Behavioral Hub obligations with no deterministic fixture (like dp-002/007/010): the generic
+    // vector runner validates fixtures, not a live Hub. The reference DISCHARGES these in its
+    // behavior suites — sessions (dp-019), interagent claims/stream/bounce/submit honesty
+    // (dp-020/021/022/023), and the resolver rules (dp-024) — see reference/test/sessions.test.ts,
+    // interagent.test.ts, and bridge.test.ts, which npm test runs alongside these vectors.
+    return { id, cls, status: "skip", detail: "behavioral obligation — discharged by the reference behavior suites (sessions/interagent/bridge tests)" };
   }
   if (cls === "prose-audit") {
     return { id, cls, status: "skip", detail: "manual human sign-off (not executable)" };

@@ -10,6 +10,8 @@ import {
   validateMessage,
   validatePresence,
   validateResponse,
+  validateV05,
+  validateV05Def,
   type ValidationResult,
 } from "../src/envelope.js";
 import { buildSignedContext, signResponse, verifyResponse } from "../src/signing.js";
@@ -36,29 +38,113 @@ function die(message: string): never {
   process.exit(1);
 }
 
-type ValidateKind = "message" | "response" | "capability" | "directive" | "ack" | "presence";
+type ValidateKind =
+  | "message"
+  | "response"
+  | "capability"
+  | "directive"
+  | "entry"
+  | "ack"
+  | "presence"
+  | "session"
+  | "session-list"
+  | "resolve"
+  | "submit-ack";
 
 function inferKind(doc: unknown): ValidateKind {
   if (doc && typeof doc === "object") {
     const o = doc as Record<string, unknown>;
     if (o["type"] === "directive") return "directive";
+    // v0.5 delivered entry kinds (§8.7.1): a receipt, or an addressed envelope in its DELIVERED
+    // form (Hub-assigned id + Hub-attested from) — validated against the inbound entry union.
+    if (o["type"] === "receipt") return "entry";
+    if (typeof o["type"] === "string" && ["notify", "ask", "task"].includes(o["type"])) {
+      return "from" in o && "id" in o ? "entry" : "message";
+    }
     if (o["type"] === "ack") return "ack";
+    // A `GET /v1/sessions` collection envelope `{ "sessions": [...] }` (spec §16.1) — checked before
+    // the capability heuristic, which also keys on a `sessions` property.
+    if (Array.isArray(o["sessions"])) return "session-list";
+    // A session RESOURCE (or its { session: ... } envelope) — spec §16.1.
+    if ("session" in o && typeof o["session"] === "object") return "session";
+    if ("agent_id" in o && "expires_at" in o && "state" in o) return "session";
     if ("state" in o && "agent_id" in o) return "presence";
-    if (typeof o["type"] === "string" && ["notify", "ask", "task"].includes(o["type"])) return "message";
+    // A §8.8 resolve-request body: a bare resolver terminal with no envelope fields.
+    if (
+      typeof o["resolution"] === "string" &&
+      !("in_reply_to" in o) &&
+      ["answered", "declined", "completed", "dismissed"].includes(o["resolution"])
+    ) {
+      return "resolve";
+    }
     if ("in_reply_to" in o && "resolution" in o) return "response";
-    if ("callback_auth_schemes" in o || "max_body_bytes" in o || "auth_schemes" in o || "inbound" in o || "ack" in o || "presence" in o)
+    if ("poll_url" in o && "status" in o) return "submit-ack";
+    if ("callback_auth_schemes" in o || "max_body_bytes" in o || "auth_schemes" in o || "inbound" in o || "ack" in o || "presence" in o || "sessions" in o || "inter_agent" in o)
       return "capability";
   }
   return "message";
 }
 
+/** v0.5-only wire shapes (they carry no `ma2h_version`; the schemas exist only in v0.5). */
+const V05_ONLY_KINDS: ReadonlySet<ValidateKind> = new Set([
+  "session",
+  "session-list",
+  "resolve",
+  "submit-ack",
+  "entry",
+]);
+
+const V05_SCHEMA_BY_KIND: Record<ValidateKind, string> = {
+  message: "message.schema.json",
+  response: "response.schema.json",
+  capability: "capability.schema.json",
+  directive: "inbound-message.schema.json",
+  entry: "inbound-message.schema.json",
+  ack: "ack.schema.json",
+  presence: "presence.schema.json",
+  session: "session.schema.json",
+  "session-list": "session.schema.json",
+  resolve: "resolve-request.schema.json",
+  "submit-ack": "submit-ack.schema.json",
+};
+
+/** True when the document declares a >= 0.5 `ma2h_version` (canonical `0.x` form). */
+function declaresV05(doc: unknown): boolean {
+  if (!doc || typeof doc !== "object") return false;
+  const raw = (doc as Record<string, unknown>)["ma2h_version"];
+  if (typeof raw !== "string") return false;
+  const m = /^0\.(0|[1-9]\d*)$/.exec(raw);
+  return m !== null && Number(m[1]) >= 5;
+}
+
 function cmdValidate(positionals: string[], flags: Map<string, string>): void {
   const file = positionals[0];
-  if (!file) die("usage: ma2h validate <file> [--as message|response|capability|directive|ack|presence]");
+  if (!file)
+    die("usage: ma2h validate <file> [--as message|response|capability|directive|entry|ack|presence|session|resolve|submit-ack]");
   const doc = JSON.parse(readFileSync(file, "utf8")) as unknown;
   const kind = (flags.get("as") ?? inferKind(doc)) as ValidateKind;
-  const res: ValidationResult =
-    kind === "response"
+  // Version-aware registry selection (§10): a >= 0.5 document — or a v0.5-only shape — validates
+  // against the v0.5 snapshot; everything else keeps the v0.4 registry byte-identically.
+  const useV05 = V05_ONLY_KINDS.has(kind) || declaresV05(doc);
+  // The session collection envelope `{ "sessions": [...] }` validates against the sessionList $def
+  // (spec §16.1) — the root schema is the single-session RESOURCE, which would reject the wrapper.
+  if (kind === "session-list") {
+    const r = validateV05Def("session.schema.json", "sessionList", doc);
+    if (r.valid) return void console.log(`✓ valid session-list (v0.5 schema): ${file}`);
+    console.error(`✗ invalid session-list (v0.5 schema): ${file}`);
+    for (const e of r.errors) console.error(`  - ${e}`);
+    process.exit(1);
+  }
+  // A session resource arrives either bare or wrapped as the `POST/GET /v1/sessions` envelope
+  // `{ "session": { ... } }` (spec §16.1). session.schema.json's root is the RESOURCE, so unwrap
+  // the envelope before validating — otherwise a valid response envelope is wrongly rejected.
+  const target =
+    kind === "session" && doc && typeof doc === "object" && "session" in (doc as Record<string, unknown>)
+      ? (doc as { session: unknown }).session
+      : doc;
+  const res: ValidationResult = useV05
+    ? validateV05(V05_SCHEMA_BY_KIND[kind], target)
+    : kind === "response"
       ? validateResponse(doc)
       : kind === "capability"
         ? validateCapability(doc)
@@ -70,10 +156,10 @@ function cmdValidate(positionals: string[], flags: Map<string, string>): void {
               ? validatePresence(doc)
               : validateMessage(doc);
   if (res.valid) {
-    console.log(`✓ valid ${kind}: ${file}`);
+    console.log(`✓ valid ${kind} (${useV05 ? "v0.5" : "v0.4"} schema): ${file}`);
     return;
   }
-  console.error(`✗ invalid ${kind}: ${file}`);
+  console.error(`✗ invalid ${kind} (${useV05 ? "v0.5" : "v0.4"} schema): ${file}`);
   for (const e of res.errors) console.error(`  - ${e}`);
   process.exit(1);
 }
@@ -142,6 +228,10 @@ function cmdVerbs(): void {
       "",
       "directive (v0.4, inbound) A human → one agent; the agent  — freeze deploys",
       "          drains its mailbox and acts. No response leg.",
+      "",
+      "addressed (v0.5, `to`)    Any verb, agent → agent within   — an overseer asks",
+      "          the account: routed to the addressee's mailbox,    a worker's OK",
+      "          session-scoped, delivery-honest (bounce/expire).",
     ].join("\n"),
   );
 }
@@ -149,10 +239,10 @@ function cmdVerbs(): void {
 function cmdDocs(): void {
   console.log(
     [
-      "spec         https://ma2h.org/spec/v0.4.md",
+      "spec         https://ma2h.org/spec/v0.5.md",
       "plugin       https://github.com/autnmy/ma2h-protocol/tree/main/plugins/ma2h-skills",
       "reference    https://github.com/autnmy/ma2h-protocol/tree/main/reference",
-      "schemas      https://ma2h.org/schema/v0.4/message.schema.json",
+      "schemas      https://ma2h.org/schema/v0.5/message.schema.json",
       "conformance  https://github.com/autnmy/ma2h-protocol/tree/main/conformance",
       "repo         https://github.com/autnmy/ma2h-protocol",
     ].join("\n"),
@@ -212,7 +302,7 @@ switch (cmd) {
         "  ma2h verbs                 the three message verbs",
         "  ma2h docs                  links to the spec, skill, schemas, repo",
         "  ma2h rules                 the trust rules that matter",
-        "  ma2h validate <file> [--as message|response|capability|directive|ack|presence]",
+        "  ma2h validate <file> [--as message|response|capability|directive|entry|ack|presence|session|resolve|submit-ack]",
         "  ma2h sign <signed_context.json> --key <key>",
         "  ma2h verify <signed_context.json> --v1 <sig> --key <key>",
         "  ma2h run-vectors",

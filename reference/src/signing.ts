@@ -11,9 +11,14 @@ import type {
   AckSignedContext,
   InboundDirective,
   InboundSignedContext,
+  InterAgentMessage,
   JsonObject,
+  MessageEntrySignedContext,
+  ReceiptEntry,
+  ReceiptSignedContext,
   Resolution,
   ResponseDetail,
+  ResponseEntrySignedContext,
   SignedContext,
 } from "./types.js";
 
@@ -266,5 +271,207 @@ export function signAck(sc: AckSignedContext, opts: SignOptions): SignResult {
 }
 
 export function verifyAck(sc: AckSignedContext, v1: string, opts: VerifyOptions): VerifyResult {
+  return verifyCanonical(sc, v1, opts);
+}
+
+// ---- v0.5 inter-agent entry signatures (spec §9.8) ----
+
+/** Fields bound by the `message` entry signature, in spec order (the §9.7 mirror, same key set). */
+export const SIGNED_MESSAGE_ENTRY_FIELDS = [
+  "from",
+  "id",
+  "jti",
+  "ma2h_version",
+  "payload_sha256",
+  "t",
+  "to",
+] as const satisfies ReadonlyArray<keyof MessageEntrySignedContext>;
+
+export interface MessageEntrySignedContextParts {
+  from: MessageEntrySignedContext["from"];
+  id: string;
+  jti: string;
+  ma2h_version: MessageEntrySignedContext["ma2h_version"];
+  payload_sha256: string;
+  t: string | number;
+  to: MessageEntrySignedContext["to"];
+}
+
+/** Assemble the canonical message_signed_context from its parts (spec §9.8). */
+export function buildMessageEntrySignedContext(parts: MessageEntrySignedContextParts): MessageEntrySignedContext {
+  return {
+    from: parts.from,
+    id: parts.id,
+    jti: parts.jti,
+    ma2h_version: parts.ma2h_version,
+    payload_sha256: parts.payload_sha256,
+    t: String(parts.t),
+    to: parts.to,
+  };
+}
+
+/**
+ * Digest of the agent-authored message content, bound into the §9.8 `message` entry signature.
+ *
+ * Computed over the fixed-key wrapper `{ message: <content> }`, where `content` carries exactly the
+ * delivered envelope's PRESENT fields among `type`/`title`/`body`/`priority`/`tags`/`context`/
+ * `request`/`action`/`sensitive` — the instruction surface the addressee consumes. `type` is bound
+ * because flipping notify/ask/task changes what the recipient does; `sensitive` is bound (unlike
+ * §9.7's directive digest) because on this leg the RECIPIENT acts on the marker (§9.6 handling).
+ * Transport/Hub metadata (`id`, `from`, `to`, `created_at`, `expires_at`) is excluded —
+ * `from`/`id`/`to` are bound as top-level signed fields instead — and the advisory `agent`
+ * descriptor and inert `idempotency_key` are excluded exactly as §9.2 leaves the Response's
+ * top-level `agent` unbound. The verifier RECOMPUTES this from the entry it received.
+ */
+export function computeMessageEntryPayloadSha256(message: InterAgentMessage): string {
+  const content: Record<string, unknown> = { type: message.type, title: message.title };
+  if (message.body !== undefined) content["body"] = message.body;
+  if (message.priority !== undefined) content["priority"] = message.priority;
+  if (message.tags !== undefined) content["tags"] = message.tags;
+  if (message.context !== undefined) content["context"] = message.context;
+  if (message.type === "ask" && message.request !== undefined) content["request"] = message.request;
+  if (message.type === "task" && message.action !== undefined) content["action"] = message.action;
+  if (message.sensitive !== undefined) content["sensitive"] = message.sensitive;
+  const canonical = canonicalize({ message: content });
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
+export function signMessageEntry(sc: MessageEntrySignedContext, opts: SignOptions): SignResult {
+  return signCanonical(sc, opts);
+}
+
+export function verifyMessageEntry(
+  sc: MessageEntrySignedContext,
+  v1: string,
+  opts: VerifyOptions,
+): VerifyResult {
+  return verifyCanonical(sc, v1, opts);
+}
+
+/**
+ * Fields bound by the `response` entry signature, in spec order — §9.2's key set with the mailbox
+ * destination (`to`) in place of `callback_url`, and the IDENTICAL payload digest (spec §9.8).
+ */
+export const SIGNED_RESPONSE_ENTRY_FIELDS = [
+  "id",
+  "in_reply_to",
+  "jti",
+  "ma2h_version",
+  "payload_sha256",
+  "resolution",
+  "resolution_id",
+  "resolved_at",
+  "t",
+  "to",
+] as const satisfies ReadonlyArray<keyof ResponseEntrySignedContext>;
+
+export interface ResponseEntrySignedContextParts {
+  /**
+   * The original message id. Always equal to the Response's `in_reply_to` (spec §9.8 pins the
+   * reconstruction); kept as a separate field for §9.2 key-set parity.
+   */
+  id: string;
+  in_reply_to: string;
+  jti: string;
+  ma2h_version: ResponseEntrySignedContext["ma2h_version"];
+  /** Identical to §9.2: computePayloadSha256(response.response, response.state). */
+  payload_sha256: string;
+  resolution: Resolution;
+  resolution_id: string;
+  /**
+   * The Response's `response.resolved_at` when the detail is present; JSON `null` when a task
+   * Response legitimately omits it (spec §9.8 — absent-optional-as-null, as §14.4's wrapper).
+   */
+  resolved_at: string | null;
+  t: string | number;
+  to: ResponseEntrySignedContext["to"];
+}
+
+/** Assemble the canonical response_signed_context from its parts (spec §9.8). */
+export function buildResponseEntrySignedContext(
+  parts: ResponseEntrySignedContextParts,
+): ResponseEntrySignedContext {
+  return {
+    id: parts.id,
+    in_reply_to: parts.in_reply_to,
+    jti: parts.jti,
+    ma2h_version: parts.ma2h_version,
+    payload_sha256: parts.payload_sha256,
+    resolution: parts.resolution,
+    resolution_id: parts.resolution_id,
+    resolved_at: parts.resolved_at,
+    t: String(parts.t),
+    to: parts.to,
+  };
+}
+
+export function signResponseEntry(sc: ResponseEntrySignedContext, opts: SignOptions): SignResult {
+  return signCanonical(sc, opts);
+}
+
+export function verifyResponseEntry(
+  sc: ResponseEntrySignedContext,
+  v1: string,
+  opts: VerifyOptions,
+): VerifyResult {
+  return verifyCanonical(sc, v1, opts);
+}
+
+/** Fields bound by the `receipt` entry signature, in spec order (the §14.4 ack pattern). */
+export const SIGNED_RECEIPT_FIELDS = [
+  "in_reply_to",
+  "jti",
+  "ma2h_version",
+  "receipt_sha256",
+  "t",
+  "to",
+] as const satisfies ReadonlyArray<keyof ReceiptSignedContext>;
+
+export interface ReceiptSignedContextParts {
+  in_reply_to: string;
+  jti: string;
+  ma2h_version: ReceiptSignedContext["ma2h_version"];
+  receipt_sha256: string;
+  t: string | number;
+  to: ReceiptSignedContext["to"];
+}
+
+/** Assemble the canonical receipt_signed_context from its parts (spec §9.8). */
+export function buildReceiptSignedContext(parts: ReceiptSignedContextParts): ReceiptSignedContext {
+  return {
+    in_reply_to: parts.in_reply_to,
+    jti: parts.jti,
+    ma2h_version: parts.ma2h_version,
+    receipt_sha256: parts.receipt_sha256,
+    t: String(parts.t),
+    to: parts.to,
+  };
+}
+
+/**
+ * Digest of the receipt payload, bound into the §9.8 `receipt` entry signature. Computed over the
+ * fixed-key wrapper with exactly six keys — `{ at, event, id, in_reply_to, prior, session }` — any
+ * absent member serialized as JSON `null` (all six are present in a v0.5 bounce receipt; the null
+ * convention matches §14.4's ack_sha256 wrapper and keeps the digest unambiguous as future minors
+ * add events). The receipt's `id` — its §8.7.1 ack key — is bound here, so the key a consumer acks
+ * is authenticated. The verifier RECOMPUTES this from the receipt it received.
+ */
+export function computeReceiptSha256(receipt: ReceiptEntry): string {
+  const canonical = canonicalize({
+    at: receipt.at ?? null,
+    event: receipt.event ?? null,
+    id: receipt.id ?? null,
+    in_reply_to: receipt.in_reply_to ?? null,
+    prior: receipt.prior ?? null,
+    session: receipt.session ?? null,
+  });
+  return createHash("sha256").update(canonical).digest("hex");
+}
+
+export function signReceipt(sc: ReceiptSignedContext, opts: SignOptions): SignResult {
+  return signCanonical(sc, opts);
+}
+
+export function verifyReceipt(sc: ReceiptSignedContext, v1: string, opts: VerifyOptions): VerifyResult {
   return verifyCanonical(sc, v1, opts);
 }

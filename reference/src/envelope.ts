@@ -14,6 +14,7 @@ interface ValidateFn {
 interface AjvLike {
   addSchema(schema: unknown): unknown;
   getSchema(id: string): ValidateFn | undefined;
+  compile(schema: unknown): ValidateFn;
 }
 
 const require = createRequire(import.meta.url);
@@ -99,6 +100,12 @@ export const validateAck = (data: unknown): ValidationResult =>
 export const validatePresence = (data: unknown): ValidationResult =>
   runValidator(BASE + "presence.schema.json", data);
 
+function resultFrom(validate: ValidateFn, data: unknown): ValidationResult {
+  if (validate(data)) return { valid: true };
+  const errors = (validate.errors ?? []).map((e) => `${e.instancePath || "/"} ${e.message ?? ""}`.trim());
+  return { valid: false, errors };
+}
+
 /**
  * Validate against a v0.5 schema by filename (e.g. "message.schema.json").
  * Backs conformance vectors whose `target` carries the "v0.5/" prefix.
@@ -109,9 +116,32 @@ export function validateV05(schemaFile: string, data: unknown): ValidationResult
   }
   const validate = ajvV05.getSchema(BASE_V05 + schemaFile);
   if (!validate) throw new Error(`schema not loaded: ${BASE_V05 + schemaFile}`);
-  if (validate(data)) return { valid: true };
-  const errors = (validate.errors ?? []).map((e) =>
-    `${e.instancePath || "/"} ${e.message ?? ""}`.trim(),
-  );
-  return { valid: false, errors };
+  return resultFrom(validate, data);
+}
+
+/**
+ * Validate against a `$def` inside a v0.5 schema (e.g. the `registerRequest`/`sessionList` wrapper
+ * shapes in session.schema.json, spec §16.1). ajv resolves the JSON-pointer fragment against the
+ * registered root schema's `$id`.
+ */
+export function validateV05Def(schemaFile: string, def: string, data: unknown): ValidationResult {
+  const ref = `${BASE_V05}${schemaFile}#/$defs/${def}`;
+  const validate = ajvV05.getSchema(ref);
+  if (!validate) throw new Error(`schema $def not loaded: ${ref}`);
+  return resultFrom(validate, data);
+}
+
+/**
+ * Validate a value against an agent-supplied FLAT JSON Schema — the `request.schema` of an
+ * input-mode ask (spec §5.2/§8.8). Compiled on the v0.5 ajv (draft 2020-12 + formats). A schema
+ * that ajv cannot compile is reported as an invalid answer rather than throwing.
+ */
+export function validateAgainstSchema(schema: unknown, data: unknown): ValidationResult {
+  let validate: ValidateFn;
+  try {
+    validate = ajvV05.compile(schema);
+  } catch (e) {
+    return { valid: false, errors: [`uncompilable request.schema: ${(e as Error).message}`] };
+  }
+  return resultFrom(validate, data);
 }

@@ -13,7 +13,10 @@ const T0 = 1_782_056_000_000;
 const AGENT = "deploybot/dev-team";
 
 function newHub(now: { t: number }): Hub {
-  return new Hub({ signingKey: KEY, now: () => now.t });
+  const hub = new Hub({ signingKey: KEY, now: () => now.t });
+  // v0.5 (§13.2): directive destinations are validated at accept time — provision the addressee.
+  hub.setAgentOwner(AGENT, "human:you");
+  return hub;
 }
 
 function ask(): A2hMessage {
@@ -161,7 +164,7 @@ test("acking an un-drained (queued) directive is a no-op — no fabricated recei
   assert.equal(hub.drainInbox(AGENT).length, 1, "and it is still deliverable");
 });
 
-test("a consume after expires_at loses to expiry — the receipt is `expired`, not `acknowledged` (§13.3)", () => {
+test("a consume after expires_at loses to expiry — never a false `acknowledged` (§13.3/§14.2)", () => {
   const now = { t: T0 };
   const hub = newHub(now);
   const { id } = hub.sendDirective({
@@ -175,7 +178,11 @@ test("a consume after expires_at loses to expiry — the receipt is `expired`, n
   const res = hub.ackInbox(AGENT, [id], { note: "too late" });
   assert.equal(res.acked, 0, "a late consume does not acknowledge");
   assert.equal(res.acks.length, 0);
-  assert.equal(hub.getDelivery(id, "human:alice")?.state, "expired");
+  // v0.5 delivery honesty (§14.2): `expired` MUST mean NEVER delivered. This directive WAS drained
+  // before it expired, so its track keeps the truthful `delivered` (seen, never acked, then dropped)
+  // — not `expired` (which would erase the delivery), and never a fabricated `acknowledged`.
+  assert.equal(hub.getDelivery(id, "human:alice")?.state, "delivered");
+  assert.equal(hub.drainInbox(AGENT).length, 0, "the expired directive is dropped, not redelivered");
 });
 
 test("an expired directive's receipt advances to `expired`, not a stuck `queued` (§13.3/§14.2)", () => {
