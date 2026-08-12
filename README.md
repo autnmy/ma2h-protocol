@@ -169,7 +169,10 @@ proof obligations in `conformance/`. The `reference/` TypeScript implementation 
 (`npm run vectors`) validates both snapshots — bare targets against `schema/v0.4/`, `v0.5/`-prefixed
 targets against `schema/v0.5/`. The reference implementation covers the v0.5 leg (sessions, addressed
 routing, entry signatures, bounce/expiry honesty, and the `runBridgeLoop` bridge example), and the
-interactive `ma2h` CLI's validate/sign/verify commands are version-aware across v0.4 and v0.5.
+interactive `ma2h` CLI's `validate` command is version-aware across v0.4 and v0.5 — including the
+`session`, `resolve`, `submit-ack` and entry shapes. Its `sign`/`verify` commands still build the §9.2
+response context only; to sign or verify a v0.5 entry context, use the `src/signing.ts` builders
+directly (the worked values are in [`examples/entry-signatures-v0.5.md`](examples/entry-signatures-v0.5.md)).
 
 ## The name
 
