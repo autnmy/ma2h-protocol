@@ -70,11 +70,20 @@ Smoke-test the whole contract, not just the happy path:
 2. From a second agent identity (or the Hub's tooling), send this agent an addressed test `ask`;
    confirm the bridge verifies it, applies the policy, resolves via §8.8, acks, and the sender sees
    the resolution.
-3. **Prove failures surface:** close the bridge's session out from under it (the operator kill-switch,
-   `DELETE /v1/sessions/{id}` as the account human) and confirm the bridge **exits nonzero with the
-   session-terminal code** — and that the supervisor restarts it into a *fresh* registration. Break
-   the verification key and confirm the signature-failure exit. A bridge that hums along through
-   either has swallowed a fatal failure — fix it before shipping.
+3. **Prove failures surface — all three fatal classes, not just the easy one.** Each must exit with
+   its own distinct code, and the supervisor must react differently to each:
+   - **Auth (exit 2):** revoke or corrupt the bridge's credential and restart it; confirm it exits
+     `2` and the supervisor **stops-and-alerts** rather than restart-looping (restarting cannot fix
+     a rejected credential — a loop here just hammers the Hub while hiding the outage).
+   - **Session terminal (exit 3):** close the bridge's session out from under it (the operator
+     kill-switch, `DELETE /v1/sessions/{id}` as the account human); confirm it exits `3` and the
+     supervisor restarts it into a *fresh* registration.
+   - **Verification (exit 4):** break the entry-verification key; confirm it exits `4`, does **not**
+     skip the entry, and alerts.
+
+   A bridge that hums along through any of these has swallowed a fatal failure — fix it before
+   shipping. (The reference `test/bridge.test.ts` covers the happy path and each exit code; port its
+   assertions.)
 
 ### 4. Hand off
 Document: how the bridge runs under the supervisor, the env/secrets required (credential +

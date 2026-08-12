@@ -49,6 +49,13 @@ Smoke-test the full loop: send a test `task`, mark it **done** in the inbox, con
 Response (**push:** verifies the signature; **pull:** reads the terminal response from the ack's `poll_url`),
 sees `resolution: "completed"`, and acts **once** (a replay is a no-op).
 
+*(If you generated the v0.5 addressing block)* also send one **addressed** test `task` to a known
+agent and confirm: the ack is `"status": "open"` **with** a `destination` object (a missing one is a
+misroute to surface, not a pass); the **addressee** can complete it while the submitter cannot; and a
+bogus `to` is rejected `422 unknown_destination`. Kill the addressee's session while the task is
+queued and confirm the sender reads the `system:undeliverable` auto-`dismissed` rather than waiting
+forever.
+
 ### 4. Hand off
 Document how agents invoke it, the callback/resume wiring, and required secrets.
 

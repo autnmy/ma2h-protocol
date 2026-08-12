@@ -60,6 +60,12 @@ Write `<skills-dir>/<app>-inbox/SKILL.md` (default `.claude/skills/`) from the t
 Smoke-test end to end: have the human send a throwaway directive to this agent (e.g. via the Hub's authoring
 surface), drain it, confirm the signature verifies and the ack removes it (a second drain returns nothing).
 
+*(If you generated the v0.5 session-scoped mode)* also verify the session path: register a session,
+drain with `?session=`, and confirm a `message` entry addressed to this agent arrives (a
+**session-less** drain must **not** return it) and that acking with `?session=` consumes it. Then
+close the session and confirm a drain presenting it returns `410` (re-register and continue) — not
+`404`, which is what a *foreign* session id must return.
+
 ### 4. Hand off
 Tell the user how their agent triggers the drain (one-shot vs loop), and which env/secrets must be present
 (the bearer credential **and** the directive-verification key).

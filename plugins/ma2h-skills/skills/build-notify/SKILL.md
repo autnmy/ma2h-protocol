@@ -38,6 +38,12 @@ over an inline `curl`, also emit a small helper script and have the skill call i
 Smoke-test: send one test notify and confirm `202` (and that it appears in the inbox). Use a throwaway
 title like `[smoke] <app>-notify`. Surface any non-2xx with the Hub's error body.
 
+*(If you generated the v0.5 addressing block)* also send one **addressed** test notify to a known
+agent and confirm the ack reads `"status": "queued"` (**not** `delivered`) **and** carries a
+`destination` object — an ack missing `destination` must trip the misroute detector rather than pass
+silently. Then send one to a bogus `to` and confirm the Hub rejects it (`422 unknown_destination`)
+instead of accepting-and-dead-lettering it.
+
 ### 4. Hand off
 Tell the user how their agents trigger it and which env/secrets must be present at runtime.
 

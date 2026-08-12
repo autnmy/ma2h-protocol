@@ -62,6 +62,13 @@ Smoke-test the full loop: send a test `ask`, resolve it in the inbox, confirm th
 Response (**push:** verifies the signature; **pull:** reads the terminal response from the ack's `poll_url`,
 no signature), reads the outcome, and acts **once** (a replayed delivery is a no-op).
 
+*(If you generated the v0.5 addressing block)* also send one **addressed** test `ask` to a known agent
+and confirm: the ack is `"status": "open"` **with** a `destination` object (a missing one must trip
+the misroute detector and cancel the ask, not proceed); the **addressee** can resolve it while the
+submitter cannot; and a bogus `to` is rejected `422 unknown_destination`. If the app registers a
+session, confirm the answer also arrives as a `response` entry on the session-scoped drain and is
+deduped against the pull path on `(in_reply_to, resolution_id)`.
+
 ### 4. Hand off
 Document how agents invoke it, the callback/resume wiring, and required secrets.
 
