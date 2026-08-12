@@ -254,9 +254,9 @@ agent ┘
         <dl class="verb toolkit">
           <dt>an address</dt><dd>hub-minted and <b>not a secret, not a credential</b> — only the principal that registered it may operate it, and another principal's session reads as unknown</dd>
           <dt>leased</dt><dd>renewed by <b>real client-originated traffic</b> — a drain, an ack, a reconnect, a submit naming it. There is no heartbeat endpoint</dd>
-          <dt>terminal</dt><dd><code>closed</code> or <code>expired</code>, first-terminal-wins — and its un-acked mail <b>bounces</b> instead of rotting in a queue nobody will drain again</dd>
+          <dt>terminal</dt><dd><code>closed</code> or <code>expired</code>, first-terminal-wins — and the session-addressed directives and messages it never acked <b>bounce</b> rather than rot in a queue nobody will drain again <span class="faint">(<code>response</code> and <code>receipt</code> entries never bounce — the durable pull is already authoritative for those)</span></dd>
         </dl>
-        <p class="tag" style="margin-top:14px">Two layers, deliberately. <b>Per-run credentials were rejected</b>: minting a principal per invocation buys credential sprawl, human-gated creation and revocation debt to solve what is only an addressing problem. The credential stays evergreen; the <i>address</i> is the thing that expires — and the hub garbage-collects it. <span class="faint">— prior art: XMPP resource binding, SIP REGISTER with Expires, NATS ephemeral consumers</span></p>
+        <p class="tag" style="margin-top:14px">Two layers, deliberately. <b>Per-run credentials were rejected</b>: minting a principal per invocation buys credential sprawl, human-gated creation and revocation debt to solve what is only an addressing problem. The credential stays evergreen; the <b>address</b> is the thing that expires — and the hub garbage-collects it. <span class="faint">— prior art: XMPP resource binding, SIP REGISTER with Expires, NATS ephemeral consumers</span></p>
       </div>
     </section>
 
@@ -265,17 +265,19 @@ agent ┘
       <div class="out">
         <h2 class="vh">Delivery honesty</h2>
         <p class="tag">The hub does <b>not</b> promise an agent is listening. It promises that <b>nobody is left believing a lie</b>. A false belief of delivery is worse than a visible failure — it quietly turns a channel into a lottery.</p>
-        <pre class="map">queued ──▶ delivered ──▶ acknowledged
+        <pre class="map"><span class="faint">a directive or an addressed message, in its destination's mailbox:</span>
+
+queued ──▶ delivered ──▶ acknowledged
    │           │
    │           └──▶ <span class="am">bounced</span>   <span class="faint">seen, then orphaned</span>
    ├──▶ <span class="am">bounced</span>               <span class="faint">never seen</span>
    └──▶ <span class="am">expired</span>               <span class="faint">never delivered</span></pre>
         <ul class="rules" style="margin-top:14px">
-          <li>On the delivery track, <code>expired</code> <b>MUST mean never delivered</b>. Once something is <code>delivered</code>, a later expiry of the <i>answer</i> never rewrites it — so "seen but unanswered" and "never seen at all" stop presenting identically.</li>
+          <li>On the delivery track, <code>expired</code> <b>MUST mean never delivered</b>. Once something is <code>delivered</code>, a later expiry of the <b>answer</b> never rewrites it — so "seen but unanswered" and "never seen at all" stop presenting identically.</li>
           <li>A bounce receipt carries the <b>prior</b> state, which is the whole distinction: <code>queued</code> = never seen; <code>delivered</code> = seen, then orphaned when the destination session died before acking.</li>
           <li>Reachability is derived <b>only from real client-originated activity</b> — a drain, an ack, a reconnect. <b>An open socket is not liveness</b>: a hub bounds every stream hold and treats the client's reconnect as the renewal, so a zombie connection cannot hold a session <code>online</code>.</li>
           <li><code>unknown</code> is not <code>offline</code>. <code>offline</code> means seen, but not lately; <code>unknown</code> means never connected — or that you simply aren't permitted to know, which is reported as <code>unknown</code> rather than guessed.</li>
-          <li>Acceptance is not delivery. An addressed <code>notify</code> is accepted <code>queued</code> — <b>never</b> <code>delivered</code> — because its lifecycle <i>is</i> the delivery track.</li>
+          <li>Acceptance is not delivery. An addressed <code>notify</code> is accepted <code>queued</code> — <b>never</b> <code>delivered</code> — because its lifecycle <b>is the delivery track</b>.</li>
           <li>An undeliverable <code>ask</code> does not hang: it auto-resolves <code>cancelled</code> (a <code>task</code>, <code>dismissed</code>) attributed to an attested <code>system:undeliverable</code>, so the sender is unblocked with the truth rather than waiting on an answer that can never come.</li>
         </ul>
       </div>
@@ -329,7 +331,7 @@ agent ┘
           <dt>build-bridge</dt><dd>generate your agent's always-on <b>session bridge</b> — hold a live address on the inter-agent leg <span class="faint">(v0.5)</span></dd>
         </dl>
         <p class="tag" style="margin-top:14px">A <b>bridge</b> is the consuming side of the inter-agent leg: register a session, drain it, <b>verify every entry before acting</b>, resolve under an explicitly declared sender policy, and ack only once the work is durable.</p>
-        <p class="tag" style="margin-top:8px">Its contract with its supervisor is to <b>fail loud, never silent</b> — the reference loop exits with a <b>distinct nonzero code</b> per fatal class, so a restart policy can tell <span class="faint">"fix the credential"</span> from <span class="faint">"the lease lapsed, re-register and continue"</span> from <span class="faint">"an entry failed verification — do not act on it"</span>. A bridge that dies quietly is the failure the honesty rules exist to prevent.</p>
+        <p class="tag" style="margin-top:8px">Its contract with its supervisor is to <b>fail loud, never silent</b> — the reference loop raises a <b>distinct fatal class</b>, each carrying its own nonzero exit code for your supervisor wrapper to surface, so a restart policy can tell <span class="faint">"fix the credential"</span> from <span class="faint">"the lease lapsed, re-register and continue"</span> from <span class="faint">"an entry failed verification — do not act on it"</span>. A bridge that dies quietly is the failure the honesty rules exist to prevent.</p>
       </div>
     </section>
 
