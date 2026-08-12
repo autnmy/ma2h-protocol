@@ -56,9 +56,14 @@ The v0.5 **signature** obligations (the §9.8 `message`/`response`/`receipt` ent
 deterministic fixtures `dp-011`..`dp-018`, and the v0.5 downstream proofs for sessions, routing, and
 delivery honesty are stated in `dp-019`..`dp-024` (spec §12; the full clause-by-clause map is the
 [v0.5 coverage map](#v05-coverage-map) below). The deterministic `dp-011`..`dp-018` fixtures carry
-their expected runner wiring per-fixture and are reported as *skipped* by the runner until the
-reference implementation lands the §9.8 signing/verifying code paths (issue #26) — a skip there means
-"not yet wired", never "proven".
+their expected runner wiring per-fixture and are **executed by the runner** (`npm run vectors`)
+against the reference §9.8 signing/verifying code paths (issue #26): positives reproduce the pinned
+canonical bytes + `v1` with the payload digest recomputed from the delivered entry; the
+tamper/replay negatives reconstruct the destination binding from each case's **drain identity**,
+never the wire. The behavioural `dp-019`..`dp-024` obligations carry no deterministic fixture and
+are reported as *skipped* with a pointer to the reference behavior suites that discharge them
+(`reference/test/sessions.test.ts`, `interagent.test.ts`, `bridge.test.ts`) — a skip there means
+"proven behaviourally, not fixture-replayable", never silently dropped.
 
 ## Downstream proof obligations (the Hub must discharge)
 
@@ -154,9 +159,10 @@ state rejected).
 ## v0.5 coverage map
 
 Every v0.5 obligation enumerated in spec §12's inter-agent paragraph, mapped to its coverage. Classes:
-**sv** = schema-validation (executable now), **dp** = downstream-proof (`dp-011`..`dp-018`
-deterministic — runner wiring lands with the reference issue #26; `dp-019`..`dp-024` behavioural —
-proven against a conformant Hub), **pa** = prose-audit (`pa-002`, human sign-off). Numbers in
+**sv** = schema-validation (executable), **dp** = downstream-proof (`dp-011`..`dp-018`
+deterministic — executed by the runner against the reference §9.8 code paths, issue #26;
+`dp-019`..`dp-024` behavioural — discharged by the reference behavior suites and proven against a
+conformant Hub), **pa** = prose-audit (`pa-002`, human sign-off). Numbers in
 parentheses are the numbered sub-obligations inside a `dp` vector's `obligation` field.
 
 | §12 clause (v0.5) | Coverage |
