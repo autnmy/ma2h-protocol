@@ -4,7 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MA2H — Multi-agent to Human Protocol</title>
-<meta name="description" content="A vendor- and runtime-neutral protocol for human coordination across an agent fleet — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place." />
+<meta name="description" content="A vendor- and runtime-neutral protocol for human coordination across an agent fleet — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place. As of v0.5, one account's agents also message each other through the same hub — with delivery that never lies about what was seen." />
 <link rel="canonical" href="https://ma2h.org/" />
 <meta name="robots" content="index, follow, max-image-preview:large" />
 <meta name="theme-color" content="#0d0f13" />
@@ -14,7 +14,7 @@
 <meta property="og:site_name" content="MA2H" />
 <meta property="og:url" content="https://ma2h.org/" />
 <meta property="og:title" content="MA2H — Multi-agent to Human Protocol" />
-<meta property="og:description" content="Human coordination across an agent fleet — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place. Vendor- and runtime-neutral." />
+<meta property="og:description" content="Human coordination across an agent fleet — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place. v0.5 adds the inter-agent leg: one account's agents message each other through the same hub, with honest delivery. Vendor- and runtime-neutral." />
 <meta property="og:image" content="https://ma2h.org/og.png" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
@@ -23,7 +23,7 @@
 <!-- Twitter -->
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="MA2H — Multi-agent to Human Protocol" />
-<meta name="twitter:description" content="Human coordination across an agent fleet — many agents, one hub. notify · ask · task." />
+<meta name="twitter:description" content="Human coordination across an agent fleet — many agents, one hub. notify · ask · task — and, in v0.5, one account's agents to each other, with honest delivery." />
 <meta name="twitter:image" content="https://ma2h.org/og.png" />
 
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -40,7 +40,7 @@
       "@id": "https://ma2h.org/#website",
       "url": "https://ma2h.org/",
       "name": "MA2H — Multi-agent to Human Protocol",
-      "description": "A vendor- and runtime-neutral protocol for human coordination across an agent fleet — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place.",
+      "description": "A vendor- and runtime-neutral protocol for human coordination across an agent fleet — many agents, one hub. Agents notify, ask, and hand off tasks; humans coordinate from one place. As of v0.5, one account's agents also message each other through the same hub — with delivery that never lies about what was seen.",
       "inLanguage": "en",
       "publisher": { "@id": "https://ma2h.org/#org" }
     },
@@ -54,8 +54,8 @@
     {
       "@type": "TechArticle",
       "headline": "MA2H — the Multi-agent to Human Protocol",
-      "description": "MA2H is a vendor- and runtime-neutral protocol for human coordination across an agent fleet: many agents report to one hub through three verbs — notify, ask, task — and humans coordinate from one place, with each signed answer routed back to the originating agent.",
-      "about": ["multi-agent to human protocol", "human-in-the-loop", "agent fleet", "coordination hub", "AI agents", "agent inbox"],
+      "description": "MA2H is a vendor- and runtime-neutral protocol for human coordination across an agent fleet: many agents report to one hub through three verbs — notify, ask, task — and humans coordinate from one place, with each signed answer routed back to the originating agent. v0.5 adds a hub-mediated inter-agent leg — one account's agents routing the same three verbs to each other, addressed by ephemeral hub-leased sessions, with terminal bounced/expired delivery states so a sender is never left believing a message was seen when it was not.",
+      "about": ["multi-agent to human protocol", "human-in-the-loop", "agent fleet", "coordination hub", "AI agents", "agent inbox", "inter-agent messaging", "agent sessions", "delivery honesty"],
       "isPartOf": { "@id": "https://ma2h.org/#website" },
       "author": { "@id": "https://ma2h.org/#org" },
       "license": "https://www.apache.org/licenses/LICENSE-2.0"
@@ -173,6 +173,9 @@
   .links .lk:hover{ text-decoration:none } .links .k{ color:var(--violet) } .links .lk:hover .k{ text-decoration:underline; text-underline-offset:3px } .links .d{ color:var(--faint) }
   .rules{ margin:6px 0 0; padding:0; list-style:none; color:var(--dim) }
   .rules li{ padding:1px 0 } .rules li::before{ content:"• "; color:var(--cyan) } .rules code{ color:var(--amber) }
+  /* wire identifiers outside the rules list read the same amber; font:inherit keeps them on the page's
+     mono face instead of the browser's smaller default monospace */
+  .tag code, .verb dd code{ font:inherit; color:var(--amber) }
 
   /* ---- cursor + interactive input ---- */
   .cur{ display:inline-block; width:8.5px; height:1.05em; vertical-align:-2px; background:var(--green); margin-left:2px; animation:blink 1.05s steps(1) infinite }
@@ -220,7 +223,9 @@ agent ┤
 agent ┼──▶  <b>[ MA2<span style="color:var(--green)">H</span> hub ]</b>  ──▶  <b>human</b>
 agent ┤
 agent ┘
-       <span class="gr">◀──  signed answer routed back to the agent</span></pre>
+       <span class="gr">◀──  signed answer routed back to the agent</span>
+       <span class="vi">◀─▶  v0.5 · one account's agents, to each other, through the same hub</span></pre>
+        <p class="tag" style="margin-top:14px">As of <b>v0.5</b> the hub carries both directions and the middle: agent↔human, and <b>hub-mediated agent↔agent within one account</b>. That leg is MA2H's own — spokes that are HTTP clients with no inbound port, not peers you can dial. <b>A2A</b> remains the agent↔agent wire for HTTP-addressable peers and <b>MCP</b> the agent↔tools one; MA2H is the durable hub between an operator and the fleet they run. No cross-account federation, no discovery, no open mesh.</p>
       </div>
     </section>
 
@@ -235,6 +240,46 @@ agent ┘
         </dl>
         <p class="tag" style="margin-top:14px">…and, as of <b>v0.4</b>, the mirror: a human sends a <b>directive</b> to one agent, which drains it from a durable mailbox — signed, verified, at-least-once. <span class="faint">— "freeze deploys until the incident clears"</span></p>
         <p class="tag" style="margin-top:8px">…and, as of <b>v0.5</b>, the <b>inter-agent leg</b>: agents of one account message <b>each other</b> through the same mailbox — sessions make one live run addressable, and delivery is honest to the end: <b>seen, bounced, or expired — never a lie</b>. <span class="faint">— an overseer tasks its spokes</span></p>
+      </div>
+    </section>
+
+    <section class="step" data-cmd="ma2h sessions">
+      <div class="cmdline"><span class="p">~/ma2h</span> <span class="car">❯</span> <span class="cmd">ma2h sessions</span></div>
+      <div class="out">
+        <h2 class="vh">Sessions — an address for one live run</h2>
+        <p class="tag">A mailbox is per-agent, and one <code>agent.id</code> credential is commonly shared by many concurrent runs on one machine — so "deliver this to <b>that</b> run" had nowhere to land. <code>run_id</code> was already on every envelope, but it is opaque, unregistrable and non-authorizing: an audit label, not an address.</p>
+        <p class="tag" style="margin-top:8px">v0.5 adds the <b>session</b> — a hub-registered, lease-bound, ephemeral <b>addressing scope</b> under the agent's existing credential:</p>
+        <pre class="map"><b>agent:</b>agnt_7f3…            <span class="faint">the principal — credentialed, accountable, evergreen</span>
+<b>agent:</b>agnt_7f3…<b>#sess_9k2…</b>  <span class="faint">the session — leased, ephemeral, one live invocation</span></pre>
+        <dl class="verb toolkit">
+          <dt>an address</dt><dd>hub-minted and <b>not a secret, not a credential</b> — only the principal that registered it may operate it, and another principal's session reads as unknown</dd>
+          <dt>leased</dt><dd>renewed only by <b>client-originated traffic that presents the session</b> — a <code>?session=</code> drain, an ack carrying it, a stream reconnect, a submit naming it. A session-less call renews nothing, and there is no heartbeat endpoint</dd>
+          <dt>terminal</dt><dd><code>closed</code> or <code>expired</code>, first-terminal-wins — and the session-addressed directives and messages it never acked <b>bounce</b> rather than rot in a queue nobody will drain again <span class="faint">(<code>response</code> and <code>receipt</code> entries never bounce — the durable pull is already authoritative for those)</span></dd>
+        </dl>
+        <p class="tag" style="margin-top:14px">Two layers, deliberately. <b>Per-run credentials were rejected</b>: minting a principal per invocation buys credential sprawl, human-gated creation and revocation debt to solve what is only an addressing problem. The credential stays evergreen; the <b>address</b> is the thing that expires — and the hub garbage-collects it. <span class="faint">— prior art: XMPP resource binding, SIP REGISTER with Expires, NATS ephemeral consumers</span></p>
+      </div>
+    </section>
+
+    <section class="step" data-cmd="ma2h honesty">
+      <div class="cmdline"><span class="p">~/ma2h</span> <span class="car">❯</span> <span class="cmd">ma2h honesty</span></div>
+      <div class="out">
+        <h2 class="vh">Delivery honesty</h2>
+        <p class="tag">The hub does <b>not</b> promise an agent is listening. It promises that <b>nobody is left believing a lie</b>. A false belief of delivery is worse than a visible failure — it quietly turns a channel into a lottery.</p>
+        <pre class="map"><span class="faint">a directive or an addressed message, in its destination's mailbox:</span>
+
+queued ──▶ delivered ──▶ acknowledged
+   │           │
+   │           └──▶ <span class="am">bounced</span>   <span class="faint">seen, then orphaned</span>
+   ├──▶ <span class="am">bounced</span>               <span class="faint">never seen</span>
+   └──▶ <span class="am">expired</span>               <span class="faint">never delivered</span></pre>
+        <ul class="rules" style="margin-top:14px">
+          <li>On the delivery track, <code>expired</code> <b>MUST mean never delivered</b>. Once something is <code>delivered</code>, a later expiry of the <b>answer</b> never rewrites it — so "seen but unanswered" and "never seen at all" stop presenting identically.</li>
+          <li>A bounce receipt carries the <b>prior</b> state, which is the whole distinction: <code>queued</code> = never seen; <code>delivered</code> = <b>seen, then orphaned</b> — claimed by something that went away before acking. A dead destination session is one cause; a principal-addressed entry whose retention lapses while still drained-but-unacked is another, and it names its last claimant.</li>
+          <li>Reachability is derived <b>only from real client-originated activity</b> — a drain, an ack, a reconnect. <b>An open socket is not liveness</b>: a hub bounds every stream hold and treats the client's reconnect as the renewal, so a zombie connection cannot hold a session <code>online</code>.</li>
+          <li><code>unknown</code> is not <code>offline</code>. <code>offline</code> means seen, but not lately; <code>unknown</code> means never connected — or that you simply aren't permitted to know, which is reported as <code>unknown</code> rather than guessed.</li>
+          <li>Acceptance is not delivery. An addressed <code>notify</code> is accepted <code>queued</code> — <b>never</b> <code>delivered</code> — because its lifecycle <b>is the delivery track</b>.</li>
+          <li>An undeliverable <code>ask</code> does not hang: it auto-resolves <code>cancelled</code> (a <code>task</code>, <code>dismissed</code>) attributed to an attested <code>system:undeliverable</code>, so the sender is unblocked with the truth rather than waiting on an answer that can never come.</li>
+        </ul>
       </div>
     </section>
 
@@ -261,7 +306,7 @@ agent ┘
         <h2 class="vh">Documentation</h2>
         <nav class="links" aria-label="MA2H documentation">
           <a class="lk" href="https://github.com/autnmy/ma2h-protocol/blob/main/spec/v0.5.md"><span class="k">spec</span><span class="d">the normative v0.5 specification</span></a>
-          <a class="lk" href="https://github.com/autnmy/ma2h-protocol/tree/main/plugins/ma2h-skills"><span class="k">plugin</span><span class="d">agent-native skills — implement a Hub, build notify/ask/task + inbox</span></a>
+          <a class="lk" href="https://github.com/autnmy/ma2h-protocol/tree/main/plugins/ma2h-skills"><span class="k">plugin</span><span class="d">6 agent-native skills — implement a Hub; build notify/ask/task, inbox, bridge</span></a>
           <a class="lk" href="https://github.com/autnmy/ma2h-protocol/tree/main/reference"><span class="k">reference</span><span class="d">strict-TypeScript implementation + ma2h CLI</span></a>
           <a class="lk" href="/schema/v0.5/message.schema.json"><span class="k">schemas</span><span class="d">JSON Schema 2020-12 · dereferenceable here</span></a>
           <a class="lk" href="https://github.com/autnmy/ma2h-protocol/tree/main/conformance"><span class="k">conformance</span><span class="d">vectors + downstream proof obligations</span></a>
@@ -283,7 +328,11 @@ agent ┘
           <dt>build-ask</dt><dd>generate your app's <b>ask</b> sender skill</dd>
           <dt>build-task</dt><dd>generate your app's <b>task</b> sender skill</dd>
           <dt>build-inbox</dt><dd>generate your agent's <b>inbox-drain</b> skill — receive human→agent directives <span class="faint">(v0.4)</span></dd>
+          <dt>build-bridge</dt><dd>generate your agent's always-on <b>session bridge</b> — hold a live address on the inter-agent leg <span class="faint">(v0.5)</span></dd>
         </dl>
+        <p class="tag" style="margin-top:14px">A <b>bridge</b> is the consuming side of the inter-agent leg: register a session, drain it, <b>verify every entry before acting</b>, resolve under an explicitly declared sender policy, and ack only once the work is durable.</p>
+        <p class="tag" style="margin-top:8px">Its contract with its supervisor is to <b>fail loud, never silent</b> — the reference loop raises a <b>distinct fatal class</b>, each carrying its own nonzero exit code for your supervisor wrapper to surface, so a restart policy can tell <span class="faint">"fix the credential"</span> from <span class="faint">"the session is terminal"</span> from <span class="faint">"an entry failed verification — do not act on it"</span>.</p>
+        <p class="tag" style="margin-top:8px">That middle class is deliberately <b>not</b> self-explaining: a lapsed lease and an operator's <b>kill-switch</b> both arrive as one terminal session. Read the retained session state before restarting — re-register when it <code>expired</code>, but <b>stop and escalate</b> when a human <code>closed</code> it. Resurrecting a bridge somebody deliberately stopped is exactly the wrong move, and a bridge that dies quietly is the failure the honesty rules exist to prevent.</p>
       </div>
     </section>
 
@@ -296,6 +345,8 @@ agent ┘
           <li><code>state</code> is agent-owned and AEAD-sealed — the Hub never holds the key; returned state is untrusted until verified.</li>
           <li>Every pushed Response is signed (RFC 8785 JCS + detached signature); agents verify, dedupe, and act at most once.</li>
           <li><code>actor</code> is Hub-attested; resolver authz is fail-closed; callbacks must target an agent-owned, verified host.</li>
+          <li>Every mailbox entry is signed too — the addressee verifies the detached signature and dedupes before it acts on anything.</li>
+          <li>The inter-agent leg is <b>account-opt-in and account-scoped</b>: cross-account addressing is rejected as unknown, and an unknown destination is refused at submit — never silently dead-lettered.</li>
         </ul>
       </div>
     </section>
@@ -329,6 +380,8 @@ agent ┘
   var HELP = [
     'ma2h about        what MA2H is, in one screen',
     'ma2h verbs        the three message verbs',
+    'ma2h sessions     how one live run becomes addressable',
+    'ma2h honesty      what the hub does and does not promise',
     'ma2h docs         links to the spec, skill, schemas, repo',
     'ma2h rules        the trust rules that matter',
     'ma2h skills       install the plugin — implement a Hub, build verb skills',
@@ -404,7 +457,7 @@ agent ┘
     if(t==='clear') return { clear:true };
     if(t==='help' || t==='ma2h' || t==='ma2h help' || t==='ma2h --help') return { html:HELP };
     if(OUTPUTS.hasOwnProperty(t)) return { html:OUTPUTS[t] };
-    if(t==='ma2h run-vectors' || t==='ma2h vectors') return { html:'<div class="tl"><span class="cy">8 passed</span> · 0 failed · <span class="faint">1 skipped</span></div>' };
+    if(t==='ma2h run-vectors' || t==='ma2h vectors') return { html:'<div class="tl"><span class="cy">72 passed</span> · 0 failed · <span class="faint">11 skipped</span></div>' };
     if(/^ma2h (validate|sign|verify)\b/.test(t)) return { html:'<div class="tl"><span class="faint">usage:</span> '+esc(t.split(' ').slice(0,2).join(' '))+' … run it in the reference → github.com/autnmy/ma2h-protocol</div>' };
     return { html:'<div class="tl"><span class="am">command not found:</span> '+esc(t)+'</div>' };
   }
@@ -423,7 +476,7 @@ agent ┘
     removeCue();
     // The cue belongs to the prompt below it, not the block above: push it clear of the last
     // output, then let the prompt sit snug beneath it so the two read as one group.
-    var hint = el('tl', '<span class="faint"># your turn — try: ma2h rules · ma2h docs · npm run demo · help</span>');
+    var hint = el('tl', '<span class="faint"># your turn — try: ma2h honesty · ma2h sessions · npm run demo · help</span>');
     hint.style.marginTop = '40px';
     screen.appendChild(hint);
     addPrompt(6);
