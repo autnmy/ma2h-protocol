@@ -11,6 +11,7 @@ import {
   validatePresence,
   validateResponse,
   validateV05,
+  validateV05Def,
   type ValidationResult,
 } from "../src/envelope.js";
 import { buildSignedContext, signResponse, verifyResponse } from "../src/signing.js";
@@ -46,6 +47,7 @@ type ValidateKind =
   | "ack"
   | "presence"
   | "session"
+  | "session-list"
   | "resolve"
   | "submit-ack";
 
@@ -60,6 +62,9 @@ function inferKind(doc: unknown): ValidateKind {
       return "from" in o && "id" in o ? "entry" : "message";
     }
     if (o["type"] === "ack") return "ack";
+    // A `GET /v1/sessions` collection envelope `{ "sessions": [...] }` (spec §16.1) — checked before
+    // the capability heuristic, which also keys on a `sessions` property.
+    if (Array.isArray(o["sessions"])) return "session-list";
     // A session RESOURCE (or its { session: ... } envelope) — spec §16.1.
     if ("session" in o && typeof o["session"] === "object") return "session";
     if ("agent_id" in o && "expires_at" in o && "state" in o) return "session";
@@ -81,7 +86,13 @@ function inferKind(doc: unknown): ValidateKind {
 }
 
 /** v0.5-only wire shapes (they carry no `ma2h_version`; the schemas exist only in v0.5). */
-const V05_ONLY_KINDS: ReadonlySet<ValidateKind> = new Set(["session", "resolve", "submit-ack", "entry"]);
+const V05_ONLY_KINDS: ReadonlySet<ValidateKind> = new Set([
+  "session",
+  "session-list",
+  "resolve",
+  "submit-ack",
+  "entry",
+]);
 
 const V05_SCHEMA_BY_KIND: Record<ValidateKind, string> = {
   message: "message.schema.json",
@@ -92,6 +103,7 @@ const V05_SCHEMA_BY_KIND: Record<ValidateKind, string> = {
   ack: "ack.schema.json",
   presence: "presence.schema.json",
   session: "session.schema.json",
+  "session-list": "session.schema.json",
   resolve: "resolve-request.schema.json",
   "submit-ack": "submit-ack.schema.json",
 };
@@ -114,6 +126,15 @@ function cmdValidate(positionals: string[], flags: Map<string, string>): void {
   // Version-aware registry selection (§10): a >= 0.5 document — or a v0.5-only shape — validates
   // against the v0.5 snapshot; everything else keeps the v0.4 registry byte-identically.
   const useV05 = V05_ONLY_KINDS.has(kind) || declaresV05(doc);
+  // The session collection envelope `{ "sessions": [...] }` validates against the sessionList $def
+  // (spec §16.1) — the root schema is the single-session RESOURCE, which would reject the wrapper.
+  if (kind === "session-list") {
+    const r = validateV05Def("session.schema.json", "sessionList", doc);
+    if (r.valid) return void console.log(`✓ valid session-list (v0.5 schema): ${file}`);
+    console.error(`✗ invalid session-list (v0.5 schema): ${file}`);
+    for (const e of r.errors) console.error(`  - ${e}`);
+    process.exit(1);
+  }
   // A session resource arrives either bare or wrapped as the `POST/GET /v1/sessions` envelope
   // `{ "session": { ... } }` (spec §16.1). session.schema.json's root is the RESOURCE, so unwrap
   // the envelope before validating — otherwise a valid response envelope is wrongly rejected.

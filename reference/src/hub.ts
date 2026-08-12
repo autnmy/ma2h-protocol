@@ -30,7 +30,7 @@ import {
   signResponse,
   signResponseEntry,
 } from "./signing.js";
-import { validateMessage, validateV05 } from "./envelope.js";
+import { validateAgainstSchema, validateMessage, validateV05, validateV05Def } from "./envelope.js";
 import type {
   Ack,
   A2hMessage,
@@ -342,6 +342,13 @@ export class Hub {
       // §16.1: `#` is the address separator (§4 grammar) — a session such an id registered could
       // never be addressed, so registration is rejected up front.
       throw new HubError("invalid_field", `agent.id containing "#" cannot register sessions (§4/§16.1)`);
+    }
+    // §16.1: validate the request against `registerRequest` BEFORE clamping — otherwise a
+    // non-integer `ttl_seconds` (a `NaN` reaches `toISOString()` and throws a raw RangeError) or an
+    // empty `run_id` would be copied into an invalid session resource.
+    if (req !== undefined) {
+      const v = validateV05Def("session.schema.json", "registerRequest", req);
+      if (!v.valid) throw new HubError("invalid_field", `invalid session registration: ${v.errors.join("; ")} (§16.1)`);
     }
     let live = 0;
     for (const rec of this.sessions.values()) {
@@ -927,7 +934,10 @@ export class Hub {
       resolution_id: newResolutionId(),
       ...(input.value !== undefined ? { value: input.value } : {}),
       ...(input.comment !== undefined ? { comment: input.comment } : {}),
-      ...(input.checklist !== undefined ? { checklist: input.checklist } : {}),
+      // Checklists are TASK-only (§6): the v0.5 response schema forbids one on an ask Response, and
+      // a mailbox consumer rejects a Hub-signed response that carries it — so gate on the verb
+      // rather than trusting an undiscriminated ResolveInput.
+      ...(input.checklist !== undefined && record.message.type === "task" ? { checklist: input.checklist } : {}),
       ...(record.message.state !== undefined ? { state: record.message.state } : {}),
     });
     if (res.applied) this.emitResponse(record);
@@ -936,9 +946,14 @@ export class Hub {
 
   /** Expiry sweep for one message. Returns the Response if it expired now, else null. */
   expire(id: string, nowMs?: number): A2hResponse | null {
+    const t = nowMs ?? this.now();
+    // Settle session leases first (§7/§16.3), as resolve()/cancel(): if a session-addressed ask's
+    // destination lease lapsed BEFORE its message-level expires_at, the `system:undeliverable`
+    // bounce is the earlier terminal and must win the CAS — an explicit expire() applied first
+    // would wrongly stamp `expired` (a later sweep cannot replace a terminal Response).
+    this.settleSessions(t);
     const record = this.store.get(id);
     if (!record) return null;
-    const t = nowMs ?? this.now();
     if (record.status !== "open") return record.response;
     if (record.expiresAtMs === null || t <= record.expiresAtMs) return null;
     return this.applyDefaultExpiry(record, t);
@@ -1097,8 +1112,9 @@ export class Hub {
   /**
    * Hub-enforced value-vs-request validation for `resolution: "answered"` (spec §8.8): a
    * `select`/`confirm` answer must be a string member of the option values (`confirm` without
-   * options uses the synthesized approve/deny pair, §5.2); an `input` answer must be an object
-   * (the reference checks shape; production Hubs validate against `request.schema`).
+   * options uses the synthesized approve/deny pair, §5.2); an `input` answer must be an object that
+   * VALIDATES against the ask's `request.schema` — otherwise a resolver could emit a value that
+   * violates the sender's contract and the Hub would sign it into a terminal Response.
    */
   private validateAnswerValue(message: AskMessage, value: string | JsonObject | undefined): void {
     if (value === undefined) {
@@ -1108,6 +1124,14 @@ export class Hub {
     if (mode === "input") {
       if (typeof value !== "object" || value === null || Array.isArray(value)) {
         throw new HubError("invalid_field", "an input-mode answer must be an object (§5.2/§8.8)");
+      }
+      // §5.2/§8.8: the answer object MUST validate against the request's flat JSON Schema (a
+      // missing `schema` is a malformed input-mode request the submit path already rejects).
+      if (message.request.schema !== undefined) {
+        const v = validateAgainstSchema(message.request.schema, value);
+        if (!v.valid) {
+          throw new HubError("invalid_field", `input answer does not satisfy request.schema: ${v.errors.join("; ")} (§5.2/§8.8)`);
+        }
       }
       return;
     }

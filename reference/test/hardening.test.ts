@@ -391,6 +391,77 @@ test("a human task resolve carries the final checklist into the Response (§6/§
   assert.deepEqual(out.response?.checklist, [{ text: "rotate", done: true }]);
 });
 
+// ---- codex round 4 #1: settle sessions before the explicit expire() sweep ----
+
+test("expire() settles the destination lease first, so an earlier undeliverable bounce wins over a later expiry (§7/§16.3)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const workerSession = hub.registerSession(WORKER, { ttl_seconds: 60 }).session;
+  const both = ask({ to: `agent:${WORKER}#${workerSession.id}` });
+  both.expires_at = new Date(T0 + 120_000).toISOString(); // message expiry is LATER than the lease
+  const { id } = hub.submit(both);
+
+  now.t = T0 + 130_000; // both deadlines passed; expire() is the first touchpoint
+  hub.expire(id);
+  const got = hub.get(id, SENDER);
+  assert.equal(got?.status, "cancelled", "the earlier lease-lapse bounce wins, not the later expiry");
+  assert.equal(got?.response?.response?.actor, "system:undeliverable");
+});
+
+// ---- codex round 4 #2: input answers validate against request.schema ----
+
+test("an input-mode answer must satisfy the ask's request.schema, not merely be an object (§5.2/§8.8)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const workerSession = hub.registerSession(WORKER).session;
+  const inputAsk = ask({ to: `agent:${WORKER}` });
+  inputAsk.request = {
+    mode: "input",
+    schema: { type: "object", properties: { reason: { type: "string" } }, required: ["reason"] },
+  };
+  const { id } = hub.submit(inputAsk);
+  assert.throws(
+    () => hub.resolveAsAgent(id, WORKER, { resolution: "answered", value: {} }, { session: workerSession.id }),
+    (e: unknown) => e instanceof HubError && e.code === "invalid_field",
+    "an empty object fails the required-field schema",
+  );
+  const ok = hub.resolveAsAgent(
+    id,
+    WORKER,
+    { resolution: "answered", value: { reason: "migration risk" } },
+    { session: workerSession.id },
+  );
+  assert.equal(ok.status, "answered");
+});
+
+// ---- codex round 4 #3: a checklist on an ask resolution is dropped ----
+
+test("a checklist supplied on an ASK resolution is not copied into the Response (task-only, §6)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  hub.registerSession(WORKER);
+  const { id } = hub.submit(ask({ to: `agent:${WORKER}` }));
+  const out = hub.resolve(id, {
+    actor: `agent:${WORKER}`,
+    resolution: "answered",
+    value: "approve",
+    checklist: [{ text: "sneaky", done: true }],
+  });
+  assert.equal(out.response?.checklist, undefined, "no checklist on an ask Response");
+});
+
+// ---- codex round 4 #4: session registration requests are validated ----
+
+test("registerSession validates the request: a non-integer/empty field is invalid_field, never a raw crash (§16.1)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const is = (e: unknown) => e instanceof HubError && e.code === "invalid_field";
+  assert.throws(() => hub.registerSession(WORKER, { ttl_seconds: 1.5 }), is);
+  assert.throws(() => hub.registerSession(WORKER, { ttl_seconds: Number.NaN }), is, "NaN must not reach toISOString()");
+  assert.throws(() => hub.registerSession(WORKER, { run_id: "" }), is);
+  assert.equal(hub.registerSession(WORKER, { ttl_seconds: 900, run_id: "run_1" }).session.ttl_seconds, 900);
+});
+
 // ---- correctness #7: the addressed-submit expires_at check ----
 
 test("an addressed submit with a past expires_at is rejected, not accepted as a corpse (§4/§8.5)", () => {
