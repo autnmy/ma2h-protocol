@@ -27,6 +27,7 @@ async function main(): Promise<void> {
   const buildSha = "abc123def";
   const pushes: DeliveredPush[] = [];
   const hub = new Hub({ signingKey: HUB_KEY, onDeliver: (p) => { pushes.push(p); } });
+  hub.setAgentOwner("deploy-bot/ci", "human:you"); // v0.5 (§13.2): directive destinations are validated
   const agent = new Agent({ callbackUrl: RESUME_URL, callbackKey: HUB_KEY, sealKey, agentId: "agent:deploy-bot/ci" });
 
   console.log("\n=== MA2H playground — you are the human in the loop ===\n");

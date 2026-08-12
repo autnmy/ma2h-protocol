@@ -28,6 +28,8 @@ export interface ResolveInput {
   resolution_id: string;
   value?: string | JsonObject;
   comment?: string;
+  /** Task resolutions only (v0.5, spec §6/§8.8): the final checklist state. */
+  checklist?: { text: string; done: boolean }[];
   defaulted?: boolean;
   state?: JsonObject;
 }
@@ -49,6 +51,7 @@ export function applyResolution(record: MessageRecord, input: ResolveInput): Tra
       actor: input.actor,
       resolved_at: input.resolved_at,
       ...(input.comment !== undefined ? { comment: input.comment } : {}),
+      ...(input.checklist !== undefined ? { checklist: input.checklist } : {}),
     },
     ...(input.state !== undefined ? { state: input.state } : {}),
   };

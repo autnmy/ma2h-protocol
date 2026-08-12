@@ -14,11 +14,15 @@ import type { DirectiveTo } from "../src/types.js";
 const KEY = "hub-directive-key-0123456789abcdef0123456789abcdef";
 const T0 = 1_782_043_200_000; // fixed base; ms
 
-function newHub(now: { t: number }): Hub {
-  return new Hub({ signingKey: KEY, now: () => now.t, visibilityTimeoutSeconds: 60 });
-}
-
 const AGENT_A = "deploybot/dev-team";
+
+function newHub(now: { t: number }): Hub {
+  const hub = new Hub({ signingKey: KEY, now: () => now.t, visibilityTimeoutSeconds: 60 });
+  // v0.5 (§13.2): directive destinations are validated at accept time, so the addressee must be a
+  // KNOWN (provisioned) agent — modelled by the owner registration the presence leg already uses.
+  hub.setAgentOwner(AGENT_A, "human:you");
+  return hub;
+}
 const TO_A = `agent:${AGENT_A}` as DirectiveTo;
 
 function newAgent(agentId: DirectiveTo = TO_A): Agent {

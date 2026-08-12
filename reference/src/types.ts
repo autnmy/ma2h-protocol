@@ -135,8 +135,12 @@ export type A2hMessage = NotifyMessage | AskMessage | TaskMessage;
 export type AskResolution = "answered" | "declined" | "cancelled" | "expired";
 export type TaskResolution = "completed" | "dismissed" | "expired";
 export type Resolution = AskResolution | TaskResolution;
-/** Full lifecycle status value space (spec §7, §8). */
-export type Status = "open" | "delivered" | Resolution;
+/**
+ * Full lifecycle status value space (spec §7, §8). v0.5 adds `queued`/`bounced`/`acknowledged` for
+ * ADDRESSED messages: an addressed notify's lifecycle IS the §14.2 delivery track; an addressed
+ * ask/task keeps the §7 resolution machinery here (mailbox states live on the `mailbox` object).
+ */
+export type Status = "open" | "delivered" | "queued" | "bounced" | "acknowledged" | Resolution;
 
 // ---- Response (spec §6) ----
 export interface ResponseAgent {
