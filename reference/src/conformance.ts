@@ -382,6 +382,9 @@ function runOne(id: string, cls: string, v: Record<string, unknown>): VectorResu
     }
     const replayRes = verifyResponseEntry(scFor(honest, replayTo), v1, { key, now });
     if (replayRes.ok) return { id, cls, status: "fail", detail: "cross-session replay verified ok — destination binding broken" };
+    if (!replayRes.ok && replayRes.reason !== "signature mismatch") {
+      return { id, cls, status: "fail", detail: `replay rejected for the wrong reason: ${replayRes.reason}` };
+    }
     const tampered = v["tampered_entries"] as Array<{ entry: A2hResponse; reason: string }>;
     for (const t2 of tampered) {
       const res = verifyResponseEntry(scFor(t2.entry, honestTo), v1, { key, now });
@@ -445,6 +448,9 @@ function runOne(id: string, cls: string, v: Record<string, unknown>): VectorResu
     }
     const replayRes = verifyReceipt(scFor(honest, replayTo), v1, { key, now });
     if (replayRes.ok) return { id, cls, status: "fail", detail: "cross-destination replay verified ok — destination binding broken" };
+    if (!replayRes.ok && replayRes.reason !== "signature mismatch") {
+      return { id, cls, status: "fail", detail: `replay rejected for the wrong reason: ${replayRes.reason}` };
+    }
     const tampered = v["tampered_entries"] as Array<{ entry: ReceiptEntry; reason: string }>;
     for (const t2 of tampered) {
       const res = verifyReceipt(scFor(t2.entry, honestTo), v1, { key, now });
