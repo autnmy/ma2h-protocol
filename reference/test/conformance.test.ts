@@ -64,3 +64,22 @@ test("the v0.5 schema-validation vectors are exercised and pass (spec/v0.5.md)",
   assert.ok(v05.length >= 16, `expected >= 16 v0.5 vectors, got ${v05.length}`);
   for (const r of v05) assert.equal(r.status, "pass", `${r.id}: ${r.detail ?? ""}`);
 });
+
+test("the §9.8 entry-signature vectors dp-011..dp-018 are exercised and pass (spec/v0.5.md)", () => {
+  const report = runVectors();
+  for (const n of ["011", "012", "013", "014", "015", "016", "017", "018"]) {
+    const dp = report.results.find((r) => r.id.startsWith(`dp-${n}`));
+    assert.ok(dp, `dp-${n} vector present`);
+    assert.equal(dp.status, "pass", `dp-${n}: ${dp.detail ?? ""}`);
+  }
+});
+
+test("the behavioral obligation vectors dp-019..dp-024 skip with the discharging-suite pointer, never silently", () => {
+  const report = runVectors();
+  for (const n of ["019", "020", "021", "022", "023", "024"]) {
+    const dp = report.results.find((r) => r.id.startsWith(`dp-${n}`));
+    assert.ok(dp, `dp-${n} vector present`);
+    assert.equal(dp.status, "skip");
+    assert.match(dp.detail ?? "", /discharged by the reference behavior suites/);
+  }
+});

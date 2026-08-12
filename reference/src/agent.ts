@@ -515,14 +515,16 @@ export class Agent {
 
   /**
    * Handle a `receipt` entry (spec §8.7.1): verify (§9.8 — an unverified receipt could fabricate a
-   * bounce and trick a sender into abandoning a live ask), confirm it is addressed to this
-   * invocation, dedup on `(in_reply_to, event)`. Receipts drive NO action and never generate
-   * receipts; the sender's §8.2 pull remains authoritative.
+   * bounce and trick a sender into abandoning a live ask), dedup on `(in_reply_to, event)`.
+   * Receipts drive NO action and never generate receipts; the sender's §8.2 pull remains
+   * authoritative. The context's `to` is RECONSTRUCTED from this verifier's own drain identity —
+   * never from the wire (the received receipt's body `to` is routing convenience, not verification
+   * input) — so a cross-destination replay fails the signature itself (dp-016/dp-017).
    */
   receiveReceipt(receipt: ReceiptEntry, signatureHeader: string, nowMs?: number): ReceiptResult {
     const self = this.ownPrincipal();
-    if (self === undefined) {
-      return { acted: false, reason: "agent identity (agentId) not configured — cannot verify the addressee (§13.4)" };
+    if (self === undefined || this.opts.session === undefined) {
+      return { acted: false, reason: "agent identity + current session required to reconstruct the §9.8 context" };
     }
     const shape = validateV05("inbound-message.schema.json", receipt);
     if (!shape.valid) return { acted: false, reason: `invalid receipt: ${shape.errors.join("; ")}` };
@@ -539,7 +541,7 @@ export class Agent {
       // §9.8: recompute over the fixed six-key wrapper from the receipt we received.
       receipt_sha256: computeReceiptSha256(receipt),
       t: sig.t,
-      to: receipt.to,
+      to: `agent:${self}#${this.opts.session}` as AgentAddress,
     });
     const verified = verifyReceipt(sc, sig.v1, {
       key: this.opts.directiveKey ?? this.opts.callbackKey,
@@ -547,10 +549,6 @@ export class Agent {
       ...(this.opts.windowSeconds !== undefined ? { windowSeconds: this.opts.windowSeconds } : {}),
     });
     if (!verified.ok) return { acted: false, reason: `signature: ${verified.reason}` };
-    const to = splitAddress(receipt.to);
-    if (to === null || to.principal !== self || (to.session !== undefined && to.session !== this.opts.session)) {
-      return { acted: false, reason: `addressee mismatch: receipt.to ${receipt.to} is not this invocation (§13.4)` };
-    }
     if (this.seenDirectiveJti.has(sig.jti)) return { acted: false, reason: "replay: jti already seen" };
     this.seenDirectiveJti.add(sig.jti);
     const dedupKey = `${receipt.in_reply_to}::${receipt.event}`;
