@@ -110,9 +110,14 @@ participants:
   "A2H" above: the `A2H` in *MA2H* just spells the *agent → human* direction — the `2` is "to", as in M2M
   or B2B — and implies no dependency on, or implementation of, that addressing protocol.)
 
-Reach for MA2H when the problem is **many agents, one human, one durable hub** — not wiring two agents
-together, and not addressing a person. MA2H is the inbox and the decision loop, not the address book or
-the agent-to-agent wire.
+Reach for MA2H when the problem is **many agents, one human, one durable hub** — and not addressing a
+person. MA2H is the inbox and the decision loop, not the address book.
+
+As of **v0.5** that hub also routes between **one account's own agents** — but that does not make MA2H a
+peer-to-peer agent wire. The distinction is the shape: A2A dials an HTTP-addressable peer directly; the
+MA2H inter-agent leg is **hub-mediated and store-and-forward**, for spokes that are HTTP *clients* with
+no inbound port, inside a single account's trust boundary. It is account-opt-in, and it deliberately
+offers no cross-account federation, no agent discovery, and no open mesh.
 
 ## Reuse of prior art
 
@@ -153,7 +158,7 @@ schema/v0.5/
 examples/                          ← concrete envelopes (notify/ask/task + responses + directive + resume callback)
 conformance/                       ← vector format, the verification classes, starter vectors
 reference/                         ← @ma2h/reference — vendor-neutral TypeScript reference impl + `ma2h` CLI
-plugins/ma2h-skills/                ← installable plugin: implement a Hub + build notify/ask/task skills
+plugins/ma2h-skills/                ← installable plugin: implement a Hub + build notify/ask/task, inbox, bridge skills
 ```
 
 ## Conformance
@@ -162,9 +167,9 @@ An implementation is conformant if it satisfies the normative requirements in `s
 proof obligations in `conformance/`. The `reference/` TypeScript implementation and the vectors in
 `conformance/vectors/` define the interoperability baseline. The conformance harness
 (`npm run vectors`) validates both snapshots — bare targets against `schema/v0.4/`, `v0.5/`-prefixed
-targets against `schema/v0.5/`. The interactive `ma2h` CLI's validate/sign/docs commands still target
-v0.4 pending the v0.5 reference implementation (#26); until it lands, validate v0.5 shapes with the
-harness or any Draft 2020-12 validator pointed at `schema/v0.5/`.
+targets against `schema/v0.5/`. The reference implementation covers the v0.5 leg (sessions, addressed
+routing, entry signatures, bounce/expiry honesty, and the `runBridgeLoop` bridge example), and the
+interactive `ma2h` CLI's validate/sign/verify commands are version-aware across v0.4 and v0.5.
 
 ## The name
 
