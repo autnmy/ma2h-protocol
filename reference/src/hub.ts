@@ -1442,8 +1442,10 @@ export class Hub {
     if (rec.kind === "response") {
       const response = rec.response;
       // The destination binding is the SESSION the entry is delivered to (spec §9.8): the drainer
-      // reconstructs it from its own presented identity, so it must be the presented session.
-      const to = `agent:${principal}#${rec.addressedSession ?? presentedSession ?? ""}` as AgentAddress;
+      // reconstructs it from its own presented identity. A response entry always carries its
+      // addressed session (deliverResponseEntry sets it), which visibility guarantees equals the
+      // presented session; the fallback only documents that equivalence for the type system.
+      const to = `agent:${principal}#${rec.addressedSession ?? presentedSession}` as AgentAddress;
       const sc = buildResponseEntrySignedContext({
         id: response.in_reply_to,
         in_reply_to: response.in_reply_to,

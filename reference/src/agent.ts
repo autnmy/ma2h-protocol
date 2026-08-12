@@ -173,11 +173,10 @@ function sanitizeMessageEntry(m: InterAgentMessage): InterAgentMessage {
     ...(m.context !== undefined ? { context: m.context } : {}),
     ...(m.expires_at !== undefined ? { expires_at: m.expires_at } : {}),
     ...(m.sensitive !== undefined ? { sensitive: m.sensitive } : {}),
-    ...(m.idempotency_key !== undefined ? { idempotency_key: m.idempotency_key } : {}),
   };
   if (m.type === "ask") return { ...base, type: "ask", idempotency_key: m.idempotency_key, request: m.request };
   if (m.type === "task") return { ...base, type: "task", idempotency_key: m.idempotency_key, action: m.action };
-  return { ...base, type: "notify" };
+  return { ...base, type: "notify", ...(m.idempotency_key !== undefined ? { idempotency_key: m.idempotency_key } : {}) };
 }
 
 /** Project a directive to its known schema fields, dropping any unsigned unknown property (§10, §13.4). */
