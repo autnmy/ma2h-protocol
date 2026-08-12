@@ -544,6 +544,20 @@ export class Hub {
     const t = nowMs ?? this.now();
     this.settleSessions(t);
     this.negotiateVersion(message);
+
+    // Sender-side symmetry (§4): an addressed or session-bearing submit from a `#`-bearing
+    // principal is rejected `422 invalid_field` — the Hub could not attest a `from` the first-`#`
+    // grammar represents. Checked BEFORE schema validation (guarded reads: a malformed body falls
+    // through to the `validation_error` below) so the spec-pinned 422 surfaces rather than the
+    // v0.5 schema's own belt-and-braces encoding of the same rule (a 400).
+    if (typeof message === "object" && message !== null) {
+      const probe = message as { to?: unknown; agent?: { id?: unknown; session?: unknown } };
+      const participates = probe.to !== undefined || probe.agent?.session !== undefined;
+      if (participates && typeof probe.agent?.id === "string" && probe.agent.id.includes("#")) {
+        throw new HubError("invalid_field", `agent.id containing "#" cannot participate in the inter-agent leg (§4)`);
+      }
+    }
+
     // Version-aware validation (§10): a >= 0.5 envelope validates against the v0.5 schema snapshot
     // (which knows `to`/`agent.session`); anything else keeps the v0.4 registry byte-identically.
     const minor = Hub.minorOf(message);
@@ -559,12 +573,6 @@ export class Hub {
         "invalid_field",
         `\`to\`/\`agent.session\` are v0.5 fields; ma2h_version ${message.ma2h_version} predates them (§4, §10)`,
       );
-    }
-
-    // Sender-side symmetry (§4): an addressed or session-bearing submit from a `#`-bearing
-    // principal is rejected — the Hub could not attest a `from` the first-`#` grammar represents.
-    if ((message.to !== undefined || message.agent.session !== undefined) && message.agent.id.includes("#")) {
-      throw new HubError("invalid_field", `agent.id containing "#" cannot participate in the inter-agent leg (§4)`);
     }
 
     // `agent.session` (§4.1): must name one of the authenticated principal's OWN sessions —
@@ -1145,11 +1153,15 @@ export class Hub {
     };
   }
 
-  /** Advance an ask/task's receipt track to `delivered-to-agent` (spec §14.2) unless already acked. */
+  /**
+   * Advance an ask/task's receipt track to `delivered-to-agent` (spec §14.2) — only from the
+   * initial (absent) state: `acknowledged` and the v0.5 terminal `expired` are immutable (a pull
+   * after the track expired must not resurrect it — on a production Hub the record is purged and
+   * the pull is a 410; the in-memory reference keeps the record but honors the terminal).
+   */
   private markDeliveredToAgent(id: string, nowMs: number): void {
     const d = this.deliveries.get(id);
-    if (d?.state === "acknowledged") return;
-    if (d?.state === "delivered-to-agent") return;
+    if (d !== undefined) return;
     this.deliveries.set(id, { state: "delivered-to-agent", delivered_at: new Date(nowMs).toISOString() });
     // (The response-receipt owner is the submitting agent's owner, resolved at read time in getDelivery.)
   }
@@ -1332,8 +1344,8 @@ export class Hub {
    * session. A drain is client-originated activity: it renews the presented session's lease (§16.2)
    * and stamps `delivered` on what it returns (§15.1 truthfulness).
    */
-  drainInbox(principal: string, opts?: { max?: number; now?: number }): InboundDelivery[];
   drainInbox(principal: string, opts: { max?: number; now?: number; session: string }): InboxEntryDelivery[];
+  drainInbox(principal: string, opts?: { max?: number; now?: number }): InboundDelivery[];
   drainInbox(principal: string, opts?: { max?: number; now?: number; session?: string }): InboxEntryDelivery[] {
     const t = opts?.now ?? this.now();
     this.settleSessions(t);
