@@ -1,0 +1,35 @@
+{
+  "id": "dp-018-entry-redelivery-fresh-signature",
+  "class": "downstream-proof",
+  "description": "Per-delivery re-signing for the v0.5 entry kinds (§9.8, inheriting §9.7): an entry may rest in a mailbox arbitrarily long, so the Hub MUST re-sign EVERY delivery (first delivery, visibility-timeout redelivery, stream push) with a fresh `t`/`jti` — only t/jti change between deliveries; the bound context is otherwise identical. This fixture pins TWO deliveries of the dp-011 message entry: same entry, same payload_sha256, two (t, jti) pairs, two distinct pinned signatures — each verifying against its own header, proving freshness is achievable without altering the bound content.",
+  "ref": "spec §9.8, §9.7, §8.7.1",
+  "obligation": "Reproduce BOTH pinned `v1` values (each over the base context + its delivery's t/jti). Hub-side: every delivery of an entry MUST carry a fresh t/jti — replaying an earlier delivery's header verbatim is non-conformant. Consumer-side: reject a `t` outside the +/-replay window (an old delivery's header naturally ages out) and a replayed `jti` within the cache TTL (>= window) — a redelivered entry is NOT a replay (its header is fresh); the same jti presented twice IS. Expected runner wiring (#26): sign the base context once per delivery entry (t/jti substituted) and compare each v1.",
+  "test_key": "ma2h-test-secret-key-0123456789ab",
+  "signature_alg": "hmac-sha256",
+  "entry_ref": "dp-011-entry-message-signature (identical delivered entry and payload_sha256)",
+  "signed_context_base": {
+    "from": "agent:overseer/fleet#sess_01J5OVR0001",
+    "id": "msg_01J5MSG0002",
+    "ma2h_version": "0.5",
+    "payload_sha256": "f5d7fe8d3c10f59cf353375d9dd078bf36c74cb7cf503ed76fcdb2de3ad719ee",
+    "to": "agent:deploybot/dev-team#sess_01J5WRK0007"
+  },
+  "deliveries": [
+    {
+      "delivery": "first drain",
+      "t": "1786752000",
+      "jti": "jti_01J5MSGDEMOFIX",
+      "canonical_jcs": "{\"from\":\"agent:overseer/fleet#sess_01J5OVR0001\",\"id\":\"msg_01J5MSG0002\",\"jti\":\"jti_01J5MSGDEMOFIX\",\"ma2h_version\":\"0.5\",\"payload_sha256\":\"f5d7fe8d3c10f59cf353375d9dd078bf36c74cb7cf503ed76fcdb2de3ad719ee\",\"t\":\"1786752000\",\"to\":\"agent:deploybot/dev-team#sess_01J5WRK0007\"}",
+      "header": "MA2H-Signature: t=1786752000,jti=jti_01J5MSGDEMOFIX,v1=4ppFPmg1vtR0F4Fu0LWHWxKXCXyM-CUdMgkFF_xswPA",
+      "v1": "4ppFPmg1vtR0F4Fu0LWHWxKXCXyM-CUdMgkFF_xswPA"
+    },
+    {
+      "delivery": "visibility-timeout redelivery (un-acked)",
+      "t": "1786752300",
+      "jti": "jti_01J5MSGDEMOFI2",
+      "canonical_jcs": "{\"from\":\"agent:overseer/fleet#sess_01J5OVR0001\",\"id\":\"msg_01J5MSG0002\",\"jti\":\"jti_01J5MSGDEMOFI2\",\"ma2h_version\":\"0.5\",\"payload_sha256\":\"f5d7fe8d3c10f59cf353375d9dd078bf36c74cb7cf503ed76fcdb2de3ad719ee\",\"t\":\"1786752300\",\"to\":\"agent:deploybot/dev-team#sess_01J5WRK0007\"}",
+      "header": "MA2H-Signature: t=1786752300,jti=jti_01J5MSGDEMOFI2,v1=pOvLS0eRACL2x0n3RvPIXCc5IlRtxtfNcftJXzTSbAU",
+      "v1": "pOvLS0eRACL2x0n3RvPIXCc5IlRtxtfNcftJXzTSbAU"
+    }
+  ]
+}

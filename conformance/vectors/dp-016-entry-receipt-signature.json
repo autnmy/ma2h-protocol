@@ -1,0 +1,38 @@
+{
+  "id": "dp-016-entry-receipt-signature",
+  "class": "downstream-proof",
+  "description": "Deterministic signature fixture for the v0.5 `receipt` entry (§9.8) — the §14.4 ack pattern: a dedicated digest over a fixed-key wrapper with absent optionals as null. `receipt_sha256` is the SHA-256 of the JCS of exactly six keys — {\"at\", \"event\", \"id\", \"in_reply_to\", \"prior\", \"session\"} — with any absent member serialized as JSON null (all six are present in a v0.5 bounce receipt; the null convention keeps the digest unambiguous as future minors add events). The receipt's `id` — its §8.7.1 ack key — is bound inside the digest, so the key a consumer acks is authenticated like every other kind's. `in_reply_to` is bound top-level (the correlation + dedup key, with `event` inside the digest); `to` binds the sender session the receipt is delivered to. Matches examples/entry-signatures-v0.5.md §3 (prior: \"queued\" = the destination NEVER saw msg_01J5MSG0003).",
+  "ref": "spec §9.8 (receipt entry), §8.7.1, §14.2, §14.4",
+  "obligation": "Reproduce header `v1` from JCS(receipt_signed_context) + HMAC-SHA256(test_key); recompute receipt_sha256 from the received receipt via the fixed-key/null wrapper (never trusting a transmitted digest); reconstruct `to` from the verifier's own drain identity; dedup on (in_reply_to, event); treat the §8.2 pull as authoritative (receipts are best-effort) and MUST NOT generate receipts for receipts. Verification is still a MUST — an unverified receipt could fabricate a bounce and trick a sender into abandoning a live ask (dp-017). Expected runner wiring (#26): mirror the dp-008 branch with the §9.8 receipt context builder + receipt_sha256 helper.",
+  "test_key": "ma2h-test-secret-key-0123456789ab",
+  "signature_alg": "hmac-sha256",
+  "drain_identity": {
+    "agent_id": "overseer/fleet",
+    "session": "sess_01J5OVR0001",
+    "reconstructed_to": "agent:overseer/fleet#sess_01J5OVR0001"
+  },
+  "entry": {
+    "ma2h_version": "0.5",
+    "type": "receipt",
+    "id": "rcpt_01J5RCPT0001",
+    "in_reply_to": "msg_01J5MSG0003",
+    "event": "bounced",
+    "prior": "queued",
+    "at": "2026-08-10T12:20:00Z",
+    "session": "sess_01J5WRK0007",
+    "to": "agent:overseer/fleet#sess_01J5OVR0001"
+  },
+  "receipt_canonical_jcs": "{\"at\":\"2026-08-10T12:20:00Z\",\"event\":\"bounced\",\"id\":\"rcpt_01J5RCPT0001\",\"in_reply_to\":\"msg_01J5MSG0003\",\"prior\":\"queued\",\"session\":\"sess_01J5WRK0007\"}",
+  "receipt_sha256": "40abdcfbc1b8c32ed106288063609e5ef7a295f578afa1b17cde5d1c7405bcd6",
+  "signed_context": {
+    "in_reply_to": "msg_01J5MSG0003",
+    "jti": "jti_01J5RCPDEMOFIX",
+    "ma2h_version": "0.5",
+    "receipt_sha256": "40abdcfbc1b8c32ed106288063609e5ef7a295f578afa1b17cde5d1c7405bcd6",
+    "t": "1786752120",
+    "to": "agent:overseer/fleet#sess_01J5OVR0001"
+  },
+  "canonical_jcs": "{\"in_reply_to\":\"msg_01J5MSG0003\",\"jti\":\"jti_01J5RCPDEMOFIX\",\"ma2h_version\":\"0.5\",\"receipt_sha256\":\"40abdcfbc1b8c32ed106288063609e5ef7a295f578afa1b17cde5d1c7405bcd6\",\"t\":\"1786752120\",\"to\":\"agent:overseer/fleet#sess_01J5OVR0001\"}",
+  "header": "MA2H-Signature: t=1786752120,jti=jti_01J5RCPDEMOFIX,v1=-80T4jjtirjLy6Fri6osKG_gPS-CQhfd9uXgV0_9l78",
+  "v1": "-80T4jjtirjLy6Fri6osKG_gPS-CQhfd9uXgV0_9l78"
+}
