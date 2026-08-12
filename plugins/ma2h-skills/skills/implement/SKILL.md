@@ -27,7 +27,7 @@ an instruction to a specific agent. A Hub that omits it stays fully conformant a
 **v0.5 adds an optional inter-agent leg** (agent→agent, one account only — spec §16, §8.7.1, §14.2). Also
 additive and OPTIONAL, and layered on the inbound-leg mailbox (section 6): **sessions** make a live invocation addressable, an
 envelope **`to`** parks a message in the destination agent's mailbox as a signed **`message` entry**, and
-**delivery honesty** guarantees a sender is never left believing a lie. Add it via §7 only if this
+**delivery honesty** guarantees a sender is never left believing a lie. Add it via section 7 only if this
 account's agents should coordinate through this Hub; it requires that same mailbox plus the ack primitive,
 and it is **account-opt-in** (`inter_agent.enabled` defaults **false**, spec §8.0).
 
@@ -191,7 +191,7 @@ detached-signature framing, same `jti`.
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/v1/inbox` | drain up to `?max=N` pending directives (FIFO), each paired with its `MA2H-Signature`; supports `?wait=<seconds>` long-poll like `GET /v1/messages/{id}`. *(v0.5: also accepts `?session=` — the session-scoped form that delivers the section-7 entry kinds; session-less stays exactly this v0.4 shape)* |
-| POST | `/v1/inbox/ack` | `{ "ids": [...] }` — consume (remove) processed directives; idempotent. *(v0.5: MAY present `?session=` — lease attribution only, never authorization; covers all §7 entry kinds by their ack keys)* |
+| POST | `/v1/inbox/ack` | `{ "ids": [...] }` — consume (remove) processed directives; idempotent. *(v0.5: MAY present `?session=` — lease attribution only, never authorization; covers all section-7 entry kinds by their ack keys)* |
 
 Plus a **human-facing authoring action** (Hub-internal, like `/…/resolve` — *not* a normative agent wire
 path): the human picks an agent and composes a directive; the Hub attests `from`, assigns `id`, and enqueues
@@ -251,7 +251,7 @@ verify twins); the deterministic worked fixtures are in
 Run the **conformance vectors** against the implementation and add Hub scenario tests for each invariant
 (idempotency dedup, first-terminal-wins, signed-callback round-trip + verify, SSRF refusal, fail-closed
 authz, body sanitization; if you built section 6: directive signing/verify `dp-005`, tamper/cross-agent-replay
-`dp-006`, and mailbox at-least-once/consume/isolation `dp-007`; and if you built §7, the v0.5 families —
+`dp-006`, and mailbox at-least-once/consume/isolation `dp-007`; and if you built section 7, the v0.5 families —
 the `sv-017..043` schema vectors, the §9.8 entry-signature fixtures (known input → known signature for
 all three kinds; tampered `from`/`to`/payload and replayed `jti` rejected), and the §12 downstream proofs:
 session-lease CAS + the human kill-switch, first-claim-wins with crashed-claimant rescue, stream-liveness

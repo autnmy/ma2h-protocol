@@ -140,8 +140,12 @@ it in `.claude-plugin/plugin.json` + the root `.claude-plugin/marketplace.json`,
    (directive/`message` → `id`; `response` → `resolution_id`; `receipt` → `id`). Present the session:
    during a held stream, acks may be the bridge's only client-originated traffic. Never ack before
    the work is durable (§13.4 ordering: verify → confirm → act → commit dedup → ack).
-6. **Close on orderly exit** — `DELETE /v1/sessions/{id}` (idempotent). A closed session bounces
-   nothing later and frees the live-session cap.
+6. **Close on orderly exit** — `DELETE /v1/sessions/{id}` (idempotent), and free the live-session
+   cap. Close only once everything drained is acked: closing is what *triggers* the §14.2 bounce
+   rules for whatever is still un-acked, so an orderly exit bounces nothing **because it left
+   nothing un-acked** — not because closing is inherently quiet. (A principal-addressed entry this
+   session drained but never acked can still bounce `prior: "delivered"` at retention end, naming
+   this session as the last claimant.)
 
 ## Failure discipline — LOUD, NEVER SILENT
 
