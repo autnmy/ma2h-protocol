@@ -26,6 +26,7 @@ function newHub(now: { t: number }, opts?: { maxLive?: number; terminalRetention
   });
   hub.setAgentOwner(AGENT, OWNER);
   hub.setAgentOwner(OTHER, OWNER);
+  hub.setInterAgentEnabled(OWNER); // §8.0: the addressed-submit reachability test needs the leg on
   return hub;
 }
 

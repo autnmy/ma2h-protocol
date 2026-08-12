@@ -226,7 +226,10 @@ export class Agent {
     try {
       sig = parseSignatureHeader(signatureHeader);
     } catch (e) {
-      return { acted: false, reason: (e as Error).message };
+      // A malformed/missing signature header is a VERIFICATION failure, not an ordinary refusal:
+      // prefix it `signature:` so the bridge's fatal classification (§13.4 loud-failure) catches it
+      // — an unverifiable entry in the agent's own mailbox must never be silently skipped.
+      return { acted: false, reason: `signature: ${(e as Error).message}` };
     }
 
     const sc = buildSignedContext({
@@ -297,7 +300,10 @@ export class Agent {
     try {
       sig = parseSignatureHeader(signatureHeader);
     } catch (e) {
-      return { acted: false, reason: (e as Error).message };
+      // A malformed/missing signature header is a VERIFICATION failure, not an ordinary refusal:
+      // prefix it `signature:` so the bridge's fatal classification (§13.4 loud-failure) catches it
+      // — an unverifiable entry in the agent's own mailbox must never be silently skipped.
+      return { acted: false, reason: `signature: ${(e as Error).message}` };
     }
 
     const sc = buildInboundSignedContext({
@@ -318,11 +324,23 @@ export class Agent {
     if (!verified.ok) return { acted: false, reason: `signature: ${verified.reason}` };
 
     // §13.4: confirm this directive is addressed to THIS agent. The signature binds `to`, so a valid
-    // signature proves the Hub intended a specific addressee — but only the recipient checking
-    // `to === self` stops a directive validly signed for agent:X from being acted on by agent:Y (the
+    // signature proves the Hub intended a specific addressee — but only the recipient checking the
+    // addressee stops a directive validly signed for agent:X from being acted on by agent:Y (the
     // webhook channel has no Hub-side mailbox gate; the pull mailbox enforces this Hub-side too).
-    if (directive.to !== self) {
+    // A v0.5 directive MAY be SESSION-addressed (§13.2), so the check honors the §13.4 amendment
+    // exactly as `receiveMessageEntry`: `to`'s principal must be this agent AND, when
+    // session-qualified, the named session must be this invocation's own CURRENT session — a
+    // directive for a prior own session is refused, not acted on. (A bare `agent:<id>` matches any
+    // session; a legacy `#`-bearing addressee that splitAddress cannot parse falls back to exact.)
+    const toAddr = splitAddress(directive.to);
+    if (toAddr === null ? directive.to !== self : `agent:${toAddr.principal}` !== self) {
       return { acted: false, reason: `addressee mismatch: directive.to ${directive.to} != ${self}` };
+    }
+    if (toAddr?.session !== undefined && toAddr.session !== this.opts.session) {
+      return {
+        acted: false,
+        reason: `addressee session mismatch: ${toAddr.session} is not this invocation's current session (§13.4)`,
+      };
     }
 
     // §9.7: reject an exact-bytes signature replay (same jti) independently of the id business-dedup.
@@ -388,7 +406,10 @@ export class Agent {
     try {
       sig = parseSignatureHeader(signatureHeader);
     } catch (e) {
-      return { acted: false, reason: (e as Error).message };
+      // A malformed/missing signature header is a VERIFICATION failure, not an ordinary refusal:
+      // prefix it `signature:` so the bridge's fatal classification (§13.4 loud-failure) catches it
+      // — an unverifiable entry in the agent's own mailbox must never be silently skipped.
+      return { acted: false, reason: `signature: ${(e as Error).message}` };
     }
     const sc = buildMessageEntrySignedContext({
       from: message.from,
@@ -465,11 +486,19 @@ export class Agent {
     if (self === undefined || this.opts.session === undefined) {
       return { acted: false, reason: "agent identity + current session required to reconstruct the §9.8 context" };
     }
+    // §8.7.1: a consuming agent MUST validate the delivered payload's shape before acting — the
+    // sibling directive/message/receipt handlers all do. Validate against the v0.5 response entry
+    // shape before hashing so a malformed body is refused cleanly, not fed to the canonicalizer.
+    const shape = validateV05("response.schema.json", response);
+    if (!shape.valid) return { acted: false, reason: `invalid response entry: ${shape.errors.join("; ")}` };
     let sig: ParsedSignature;
     try {
       sig = parseSignatureHeader(signatureHeader);
     } catch (e) {
-      return { acted: false, reason: (e as Error).message };
+      // A malformed/missing signature header is a VERIFICATION failure, not an ordinary refusal:
+      // prefix it `signature:` so the bridge's fatal classification (§13.4 loud-failure) catches it
+      // — an unverifiable entry in the agent's own mailbox must never be silently skipped.
+      return { acted: false, reason: `signature: ${(e as Error).message}` };
     }
     const sc = buildResponseEntrySignedContext({
       id: response.in_reply_to,
@@ -532,7 +561,10 @@ export class Agent {
     try {
       sig = parseSignatureHeader(signatureHeader);
     } catch (e) {
-      return { acted: false, reason: (e as Error).message };
+      // A malformed/missing signature header is a VERIFICATION failure, not an ordinary refusal:
+      // prefix it `signature:` so the bridge's fatal classification (§13.4 loud-failure) catches it
+      // — an unverifiable entry in the agent's own mailbox must never be silently skipped.
+      return { acted: false, reason: `signature: ${(e as Error).message}` };
     }
     const sc = buildReceiptSignedContext({
       in_reply_to: receipt.in_reply_to,

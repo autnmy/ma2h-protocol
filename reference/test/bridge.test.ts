@@ -29,6 +29,7 @@ function newHub(now: { t: number }): Hub {
   const hub = new Hub({ signingKey: KEY, now: () => now.t, sessionMinTtlSeconds: 60 });
   hub.setAgentOwner(SENDER, OWNER);
   hub.setAgentOwner(WORKER, OWNER);
+  hub.setInterAgentEnabled(OWNER); // §8.0: the inter-agent leg is account-opt-in (defaults off)
   return hub;
 }
 

@@ -245,6 +245,9 @@ export class Hub {
   private readonly sessions = new Map<string, SessionRecord>();
   /** Per-destination sender allowlists (spec §8.0/§13.5); a block reads as unknown (spec §8.5). */
   private readonly senderAllowlists = new Map<string, Set<string>>();
+  /** Accounts (by owning human) that have opted into the inter-agent leg (spec §8.0 `inter_agent.enabled`,
+   * defaults false; §13.5 defense layer 1). Absent → the leg is OFF for that account. */
+  private readonly interAgentOwners = new Set<string>();
   private readonly signingKey: string;
   private readonly baseUrl: string;
   private readonly now: () => number;
@@ -419,7 +422,7 @@ export class Hub {
     this.settleSessions(t);
     const rec = this.sessions.get(sessionId);
     const isOwner = rec !== undefined && rec.session.agent_id === caller;
-    const isAccountHuman = rec !== undefined && this.presenceOwners.get(rec.session.agent_id) === caller;
+    const isAccountHuman = rec !== undefined && this.isAccountHuman(rec.session.agent_id, caller);
     if (!rec || (!isOwner && !isAccountHuman)) {
       throw new HubError("not_found", `unknown session: ${sessionId}`);
     }
@@ -442,7 +445,7 @@ export class Hub {
     const rec = this.sessions.get(sessionId);
     const permitted =
       rec !== undefined &&
-      (rec.session.agent_id === caller || this.presenceOwners.get(rec.session.agent_id) === caller);
+      (rec.session.agent_id === caller || this.isAccountHuman(rec.session.agent_id, caller));
     if (!rec || !permitted) throw new HubError("not_found", `unknown session: ${sessionId}`);
     return { session: structuredClone(rec.session) };
   }
@@ -575,6 +578,15 @@ export class Hub {
       );
     }
 
+    // §4: `expires_at` MUST be in the future at submit or the Hub rejects `422 invalid_field`
+    // (§8.5). Accepting a corpse with a success ack — acked `open`/`queued` with a reachability
+    // snapshot implying deliverability, then auto-expiring on the first mailbox touch — is the
+    // accept-then-dead-letter false belief the delivery-honesty rules exist to kill (mirrors the
+    // §13.1 directive check). Applies to every verb, addressed or not.
+    if (message.expires_at !== undefined && Date.parse(message.expires_at) <= t) {
+      throw new HubError("invalid_field", `expires_at ${message.expires_at} is not in the future (§4/§8.5)`);
+    }
+
     // `agent.session` (§4.1): must name one of the authenticated principal's OWN sessions —
     // foreign/unknown → 422; own-but-terminal → 410. Naming it is client-originated renewal (§16.2).
     let submitterSession: SessionRecord | undefined;
@@ -626,6 +638,13 @@ export class Hub {
     t: number,
     submitterSession: SessionRecord | undefined,
   ): SubmitAck {
+    // §8.0/§13.5 layer 1: the inter-agent leg is account-opt-in and defaults OFF. A Hub MUST NOT
+    // accept `to`-addressed submits from an account that has not opted in. This is the submitter's
+    // OWN account state (not the destination's), so rejecting is not an existence oracle.
+    const submitterOwner = this.presenceOwners.get(message.agent.id);
+    if (submitterOwner === undefined || !this.interAgentOwners.has(submitterOwner)) {
+      throw new HubError("not_authorized", `the inter-agent leg is not enabled for this account (§8.0 inter_agent.enabled)`);
+    }
     const dest = this.validateDestination(message.to as string, message.agent.id);
 
     // Delivered form (§8.7.1): the submitted envelope plus Hub-assigned `id` and Hub-attested
@@ -684,7 +703,7 @@ export class Hub {
       poll_url: `${this.baseUrl}/v1/messages/${id}`,
       review_url: `${this.baseUrl}/inbox/${id}`,
       // The REQUIRED reachability snapshot — also the sender's misroute detector (§8.1).
-      destination: this.destinationSnapshot(dest.principal, dest.session, t),
+      destination: this.destinationSnapshot(dest.principal, dest.session, t, message.agent.id),
     };
   }
 
@@ -715,8 +734,11 @@ export class Hub {
         throw new HubError("unknown_destination", `unknown destination: ${to} (§4)`);
       }
       if (rec.session.state !== "active") {
-        if (!this.sessionVisibility) {
-          // Visibility-denied senders get the collapsed split (§4): terminal reads as unknown.
+        // Own-session visibility is UNCONDITIONAL (§16.4): a principal addressing one of its OWN
+        // sessions (the documented shared-credential fleet mode) always sees the honest 410 split —
+        // it never lacks visibility for itself. The oracle-guard collapse applies only to a
+        // third-party sender the policy denies.
+        if (!this.sessionVisibility && parsed.principal !== submitter) {
           throw new HubError("unknown_destination", `unknown destination: ${to} (§4)`);
         }
         throw new HubError("destination_gone", `destination session ${parsed.session} is ${rec.session.state} (§4, §8.5)`);
@@ -732,8 +754,15 @@ export class Hub {
    * (it can never be shown a v0.5 entry). Exactly `{ state: "unknown" }` when the sender lacks
    * visibility (§16.4 policy) or the destination has no session history.
    */
-  private destinationSnapshot(principal: string, sessionId: string | undefined, nowMs: number): DestinationSnapshot {
-    if (!this.sessionVisibility) return { state: "unknown" };
+  private destinationSnapshot(
+    principal: string,
+    sessionId: string | undefined,
+    nowMs: number,
+    submitter: string,
+  ): DestinationSnapshot {
+    // §16.4: own-session/own-principal visibility is unconditional — a sender addressing itself
+    // always gets the honest snapshot; the policy blanks it only for a third-party destination.
+    if (!this.sessionVisibility && principal !== submitter) return { state: "unknown" };
     if (sessionId !== undefined) {
       const rec = this.sessions.get(sessionId);
       const seen = rec?.lastSeenMs;
@@ -980,6 +1009,14 @@ export class Hub {
   ): { id: string; status: Status; resolution_id: string; response: A2hResponse } {
     const t = opts?.now ?? this.now();
     this.settleSessions(t);
+    // Sender-side symmetry on the RESOLVE end (§4): a `#`-bearing principal cannot participate in
+    // the inter-agent leg on ANY end. Without this, `agent:${principal}` naive-concats the `#`, and
+    // assertAuthorized round-trips the actor back through the first-`#` parser — truncating a
+    // cross-account `victim#sess_evil` to `victim` and forging the addressee's decision. Rejected
+    // here exactly as submit() and registerSession() reject it.
+    if (principal.includes("#")) {
+      throw new HubError("invalid_field", `agent.id containing "#" cannot participate in the inter-agent leg (§4)`);
+    }
     let actor: Actor = `agent:${principal}`;
     if (opts?.session !== undefined) {
       this.presentSession(principal, opts.session, t);
@@ -1029,11 +1066,18 @@ export class Hub {
       ...(record.message.state !== undefined ? { state: record.message.state } : {}),
     });
     this.emitResponse(record);
+    // §8.8 pins the resolve success body to `{ id, status, resolution_id }`. The RESOLVER is the
+    // addressee — a different, potentially hostile principal — so the returned Response MUST NOT
+    // carry the submitter's opaque `state` resume blob (§8.7.1 strips it from the forward-leg
+    // delivered form for exactly this reason; it round-trips only on the submitter's own §6
+    // channels). Strip it here so the resolve return can't leak it backward.
+    const full = record.response as A2hResponse;
+    const { state: _submitterState, ...responseSansState } = full;
     return {
       id: record.id,
       status: record.status,
       resolution_id: record.resolution_id as string,
-      response: record.response as A2hResponse,
+      response: responseSansState,
     };
   }
 
@@ -1231,13 +1275,35 @@ export class Hub {
   }
 
   /**
+   * Opt an account (by owning human) into the inter-agent leg (spec §8.0 `inter_agent.enabled`,
+   * §13.5 layer 1). The leg defaults OFF: until an account opts in, the Hub MUST NOT accept
+   * `to`-addressed submits from it. `enabled: false` (or the default) turns it back off.
+   */
+  setInterAgentEnabled(owner: string, enabled = true): void {
+    if (enabled) this.interAgentOwners.add(owner);
+    else this.interAgentOwners.delete(owner);
+  }
+
+  /**
+   * Is `caller` the account's authenticated HUMAN for `agentId` (spec §16.4)? The owner-value match
+   * alone is namespace-unsafe: `presenceOwners` VALUES are human ids (`human:you`) while an agent
+   * CREDENTIAL is a bare principal, and an agent could be provisioned with an id string equal to a
+   * human owner id — letting it impersonate the account human's kill-switch / reads. The guard
+   * `!presenceOwners.has(caller)` closes that: a genuine human owner is never itself a provisioned
+   * agent (owners are values, never keys), so an agent principal — always a key — is disqualified.
+   */
+  private isAccountHuman(agentId: string, caller: string): boolean {
+    return this.presenceOwners.get(agentId) === caller && !this.presenceOwners.has(caller);
+  }
+
+  /**
    * Presence read (spec §15.3): derive `online`/`offline`/`unknown` for an agent from its `last_seen`.
    * **Owner-only:** `caller` is the requesting human; an agent not owned by `caller` reads as `unknown`
    * with NO `last_seen`, so a non-owner never learns another agent's activity timing.
    */
   getPresence(agentId: string, caller: string, nowMs?: number): Presence {
     const freshness_seconds = this.presenceFreshnessSeconds;
-    if (this.presenceOwners.get(agentId) !== caller) {
+    if (!this.isAccountHuman(agentId, caller)) {
       return { agent_id: agentId, state: "unknown", freshness_seconds };
     }
     const t = nowMs ?? this.now();
@@ -1578,6 +1644,10 @@ export class Hub {
         const existing = this.deliveries.get(messageId);
         if (existing?.state === "acknowledged") {
           if (existing.ack) acks.push(structuredClone(existing.ack));
+        } else if (existing?.state === "expired") {
+          // The v0.5 response-track terminal `expired` (§14.2) is immutable: the answer was NEVER
+          // seen. Consume the stale entry but do NOT resurrect the track to `acknowledged` — that
+          // would tell the human the answer was received when the track already asserted it wasn't.
         } else {
           this.markDeliveredToAgent(messageId, rec.deliveredAtMs ?? t);
           const ack = this.buildAck(messageId, principal, t, opts?.note, rec.response.resolution_id);
@@ -1612,7 +1682,11 @@ export class Hub {
       const messageId = this.responseAckIndex.get(id);
       if (messageId !== undefined) {
         const r = this.deliveries.get(messageId);
-        if (r?.state === "acknowledged" && r.ack) acks.push(structuredClone(r.ack));
+        // Bind to THIS principal via the ack's `by` (§8.7/§9.1), exactly as the directive and
+        // mailbox-track branches above — otherwise a non-submitting principal that holds a foreign
+        // `resolution_id` (the addressee always does — resolveAsAgent returns it) could read the
+        // submitter's private ack (its `note`, `acked_at`, message id).
+        if (r?.state === "acknowledged" && r.ack?.by === `agent:${principal}`) acks.push(structuredClone(r.ack));
       }
     }
     // Compact acked records out of the mailbox (the receipts live on in their track stores).
@@ -1756,6 +1830,15 @@ export class Hub {
    */
   private autoResolveUndeliverable(record: MessageRecord, atMs: number): void {
     if (record.message.type === "notify") return;
+    // Expiry-vs-undeliverable, same clock (§7/§9.5): if the message-level `expires_at` already fired
+    // before the bounce/retention moment, the FIRST terminal is `expired` with `default_on_expire`
+    // applied — not `cancelled`/`system:undeliverable`. This is the lazy-clock emulation of the §7
+    // timer every sibling path carries (cancel/resolve/resolveAsAgent/expireEntry); the auto-
+    // resolution stays a harmless no-op when the expiry already won the CAS.
+    if (record.status === "open" && record.expiresAtMs !== null && atMs > record.expiresAtMs) {
+      this.applyDefaultExpiry(record, atMs);
+      return;
+    }
     const res = applyResolution(record, {
       resolution: record.message.type === "ask" ? "cancelled" : "dismissed",
       actor: "system:undeliverable",
@@ -1852,9 +1935,12 @@ export class Hub {
       );
     }
     // Response-track retention (§14.2): a terminal ask/task whose answer was never picked up.
+    // Anchored at RESOLUTION time (§8.2 keeps a resolved message pull-available for the full TTL
+    // after resolution) — not submission, which would shrink the guaranteed pull window toward zero
+    // for an ask that stayed open most of the retention period before being answered.
     for (const [id, record] of this.store) {
       if (record.status === "open" || record.message.type === "notify") continue;
-      if (t - record.createdAtMs <= this.retentionMs) continue;
+      if (t - (record.resolvedAtMs ?? record.createdAtMs) <= this.retentionMs) continue;
       const track = this.deliveries.get(id);
       if (track === undefined || (track.state !== "delivered-to-agent" && track.state !== "acknowledged")) {
         this.deliveries.set(id, { state: "expired" });

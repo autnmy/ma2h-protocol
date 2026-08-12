@@ -30,6 +30,7 @@ function newHub(now: { t: number }, opts?: { sessionVisibility?: boolean; retent
   });
   hub.setAgentOwner(SENDER, OWNER);
   hub.setAgentOwner(WORKER, OWNER);
+  hub.setInterAgentEnabled(OWNER); // §8.0: the inter-agent leg is account-opt-in (defaults off)
   return hub;
 }
 

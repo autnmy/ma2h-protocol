@@ -114,8 +114,15 @@ function cmdValidate(positionals: string[], flags: Map<string, string>): void {
   // Version-aware registry selection (§10): a >= 0.5 document — or a v0.5-only shape — validates
   // against the v0.5 snapshot; everything else keeps the v0.4 registry byte-identically.
   const useV05 = V05_ONLY_KINDS.has(kind) || declaresV05(doc);
+  // A session resource arrives either bare or wrapped as the `POST/GET /v1/sessions` envelope
+  // `{ "session": { ... } }` (spec §16.1). session.schema.json's root is the RESOURCE, so unwrap
+  // the envelope before validating — otherwise a valid response envelope is wrongly rejected.
+  const target =
+    kind === "session" && doc && typeof doc === "object" && "session" in (doc as Record<string, unknown>)
+      ? (doc as { session: unknown }).session
+      : doc;
   const res: ValidationResult = useV05
-    ? validateV05(V05_SCHEMA_BY_KIND[kind], doc)
+    ? validateV05(V05_SCHEMA_BY_KIND[kind], target)
     : kind === "response"
       ? validateResponse(doc)
       : kind === "capability"
