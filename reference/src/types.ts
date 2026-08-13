@@ -1,4 +1,4 @@
-// MA2H domain types — strongly typed to spec/v0.3.md and schema/v0.3/*.
+// MA2H domain types — strongly typed to spec/v0.5.md and schema/v0.5/*.
 // The discriminated unions mirror the JSON Schema `oneOf` branches exactly, so
 // the type system enforces the same shape rules the schemas do.
 
@@ -251,9 +251,24 @@ export interface SubmitAck {
   /**
    * The verb's OWNING-track status (spec §8.1). At first accept: `open` (any ask/task),
    * `delivered` (human-inbox notify), or `queued` (ADDRESSED notify — its lifecycle IS the §14.2
-   * delivery track; asserting `delivered` at accept would be the false belief v0.5 bans).
+   * delivery track; asserting `delivered` at accept would be the false belief v0.5 bans). An
+   * idempotent same-payload replay returns the original ack with the owning track's CURRENT status
+   * (spec §8.1) — e.g. `queued`/`delivered`/`acknowledged`/`bounced`/`expired` for an addressed
+   * notify (its track runs to acknowledged on consume, §14.2), a §7 resolution for an ask/task —
+   * hence the full 11-value space of submit-ack.schema.json.
    */
-  status: "open" | "delivered" | "queued";
+  status:
+    | "open"
+    | "delivered"
+    | "queued"
+    | "answered"
+    | "declined"
+    | "cancelled"
+    | "expired"
+    | "completed"
+    | "dismissed"
+    | "bounced"
+    | "acknowledged";
   poll_url: string;
   review_url?: string;
   /** Present on every ADDRESSED submit ack (v0.5, spec §8.1); absent on the human-inbox path. */
@@ -359,7 +374,16 @@ export interface Capability {
   auth_schemes?: Array<"bearer" | "apikey">;
   callback_auth_schemes?: Array<"hmac" | "bearer" | "apikey">;
   signature_algs?: Array<"hmac-sha256" | "ed25519">;
-  rate_limit?: { requests_per_minute?: number; inbox_depth?: number };
+  rate_limit?: {
+    requests_per_minute?: number;
+    inbox_depth?: number;
+    /**
+     * OPTIONAL separate per-`agent.id` budget for addressed (`to`-carrying) submits (v0.5, spec
+     * §8.6), so inter-agent chatter cannot starve the human leg. Absent = addressed submits share
+     * `requests_per_minute`.
+     */
+    inter_agent_requests_per_minute?: number;
+  };
   retention_days?: number;
   replay_window_seconds?: number;
   /** Human→agent inbound leg (spec §8.0, §13). Absent on a v0.3-only Hub. */
@@ -372,6 +396,26 @@ export interface Capability {
     retention_days?: number;
     signature_algs?: Array<"hmac-sha256" | "ed25519">;
     webhook_supported?: boolean;
+    /**
+     * True iff `GET /v1/inbox` accepts `?session=` (v0.5, spec §8.7.1). A session-presenting drain
+     * additionally receives the v0.5 entry kinds; a session-less drain returns exactly the v0.4
+     * shape.
+     */
+    session_param?: boolean;
+    /**
+     * OPTIONAL SSE binding (v0.5, spec §8.7.2): the same authenticated, session-scoped entries as
+     * the drain, pushed over a held connection. Acks remain explicit POSTs; a stream push is
+     * provisional (the delivery track advances only on client-originated evidence). Advertising it
+     * REQUIRES `stream_max_hold_seconds` (the schema's `dependentRequired` pairing).
+     */
+    stream_url?: string;
+    /**
+     * Advertised bound on each stream hold (v0.5, spec §8.7.2); MUST be <= the presence freshness
+     * window. The Hub closes the stream at the bound and the client's reconnect is the
+     * lease/presence renewal (the zombie-socket rule). Mandatory companion of `stream_url`
+     * (`dependentRequired` in capability.schema.json).
+     */
+    stream_max_hold_seconds?: number;
   };
   /** Acknowledgment/receipt primitive (spec §8.0, §14). */
   ack?: { enabled: boolean; signature_algs?: Array<"hmac-sha256" | "ed25519"> };
