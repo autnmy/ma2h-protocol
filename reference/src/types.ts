@@ -317,6 +317,13 @@ export interface Delivery {
   delivered_at?: string;
   acknowledged_at?: string;
   ack?: Ack;
+  /**
+   * Explicit never-seen vs seen-then-orphaned split on `bounced` terminals
+   * (spec §14.2): stamped once at the bounce transition and equal to the
+   * bounce receipt's `prior`. SHOULD-level for any surfaced delivery record;
+   * never present on `expired` (which still means never-delivered).
+   */
+  prior?: "queued" | "delivered";
 }
 
 /**
