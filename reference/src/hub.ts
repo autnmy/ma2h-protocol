@@ -31,6 +31,7 @@ import {
   signResponseEntry,
 } from "./signing.js";
 import { validateAgainstSchema, validateMessage, validateV05, validateV05Def } from "./envelope.js";
+import { MA2H_VERSION } from "./version.js";
 import type {
   Ack,
   A2hMessage,
@@ -64,8 +65,6 @@ import type {
   TaskMessage,
 } from "./types.js";
 
-/** Highest version this reference Hub implements (spec §10) — major 0, up to minor 5. */
-const HUB_VERSION = "0.5";
 /**
  * The minor at which the §9.2 signature began binding `payload_sha256` (v0.3). Push parity is anchored
  * HERE, not at IMPLEMENTED_MINOR: 0.3 and 0.4 share the payload-bound signature, so a v0.4 Hub still
@@ -521,7 +520,7 @@ export class Hub {
     if (nonZeroMajor) {
       throw new HubError(
         "version_not_supported",
-        `ma2h_version "${raw}": major ${nonZeroMajor[1]} is not supported (this Hub implements ${HUB_VERSION}; §10)`,
+        `ma2h_version "${raw}": major ${nonZeroMajor[1]} is not supported (this Hub implements ${MA2H_VERSION}; §10)`,
       );
     }
     // Push parity (§9.2 v0.3 break) — a `0.x` with a CANONICAL minor (no leading zeros) below the
@@ -1224,7 +1223,7 @@ export class Hub {
   /** Assemble a Hub-attested ack envelope (spec §14.1). */
   private buildAck(inReplyTo: string, principal: string, nowMs: number, note?: string, resolutionId?: string): Ack {
     return {
-      ma2h_version: HUB_VERSION,
+      ma2h_version: MA2H_VERSION,
       type: "ack",
       in_reply_to: inReplyTo,
       by: `agent:${principal}`,
@@ -1389,7 +1388,7 @@ export class Hub {
     }
     const id = newDirectiveId();
     const directive: InboundDirective = {
-      ma2h_version: HUB_VERSION,
+      ma2h_version: MA2H_VERSION,
       type: "directive",
       id,
       from: input.from,
@@ -1905,7 +1904,7 @@ export class Hub {
     const senderSession = this.sessions.get(from.session);
     if (!senderSession || senderSession.session.state !== "active") return;
     const receipt: ReceiptEntry = {
-      ma2h_version: HUB_VERSION,
+      ma2h_version: MA2H_VERSION,
       type: "receipt",
       id: newReceiptId(),
       in_reply_to: message.id,
