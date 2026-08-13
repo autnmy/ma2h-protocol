@@ -4,6 +4,58 @@ All notable changes to the MA2H (Multi-agent to Human Protocol) specification.
 
 ## Unreleased
 
+### Added (v0.5 — shared MAC helpers, canonical version constant, marker formalization, vendored-surface re-sync) — #41
+One pass restoring the reference as the single source of truth for the surfaces downstream vendors
+byte-for-byte, and formalizing the two v0.5 markers a shipping Hub already emits. Additive within the
+unreleased v0.5 line; no `$id` changes, no wire-format breaks.
+
+- **Shared MAC decode/validate rule (§9.2/§9.7/§9.8)** — `reference/src/signing.ts` exports
+  `isWellFormedMac`/`decodeMac` (base64url alphabet, RFC 4648 structurally-valid padding only,
+  decoded ≥ 32 bytes — deliberately **no** canonical round-trip check); all six `verify*` contexts
+  consume the one definition via `verifyCanonical`, so consumers import the wire rule instead of
+  re-deriving it (oh-hai#711: a hand-rolled second validator with the wrong alphabet rejected 100% of
+  conformant traffic). Signing output and the `examples/entry-signatures-v0.5.md` fixtures are
+  byte-unchanged; standard-base64 `+`/`/` values Node's lenient decoder tolerated now reject
+  (conformant §9.2 emitters unaffected).
+- **Canonical `MA2H_VERSION` constant (§10)** — new `reference/src/version.ts` exports the one wire
+  version the implementation emits (`"0.5"`); the reference Hub's private `HUB_VERSION` literal is
+  replaced by the import so every Hub-minted envelope carries it (oh-hai#712: five declaration sites
+  drifted to advertising `v0.3` while emitting `0.5`). `PAYLOAD_BOUND_SINCE_MINOR` stays a distinct
+  constant — the §10 push-parity floor anchored at the signature-break minor (3), not "the version we
+  emit".
+- **`types.ts` re-synced with `schema/v0.5` (#37)** — `Capability["inbound"]` gains
+  `session_param`/`stream_url`/`stream_max_hold_seconds` and `Capability["rate_limit"]` gains
+  `inter_agent_requests_per_minute` (§8.0/§8.7.1/§8.7.2); `SubmitAck.status` widens to the schema's
+  full 11-value enum (§8.1). No exported identifier renamed — the downstream re-vendor restores
+  `signing.ts`/`types.ts` byte-identical.
+- **Explicit `mailbox.prior` (§14.2) — oh-hai#700** — the `get-message` mailbox track gains `prior`
+  (`queued` | `delivered`): the explicit never-seen vs seen-then-orphaned split on a `bounced`
+  terminal, **stamped once at the bounce transition** and MUST-equal the bounce receipt's `prior`
+  (§8.7.1). Schema conditionals: `prior` ⇒ `state: "bounced"`; `prior: "queued"` ⇒ no `delivered_at`;
+  `prior: "delivered"` SHOULD co-occur with `delivered_at` (spec-level, deliberately not
+  schema-forced — a Hub without the retained timestamp must still state `prior` truthfully). §14.2
+  states the rule for **any** surfaced delivery record (the mailbox track, or unschematized
+  directive-delivery views like `GET /v1/directives/{id}`), sanctioning the shipped emission in
+  place; the `delivered_at`-presence reading is demoted to the legacy fallback inference (SHOULD not
+  MUST for the rolling-deploy reason: absence can't distinguish "never drained" from "this replica
+  doesn't send it").
+- **Operator-close markers (§16.3/§16.4) + §8.5 unknown-code fallback** — the 410 class splits by
+  **who terminated the session**. The §16.4 kill-switch is now marked on the wire:
+  `closed_by_operator: true` on the session resource (`const: true` — true-only emission, `false`
+  can never validate) and `error.code: "session_closed_by_operator"` at the closed party's
+  **own**-session touchpoints (drain/ack/resolve-`?session=`/stream connect, and a submit naming the
+  submitter's own `agent.session`) meaning "stop; do not re-register" — while expired/self-closed
+  keeps `gone` ("re-register and continue") / `destination_gone` (own-session submit, unchanged),
+  and every addressed `to` send stays `destination_gone` regardless of ownership (no §16.5
+  session-state oracle). The marker rides the terminal CAS (first-terminal-wins, never retroactive),
+  is cooperative within `terminal_retention_seconds` (not credential revocation), and never appears
+  on the bounce receipt or the sender's mailbox (the §9.8 receipt digest is the frozen six-key
+  wrapper) — senders cannot distinguish operator kill from addressee crash, by design. §8.5 gains
+  the generic fallback: within a recognized status class an unrecognized `code` MUST be read as the
+  class's base meaning — fail-open by design (a stop-semantics refinement degrades to the base
+  action for consumers that predate it) in exchange for never crashing old consumers on additive
+  codes.
+
 ### Added (v0.5 — the inter-agent leg: sessions, addressed envelopes, delivery honesty, §16/§8.7/§9.8) — SCP #24
 **Additive and backward-compatible (MINOR).** v0.5 adds hub-mediated, store-and-forward messaging
 between agents of the same account, plus the **session** primitive that makes it addressable and

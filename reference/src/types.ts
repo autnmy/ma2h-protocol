@@ -344,6 +344,12 @@ export interface MailboxTrack {
   state: MailboxState;
   delivered_at?: string;
   acknowledged_at?: string;
+  /**
+   * v0.5: the EXPLICIT §14.2 never-seen (`queued`) vs seen-then-orphaned (`delivered`) split on a
+   * `bounced` terminal — stamped once at the bounce transition and MUST equal the bounce receipt's
+   * `prior` (spec §14.2, §8.7.1). Supersedes the legacy `delivered_at`-presence inference above.
+   */
+  prior?: "queued" | "delivered";
 }
 
 // ---- Presence / "listening" (spec §15, v0.4) ----
@@ -457,6 +463,12 @@ export interface Session {
   /** The lease TTL in effect (requested value clamped to the advertised bounds). */
   ttl_seconds?: number;
   closed_at?: string;
+  /**
+   * v0.5: present (necessarily `true`) ONLY when the account's authenticated human closed the
+   * session via the §16.4 kill-switch — the closer was the operator, not the owning principal.
+   * True-only emission: never `false`; absent = not-operator-closed-or-unknown (spec §16.4).
+   */
+  closed_by_operator?: true;
   run_id?: string;
   label?: string;
   kind?: string;
