@@ -128,6 +128,54 @@ export interface VerifyOptions {
   windowSeconds?: number;
 }
 
+// ---- Shared MAC decode/validate rule (spec §9.2 / §9.7 / §9.8) ----
+
+/**
+ * Decode a wire `v1` MAC value (`MA2H-Signature: …,v1=<base64url(signature)>` — spec §9.2, mirrored
+ * by the §9.7 directive signature and the §9.8 entry signatures) to its raw bytes, or `null` when
+ * ill-formed.
+ *
+ * This is THE well-formedness rule for `v1`, exported beside the signer that emits it. A wire rule
+ * with two implementations drifts: downstream hand-rolled a second validator with a hex regex and
+ * rejected 100% of conformant traffic (oh-hai#711). Consumers import this rule instead of
+ * re-deriving it.
+ *
+ * Screening is exactly: base64url alphabet (`[A-Za-z0-9_-]`), optional RFC 4648 padding accepted
+ * only when structurally valid (pad count exactly `(4 − unpadded_length mod 4) mod 4`, so the
+ * padded total length ≡ 0 mod 4 — a 43-char value takes exactly one `=`, a 44-char value takes
+ * none), decoded length ≥ 32 bytes (a floor, not an exact match: HMAC-SHA256 is exactly 32,
+ * ed25519 is 64). It deliberately stops there — no canonical round-trip enforcement, so a 43-char
+ * hex-looking MAC is valid (the oh-hai#711 regression case; an earlier stricter downstream draft
+ * rejected legitimately valid MACs). One deliberate tightening rides along: standard-base64
+ * alphabet values (`+`/`/`) that Node's lenient `Buffer.from(v1, "base64url")` previously accepted
+ * now reject — conformant §9.2 emitters are unaffected.
+ */
+export function decodeMac(v1: string): Buffer | null {
+  // Split trailing padding from the body; what remains must be pure base64url alphabet
+  // (this also rejects the empty string and any internal `=`).
+  let padLen = 0;
+  while (padLen < v1.length && v1.charCodeAt(v1.length - 1 - padLen) === 0x3d /* '=' */) padLen++;
+  const body = v1.slice(0, v1.length - padLen);
+  if (!/^[A-Za-z0-9_-]+$/.test(body)) return null;
+  const rem = body.length % 4;
+  // A remainder-1 body is invalid base64 regardless of padding (RFC 4648 §4): the exact-pad rule
+  // would demand (4 − 1) mod 4 = 3 pad chars, which no valid encoding carries.
+  if (rem === 1) return null;
+  const requiredPad = (4 - rem) % 4;
+  if (padLen !== 0 && padLen !== requiredPad) return null;
+  const bytes = Buffer.from(body, "base64url");
+  return bytes.length >= 32 ? bytes : null;
+}
+
+/**
+ * True when `v1` is a well-formed wire MAC per the shared rule above (spec §9.2/§9.7/§9.8).
+ * Well-formed means decodable — NOT verified; verification is the timing-safe comparison
+ * `verifyCanonical` performs against the recomputed digest.
+ */
+export function isWellFormedMac(v1: string): boolean {
+  return decodeMac(v1) !== null;
+}
+
 function verifyCanonical(sc: { t: string }, v1: string, opts: VerifyOptions): VerifyResult {
   const alg = opts.alg ?? "hmac-sha256";
   if (alg !== "hmac-sha256") return { ok: false, reason: `alg not implemented: ${alg}` };
@@ -142,12 +190,8 @@ function verifyCanonical(sc: { t: string }, v1: string, opts: VerifyOptions): Ve
   }
 
   const expected = createHmac("sha256", opts.key).update(canonicalize(sc)).digest();
-  let got: Buffer;
-  try {
-    got = Buffer.from(v1, "base64url");
-  } catch {
-    return { ok: false, reason: "bad signature encoding" };
-  }
+  const got = decodeMac(v1);
+  if (got === null) return { ok: false, reason: "bad signature encoding" };
   if (got.length !== expected.length || !timingSafeEqual(got, expected)) {
     return { ok: false, reason: "signature mismatch" };
   }
