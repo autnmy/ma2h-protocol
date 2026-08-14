@@ -4,6 +4,12 @@ All notable changes to the MA2H (Multi-agent to Human Protocol) specification.
 
 ## Unreleased
 
+### Added (v0.5 — the shared conformant-client layer: reference/src/client.ts + wire.ts) — #45
+
+- **`reference/src/client.ts`** (vendored, keyed side): the §13.4 duty machinery extracted from `agent.ts` — the `Agent` class, `BridgeHub` transport seam, entry taxonomy/ack keys, and structured dispositions with the exhaustive `classifyEntryResult` verdict union (a consumer cannot compile a default branch that folds `fatal-verification` into refused-and-continue). Behavior frozen; every previously-public symbol still resolves from `agent.js`. Upstream half of oh-hai#719.
+- **`reference/src/wire.ts`** (vendored, keyless side): canonical envelope builders (full per-kind schema surface; mint-once `idem_` keys), the feature→minimum-minor version-stamp rule (self-contained literals — deliberately not coupled to `MA2H_VERSION`), §8.1 submit-ack + destination-misroute validation delegated to the schema registry, per-type status tables with a schema-derivation guard, drain-batch shape validation, `validateKnownFields` over exported per-kind keep-lists, and the §8.5 error reading (`effectiveCode`, six-class `classifyHubError`: `auth | operator-close | own-terminal | lost-cas-race | unreadable | propagate`).
+- **`reference/src/signing.ts`**: per-kind digest content-field lists exported (`DIRECTIVE_CONTENT_FIELDS`, `MESSAGE_ENTRY_CONTENT_FIELDS`); the §9.7/§9.8 payload-digest functions iterate them — fixture-pinned byte-identical.
+
 ### Added (v0.5 — typed Hub error-code vocabulary + the §8.5 unknown-code fallback, implemented) — #43
 The one-definition discipline #41 applied to the wire version and the MAC rule, now applied to error
 codes — and the §8.5 fallback the reference previously documented as a deviation instead of
