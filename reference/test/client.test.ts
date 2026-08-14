@@ -10,6 +10,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { Hub } from "../src/hub.js";
 import {
+  ackKeyOf,
   Agent,
   classifyEntryResult,
   sanitizeDirective,
@@ -346,6 +347,9 @@ test("undefined-valued kind keys: validateDrainBatch and receiveEntry agree — 
   });
   assert.equal(outcome?.kind, "message");
   assert.equal(outcome?.result.acted, true, "the real payload verified and was accepted");
+  // ackKeyOf agrees with the other two: same defined-payload rule, so the ack key is the
+  // MESSAGE's id — never `undefined.id` crashing after commit but before ack (codex, PR #51).
+  assert.equal(ackKeyOf(crafted), entry.message.id);
 
   // A row with NO defined kind: refused by the batch guard, and dispatch alone still cannot
   // throw — it falls through to the receipt handler's shape refusal (a structured fatal result).

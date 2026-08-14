@@ -918,8 +918,18 @@ export interface BridgeHub {
  * addressee/policy checks, discards mail no duty ever authenticated or acted on.
  */
 export function ackKeyOf(delivery: InboxEntryDelivery): string {
-  if ("directive" in delivery) return delivery.directive.id;
-  if ("message" in delivery) return delivery.message.id;
-  if ("response" in delivery) return delivery.response.resolution_id;
-  return delivery.receipt.id;
+  // Same defined-value dispatch rule as `receiveEntry` and `validateDrainBatch` — key presence with
+  // an undefined payload (a hand-built `{directive: undefined, message: {...}}` row) must select
+  // the same entry the other two selected, or the loop crashes after commit but before ack and the
+  // failure repeats on every redelivery.
+  const row = delivery as {
+    directive?: InboundDirective;
+    message?: InterAgentMessage;
+    response?: A2hResponse;
+    receipt?: ReceiptEntry;
+  };
+  if (row.directive !== undefined) return row.directive.id;
+  if (row.message !== undefined) return row.message.id;
+  if (row.response !== undefined) return row.response.resolution_id;
+  return (row.receipt as ReceiptEntry).id;
 }
