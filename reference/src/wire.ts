@@ -399,6 +399,15 @@ export interface SubmitContext {
    * (`usesInterAgentAddressing`/`usesSessionQualifiedResolvers`), which are broader.
    */
   addressed: boolean;
+  /**
+   * The submitted envelope's verb — the second thing no schema can see. The submit-ack schema's
+   * `status` enum is the UNION of every track's vocabulary, so only the sender can pin the ack's
+   * status to the owning track (`statusesFor(type, addressed)`): a `delivered` on a non-addressed
+   * ask, or an `open` on a human-inbox notify, is a track contradiction the schema admits.
+   * §8.1 replays return the owning track's CURRENT status, so the full per-type table — not just
+   * the fresh-accept statuses — is the correct vocabulary.
+   */
+  type: MessageType;
 }
 
 /**
@@ -482,6 +491,22 @@ export function validateSubmitAck(body: unknown, context: SubmitContext): Submit
     if (reverseErrors.length > 0) {
       return { valid: false, misroute: false, errors: [...reverseErrors, ...schemaErrors] };
     }
+  }
+  // Track consistency (§8.1/§14.2): the submit-ack schema's `status` enum is the UNION of every
+  // track's vocabulary, so only the sender-side context can pin the ack's status to the owning
+  // track — `delivered` on a non-addressed ask, or `open` on a human-inbox notify, is schema-valid
+  // and track-contradictory. §8.1 replays return the track's CURRENT status, so the full per-type
+  // table (not just fresh-accept statuses) is the vocabulary.
+  const track = statusesFor(context.type, context.addressed);
+  if (!track.includes(status as Status)) {
+    return {
+      valid: false,
+      misroute: false,
+      errors: [
+        `status ${String(status)} is not in the ${context.addressed ? "addressed" : "human-inbox"} ${context.type} track [${track.join(", ")}] (§8.1/§14.2)`,
+        ...schemaErrors,
+      ],
+    };
   }
   if (schemaErrors.length > 0) {
     return { valid: false, misroute: false, errors: schemaErrors };

@@ -258,7 +258,7 @@ const POLL_URL = "https://hub.example/v1/messages/msg_01";
 // ---- §8.1 submit-ack validation and the addressed-misroute detector (R6) ----
 
 test("§8.1 ack: a minimal valid ack passes and comes back typed", () => {
-  const result = validateSubmitAck({ id: "m_01", status: "open", poll_url: POLL_URL }, { addressed: false });
+  const result = validateSubmitAck({ id: "m_01", status: "open", poll_url: POLL_URL }, { addressed: false, type: "ask" });
   assert.equal(result.valid, true);
   if (!result.valid) assert.fail("expected valid");
   assert.equal(result.ack.id, "m_01");
@@ -268,7 +268,7 @@ test("§8.1 ack: a minimal valid ack passes and comes back typed", () => {
 });
 
 test("§8.1 ack: a missing poll_url fails (and is not a misroute)", () => {
-  const result = validateSubmitAck({ id: "m_01", status: "open" }, { addressed: true });
+  const result = validateSubmitAck({ id: "m_01", status: "open" }, { addressed: true, type: "ask" });
   assert.equal(result.valid, false);
   if (result.valid) assert.fail("expected invalid");
   assert.equal(result.misroute, false, "a broken base ack says nothing about routing");
@@ -282,7 +282,7 @@ test("misroute detector: an addressed submit acked WITHOUT a destination snapsho
   // the sender knows it addressed the message).
   const ack = { id: "legacy_7", status: "delivered", poll_url: POLL_URL };
   assert.equal(validateV05("submit-ack.schema.json", ack).valid, true, "schema-valid — only context can catch it");
-  const result = validateSubmitAck(ack, { addressed: true });
+  const result = validateSubmitAck(ack, { addressed: true, type: "notify" });
   assert.equal(result.valid, false);
   if (result.valid) assert.fail("expected invalid");
   assert.equal(result.misroute, true);
@@ -290,7 +290,7 @@ test("misroute detector: an addressed submit acked WITHOUT a destination snapsho
   assert.equal(result.acceptedId, "legacy_7", "the accepted id rides the failure so the sender can cancel/track it");
 
   // The SAME body on a non-addressed submit is simply a valid ack — the context is the detector.
-  assert.equal(validateSubmitAck(ack, { addressed: false }).valid, true);
+  assert.equal(validateSubmitAck(ack, { addressed: false, type: "notify" }).valid, true);
 });
 
 test("§8.1 ack: a valid destination snapshot passes — known state with last_seen, or exactly {state:\"unknown\"}", () => {
@@ -301,7 +301,7 @@ test("§8.1 ack: a valid destination snapshot passes — known state with last_s
       poll_url: POLL_URL,
       destination: { state: "online", last_seen: "2026-08-13T11:59:00Z" },
     },
-    { addressed: true },
+    { addressed: true, type: "notify" },
   );
   assert.equal(online.valid, true, JSON.stringify(online));
   if (!online.valid) assert.fail("expected valid");
@@ -309,7 +309,7 @@ test("§8.1 ack: a valid destination snapshot passes — known state with last_s
 
   const unknown = validateSubmitAck(
     { id: "msg_02", status: "open", poll_url: POLL_URL, destination: { state: "unknown" } },
-    { addressed: true },
+    { addressed: true, type: "ask" },
   );
   assert.equal(unknown.valid, true, JSON.stringify(unknown));
 });
@@ -320,7 +320,7 @@ test("schema delegation proves the snapshot rules: a 4-state `idle` fails, and a
   // (MCP's 4-state `idle` acceptance dies here, not accommodated).
   const idle = validateSubmitAck(
     { id: "msg_03", status: "queued", poll_url: POLL_URL, destination: { state: "idle" } },
-    { addressed: true },
+    { addressed: true, type: "notify" },
   );
   assert.equal(idle.valid, false);
   if (idle.valid) assert.fail("expected invalid");
@@ -331,7 +331,7 @@ test("schema delegation proves the snapshot rules: a 4-state `idle` fails, and a
 
   const unpaired = validateSubmitAck(
     { id: "msg_04", status: "queued", poll_url: POLL_URL, destination: { state: "online" } },
-    { addressed: true },
+    { addressed: true, type: "notify" },
   );
   assert.equal(unpaired.valid, false);
   if (unpaired.valid) assert.fail("expected invalid");
@@ -341,7 +341,7 @@ test("schema delegation proves the snapshot rules: a 4-state `idle` fails, and a
   // misroute — the addressed context is the only new logic on top of the schema.
   const nonAddressed = validateSubmitAck(
     { id: "msg_03", status: "open", poll_url: POLL_URL, destination: { state: "idle" } },
-    { addressed: false },
+    { addressed: false, type: "ask" },
   );
   assert.equal(nonAddressed.valid, false);
   if (nonAddressed.valid) assert.fail("expected invalid");
@@ -811,7 +811,7 @@ test("effectiveCode and classifyHubError guard non-object errors: null/undefined
 test("reverse misroute: a non-addressed submit acked with a destination snapshot or an addressed-only status fails structurally", () => {
   const withSnapshot = validateSubmitAck(
     { id: "msg_09", status: "open", poll_url: POLL_URL, destination: { state: "unknown" } },
-    { addressed: false },
+    { addressed: false, type: "ask" },
   );
   assert.equal(withSnapshot.valid, false);
   if (withSnapshot.valid) assert.fail("expected invalid");
@@ -819,7 +819,7 @@ test("reverse misroute: a non-addressed submit acked with a destination snapshot
   assert.ok(withSnapshot.errors.some((e) => e.includes("destination snapshot")), JSON.stringify(withSnapshot.errors));
 
   for (const status of ["queued", "bounced", "acknowledged"]) {
-    const result = validateSubmitAck({ id: "msg_10", status, poll_url: POLL_URL }, { addressed: false });
+    const result = validateSubmitAck({ id: "msg_10", status, poll_url: POLL_URL }, { addressed: false, type: "notify" });
     assert.equal(result.valid, false, status);
     if (result.valid) assert.fail("expected invalid");
     assert.equal(result.misroute, false);
@@ -829,10 +829,40 @@ test("reverse misroute: a non-addressed submit acked with a destination snapshot
   assert.equal(
     validateSubmitAck(
       { id: "msg_09", status: "open", poll_url: POLL_URL, destination: { state: "unknown" } },
-      { addressed: true },
+      { addressed: true, type: "ask" },
     ).valid,
     true,
   );
+});
+
+test("track consistency: a schema-valid status from the WRONG track fails against the submitted verb (codex, PR #51)", () => {
+  // The submit-ack schema's status enum is the union of all tracks, so each of these bodies is
+  // schema-valid; only the sender-side {type, addressed} context can pin the owning track.
+  const delivered = validateSubmitAck(
+    { id: "m_20", status: "delivered", poll_url: POLL_URL },
+    { addressed: false, type: "ask" },
+  );
+  assert.equal(delivered.valid, false, "delivered is notify-track — never a non-addressed ask status");
+  assert.ok(!delivered.valid && delivered.errors.some((e) => e.includes("ask track")), JSON.stringify(delivered));
+
+  const open = validateSubmitAck(
+    { id: "m_21", status: "open", poll_url: POLL_URL },
+    { addressed: false, type: "notify" },
+  );
+  assert.equal(open.valid, false, "a human-inbox notify is delivered-only — open is a track contradiction");
+
+  const answered = validateSubmitAck(
+    { id: "m_22", status: "answered", poll_url: POLL_URL, destination: { state: "unknown" } },
+    { addressed: true, type: "notify" },
+  );
+  assert.equal(answered.valid, false, "answered is resolution-track — an addressed notify lives on the delivery track");
+
+  // §8.1 replays return the owning track's CURRENT status: a terminal status IN the right track passes.
+  const replay = validateSubmitAck(
+    { id: "m_23", status: "answered", poll_url: POLL_URL },
+    { addressed: false, type: "ask" },
+  );
+  assert.equal(replay.valid, true, JSON.stringify(replay));
 });
 
 test("terminal-requires-Response treats JSON null as missing (§8.2)", () => {
@@ -1074,7 +1104,7 @@ test("task digest: function == exported-list recompute == hand-enumerated recomp
 
 test("non-object bodies refuse cleanly (never throw), and an empty drain batch is a valid zero-entry batch", () => {
   for (const body of [null, "x"]) {
-    const ack = validateSubmitAck(body, { addressed: false });
+    const ack = validateSubmitAck(body, { addressed: false, type: "ask" });
     assert.equal(ack.valid, false, JSON.stringify(body));
     if (ack.valid) assert.fail("expected invalid");
     assert.equal(ack.misroute, false);
