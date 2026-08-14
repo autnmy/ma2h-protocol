@@ -10,5 +10,13 @@
  * floor at minor 3, so a 0.3 push is still accepted while 0.5 is emitted). Conflating the two —
  * or re-declaring this literal per call site — is the drift issue #41 / oh-hai#712 documents:
  * downstream declared the wire version in five places and advertised `v0.3` while emitting `0.5`.
+ *
+ * A THIRD concept lives in `wire.ts` and deliberately does NOT read this constant (issue #45):
+ * the client envelope builders stamp the LOWEST minor the submitted envelope's features require
+ * (`wireVersionFor` — base `"0.3"`, addressed minimum `"0.5"`). This constant names the HIGHEST
+ * minor this implementation speaks — what HUB-minted envelopes (Responses, directives, receipts)
+ * carry. Lowest-minor-required is a static property of an envelope's features, so coupling the
+ * builders' rule to this constant would stamp `0.6` on v0.5-feature envelopes at the next bump —
+ * the #712 drift class recreated inside its own fix.
  */
 export const MA2H_VERSION = "0.5";

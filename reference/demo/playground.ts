@@ -12,7 +12,8 @@ import { randomBytes } from "node:crypto";
 import { Hub, type DeliveredPush } from "../src/hub.js";
 import { Agent } from "../src/agent.js";
 import { sealState } from "../src/state-seal.js";
-import type { A2hMessage, ResponseOption } from "../src/types.js";
+import { buildAsk, buildNotify } from "../src/wire.js";
+import type { ResponseOption } from "../src/types.js";
 
 const HUB_KEY = "demo-hub-hmac-secret-0123456789abcdef0123456789abcdef";
 const RESUME_URL = "https://deploy-bot.example/ma2h/resume";
@@ -32,22 +33,19 @@ async function main(): Promise<void> {
 
   console.log("\n=== MA2H playground — you are the human in the loop ===\n");
 
-  const notify: A2hMessage = {
-    ma2h_version: "0.4",
-    type: "notify",
-    created_at: new Date().toISOString(),
+  // Built by the layer (wire.ts): version stamped by the shared §10 rule — non-addressed, so
+  // "0.3", the lowest minor these features require (not this implementation's MA2H_VERSION).
+  const notify = buildNotify({
     agent: { id: "deploy-bot/ci", run_id: "digest_1", runtime: "github-actions", project: "demo" },
     title: "Deploy digest — 5 deploys, 1 failure (last 24h)",
-    idempotency_key: "demo-digest-1",
     body: "5 shipped, 1 rolled back. Candidate build abc123def is green.",
-  };
+  });
   const nAck = hub.submit(notify);
   console.log(`📬  notify → "${notify.title}"  [durable · status=${nAck.status}]\n`);
 
-  const ask: A2hMessage = {
-    ma2h_version: "0.4",
-    type: "ask",
-    created_at: new Date().toISOString(),
+  // The full ask surface through the builder: sealed state, expiry, and the complete request.
+  // The idempotency_key is REQUIRED input (KTD1b) — minted once, reused verbatim on any retry.
+  const ask = buildAsk({
     agent: { id: "deploy-bot/ci", run_id: "ship_1", runtime: "github-actions", project: "demo" },
     title: "Ship the candidate build to prod, or hold?",
     idempotency_key: "demo-ship-1",
@@ -61,7 +59,7 @@ async function main(): Promise<void> {
       allowed_resolvers: ["human:you"],
       callback: { mode: "push", url: RESUME_URL, auth: { scheme: "hmac", secret_ref: "env:K" } },
     },
-  };
+  });
   const ack = hub.submit(ask);
   console.log("📬  NEW DECISION in your inbox:");
   console.log(`      ${ask.title}`);
