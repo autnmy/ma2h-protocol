@@ -112,15 +112,20 @@ done
 #    keyed on the bare version string would fail on a correct tree and get deleted rather than fixed.
 #    Nothing is stale today — this guard is preventative, and is expected to stay silent until the next
 #    version bump.
-stale_pins=$(grep -rInoE "ma2h\.org/(spec|schema)/v[0-9]+\.[0-9]+" plugins/ 2>/dev/null || true)
-if [ -n "$stale_pins" ]; then
+pinned_urls=$(grep -rInoE "ma2h\.org/(spec|schema)/v[0-9]+\.[0-9]+" plugins/ 2>/dev/null || true)
+if [ -z "$pinned_urls" ]; then
+  # Zero matches is NOT a pass. plugins/ carries these URLs today, so an empty result means the path
+  # moved or the pattern stopped matching — i.e. this assertion quietly became a no-op. That is the
+  # same way the stale v0.4 pin went unnoticed (#44), so it fails loudly instead.
+  err "no ma2h.org spec/schema URLs found under plugins/ — did the path move, or the skills stop pinning?"
+else
   while IFS= read -r hit; do
     # hit is file:line:match — the pinned version is the trailing path segment. Compared as a string
     # rather than folded into a regex, so the `.` in `v0.5` cannot match `v0x5`.
     [ "${hit##*/}" = "$CURRENT_VERSION" ] && continue
     printf "  pinned %s in: %s\n" "${hit##*/}" "${hit%:*}"
     err "plugins/ pins a ma2h.org URL for ${hit##*/}, but the current version is $CURRENT_VERSION"
-  done <<< "$stale_pins"
+  done <<< "$pinned_urls"
 fi
 
 if [ "$fail" -ne 0 ]; then
