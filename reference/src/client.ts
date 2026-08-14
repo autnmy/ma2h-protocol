@@ -54,7 +54,12 @@ import {
 } from "./signing.js";
 import { openState } from "./state-seal.js";
 import { validateInboundMessage, validateV05 } from "./envelope.js";
-import { DIRECTIVE_KEEP_FIELDS, MESSAGE_ENTRY_KEEP_FIELDS } from "./wire.js";
+import { DIRECTIVE_KEEP_FIELDS, MESSAGE_ENTRY_KEEP_FIELDS, splitAddress } from "./wire.js";
+
+// One grammar, one home: the §4 address parser lives on the keyless side (wire.ts) so the
+// version-stamp predicate and this keyed module share the definition; re-exported here to keep
+// client.ts's public surface (pre-merge relocation, issue #45).
+export { splitAddress } from "./wire.js";
 import type {
   A2hResponse,
   AgentAddress,
@@ -197,28 +202,6 @@ export type DirectiveResult =
       reason: string;
     };
 
-/**
- * Split an `agent:<id>[#<session>]` address by the §4 first-`#` grammar; null when malformed.
- *
- * Duty order (§13.4): pure parsing only — this verifies nothing. Parsing an address is NOT the
- * addressee check; that check must compare a SIGNATURE-VERIFIED entry's `to` against the
- * consumer's own identity (and current session, when qualified), as the `Agent` handlers do after
- * §9.7/§9.8 verification.
- */
-export function splitAddress(addr: string): { principal: string; session?: string } | null {
-  if (!addr.startsWith("agent:")) return null;
-  const rest = addr.slice("agent:".length);
-  const hash = rest.indexOf("#");
-  if (hash === -1) return rest.length > 0 ? { principal: rest } : null;
-  const principal = rest.slice(0, hash);
-  const session = rest.slice(hash + 1);
-  // The §4 grammar requires `sess_` plus at least one character — a bare `sess_` suffix is
-  // malformed, and this newly-public parser must enforce that itself: a downstream consumer
-  // using it for routing/addressee checks without a preceding schema pass would otherwise treat
-  // a malformed address as session-qualified (codex, PR #51).
-  if (principal.length === 0 || !/^sess_.+$/.test(session)) return null;
-  return { principal, session };
-}
 
 export type MessageEntryResult =
   | {

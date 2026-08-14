@@ -713,6 +713,10 @@ test("session-qualified allowed_resolvers alone lift the stamp to \"0.5\" — re
   // agent principal, or a bare `sess_` suffix, is a pre-0.5 exact-literal resolver — not a lift.
   assert.equal(usesSessionQualifiedResolvers({ agent: AGENT, request: { allowed_resolvers: ["agent:legacy#worker"] } }), false);
   assert.equal(usesSessionQualifiedResolvers({ agent: AGENT, request: { allowed_resolvers: ["agent:peer#sess_"] } }), false);
+  // Multi-hash (codex round 4): the §4 grammar splits at the FIRST '#', so a later session-shaped
+  // fragment never lifts — `worker#sess_x` is not a valid qualifier, the whole value is a
+  // pre-0.5 exact literal.
+  assert.equal(usesSessionQualifiedResolvers({ agent: AGENT, request: { allowed_resolvers: ["agent:legacy#worker#sess_x"] } }), false);
 });
 
 test("a legacy hash-bearing agent resolver stays \"0.3\" and BUILDS — the predicate must not stamp a version whose grammar then rejects it (codex, PR #51)", () => {
@@ -727,6 +731,18 @@ test("a legacy hash-bearing agent resolver stays \"0.3\" and BUILDS — the pred
   );
   assert.equal(legacy.ma2h_version, "0.3", "a pre-0.5 exact-literal resolver is not a v0.5 feature");
   assert.equal(validateMessage(legacy).valid, true, "buildable and valid under the pre-0.5 registry");
+
+  const multiHash = buildAsk(
+    {
+      agent: AGENT,
+      title: "multi-hash legacy resolver",
+      idempotency_key: newIdempotencyKey(),
+      request: { ...MINIMAL_REQUEST, allowed_resolvers: ["agent:legacy#worker#sess_x"] },
+    },
+    clock,
+  );
+  assert.equal(multiHash.ma2h_version, "0.3", "a later session-shaped fragment is not a first-# qualifier");
+  assert.equal(validateMessage(multiHash).valid, true);
 });
 
 test("a plain ask naming only human resolvers still stamps \"0.3\"", () => {

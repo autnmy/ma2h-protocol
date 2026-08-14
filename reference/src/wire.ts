@@ -91,6 +91,29 @@ export function usesInterAgentAddressing(envelope: VersionFeatureProbe): boolean
 }
 
 /**
+ * Split an `agent:<id>[#<session>]` address by the §4 first-`#` grammar; null when malformed.
+ *
+ * Duty order (§13.4): pure parsing only — this verifies nothing. Parsing an address is NOT the
+ * addressee check; that check must compare a SIGNATURE-VERIFIED entry's `to` against the
+ * consumer's own identity (and current session, when qualified), as the `Agent` handlers do after
+ * §9.7/§9.8 verification.
+ */
+export function splitAddress(addr: string): { principal: string; session?: string } | null {
+  if (!addr.startsWith("agent:")) return null;
+  const rest = addr.slice("agent:".length);
+  const hash = rest.indexOf("#");
+  if (hash === -1) return rest.length > 0 ? { principal: rest } : null;
+  const principal = rest.slice(0, hash);
+  const session = rest.slice(hash + 1);
+  // The §4 grammar requires `sess_` plus at least one character — a bare `sess_` suffix is
+  // malformed, and this newly-public parser must enforce that itself: a downstream consumer
+  // using it for routing/addressee checks without a preceding schema pass would otherwise treat
+  // a malformed address as session-qualified (codex, PR #51, rounds 3-4).
+  if (principal.length === 0 || !/^sess_.+$/.test(session)) return null;
+  return { principal, session };
+}
+
+/**
  * Does this envelope's `request`/`action` name a SESSION-QUALIFIED agent-form resolver — an
  * `agent:` `allowed_resolvers` entry containing `#` (the §4 address grammar's session qualifier)?
  * Session-qualified resolver matching exists only at minor >= 5 (spec §9.1): a pre-0.5 registry
@@ -103,12 +126,13 @@ export function usesSessionQualifiedResolvers(envelope: VersionFeatureProbe): bo
     ...(envelope.request?.allowed_resolvers ?? []),
     ...(envelope.action?.allowed_resolvers ?? []),
   ];
-  // Only a syntactically VALID v0.5 session qualifier lifts the version: `#` followed by
-  // `sess_` and at least one more character (the §4 grammar). A legacy hash-bearing principal
-  // like `agent:legacy#worker` is a valid pre-0.5 exact-literal resolver — treating its `#` as a
-  // session qualifier would stamp 0.5 and then fail the builder's own self-validation, making a
-  // legitimate human-inbox envelope unbuildable (codex, PR #51).
-  return resolvers.some((actor) => actor.startsWith("agent:") && /#sess_.+$/.test(actor));
+  // Only a syntactically VALID v0.5 session qualifier lifts the version, read by the ONE §4
+  // grammar (`splitAddress`: first-`#` split, suffix `sess_` + 1+ chars). A legacy hash-bearing
+  // principal (`agent:legacy#worker`) — or a multi-hash literal whose LATER fragment merely looks
+  // session-shaped (`agent:legacy#worker#sess_x`) — is a valid pre-0.5 exact-literal resolver;
+  // lifting on it would stamp 0.5 and then fail the builder's own self-validation, making a
+  // legitimate human-inbox envelope unbuildable (codex, PR #51, rounds 3-4).
+  return resolvers.some((actor) => splitAddress(actor)?.session !== undefined);
 }
 
 /**

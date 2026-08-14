@@ -422,4 +422,7 @@ test("splitAddress enforces the full §4 session grammar — a bare `sess_` suff
   assert.deepEqual(splitAddress("agent:worker#sess_x"), { principal: "worker", session: "sess_x" });
   assert.deepEqual(splitAddress("agent:worker"), { principal: "worker" });
   assert.equal(splitAddress("agent:worker#dev"), null);
+  // First-# split (codex round 4): a later session-shaped fragment is part of the malformed
+  // suffix, never a qualifier.
+  assert.equal(splitAddress("agent:legacy#worker#sess_x"), null);
 });
