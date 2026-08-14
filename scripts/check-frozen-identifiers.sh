@@ -11,7 +11,7 @@
 #   3. asserts the frozen wire identifiers still exist verbatim on EVERY live version (a rename breaks
 #      interop + vectors);
 #   4. asserts neither retired identity (`a2h` or `ahcp`) has crept back onto the wire surface (schemas /
-#      reference src / examples / vectors).
+#      reference src / examples / vectors / plugin skills).
 #
 # Adjust CANON_DOMAIN / the token lists here when an intentional, versioned change lands.
 
@@ -37,7 +37,10 @@ FORBIDDEN_TOKENS=(
   "a2hprotocol.org" "a2h_version" "A2H-Signature" "A2H_CALLBACK_SECRET" "x-a2h-sensitive" "A2HSEALv1" ".well-known/a2h"
   "ahcpprotocol.org" "ahcp_version" "AHCP-Signature" "AHCP_CALLBACK_SECRET" "x-ahcp-sensitive" "AHCPSEALv1" ".well-known/ahcp"
 )
-WIRE_PATHS=("schema/" "reference/src/" "examples/" "conformance/vectors/")
+# `plugins/` belongs on this list even though nothing there is normative: the skills carry wire
+# identifiers verbatim and exist to be copied into implementers' codebases, so a retired identifier
+# reintroduced there is propagated downstream by design rather than caught (#36).
+WIRE_PATHS=("schema/" "reference/src/" "examples/" "conformance/vectors/" "plugins/")
 
 fail=0
 err() { echo "::error::$1"; fail=1; }
@@ -88,7 +91,12 @@ grep -q "MA2HSEALv1" reference/src/state-seal.ts \
 for tok in "${FORBIDDEN_TOKENS[@]}"; do
   hits=$(grep -rIlwF -- "$tok" "${WIRE_PATHS[@]}" 2>/dev/null || true)
   if [ -n "$hits" ]; then
-    echo "$hits" | sed "s/^/  stale '$tok' in: /"
+    # printf, not `sed s/…/…/` — `.well-known/a2h` and `.well-known/ahcp` contain the delimiter, so a
+    # sed substitution built from $tok breaks on exactly the two tokens most likely to show up in the
+    # copied skills text, printing a sed error where the offending filename should be.
+    while IFS= read -r hit; do
+      printf "  stale '%s' in: %s\n" "$tok" "$hit"
+    done <<< "$hits"
     err "retired identifier '$tok' found on the wire surface (must be the ma2h equivalent)"
   fi
 done
