@@ -27,6 +27,9 @@ require "pathname"
 # field the official entries happen to carry (e.g. `sha` appears on all 121 `url` entries, but a
 # manifest tracking a floating ref without one still installs). Requiring optional metadata would fail
 # valid manifests, and a guard that cries wolf gets deleted rather than fixed.
+#
+# The KEYS, by contrast, are an exhaustive allowlist — a kind absent here is rejected rather than
+# skipped, so a typo cannot slip past as "some remote form". Add a kind here when upstream adds one.
 OBJECT_SOURCE_REQUIRED_FIELDS = {
   "local" => ["path"].freeze,           # the only object form that resolves on disk
   "url" => ["url"].freeze,
@@ -104,10 +107,17 @@ parsed.each do |f, data|
           next
         end
         required = OBJECT_SOURCE_REQUIRED_FIELDS[kind]
-        # An unrecognized discriminator is passed through on purpose: this list reflects the shapes
-        # that exist today, and rejecting a future one would fail a manifest that installs fine —
-        # a false failure is what gets a guard deleted rather than fixed.
-        next unless required
+        # An unrecognized kind is REJECTED, not waved through. A typo (`githubb`) is far likelier here
+        # than a genuinely new upstream kind, and waving it through is a path where the check cannot
+        # fail — the defect this script exists to catch. When a new kind does land, this fails with the
+        # exact remedy, which is the same manually-maintained-allowlist bargain LIVE_VERSIONS and
+        # FROZEN_WIRE_TOKENS already make in check-frozen-identifiers.sh.
+        unless required
+          failed << "#{label}: unrecognized `source` kind #{kind.inspect} — expected one of " \
+                    "#{OBJECT_SOURCE_REQUIRED_FIELDS.keys.map(&:inspect).join(', ')}. If upstream " \
+                    "added a new kind, add it to OBJECT_SOURCE_REQUIRED_FIELDS with its required fields."
+          next
+        end
 
         missing = required.reject { |k| source[k].is_a?(String) && !source[k].strip.empty? }
         unless missing.empty?
