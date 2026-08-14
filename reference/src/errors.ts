@@ -78,6 +78,14 @@ export function statusOfHubErrorCode(code: string | undefined): HubErrorStatus |
 export type HubTouchpoint =
   /** Presenting an own session: drain / ack (`?session=`), resolve (`?session=`), stream connect. */
   | "presentation"
+  /**
+   * Operating on a session as a RESOURCE rather than presenting one: register (§16.1) and close
+   * (§16.3's `DELETE`). Deliberately NOT `presentation` — §16.3's presentation row is drain / ack /
+   * resolve / stream connect, and neither of these appears in it. Registration has no session to
+   * present, and close is an idempotent terminal transition that returns the session rather than a
+   * `gone`, so the 410 class has no absent-refinement reading here (see the table below).
+   */
+  | "session-lifecycle"
   /** A submit naming the submitter's own `agent.session` (§4.1). */
   | "own-session-submit"
   /** An addressed send — `to` naming a destination (§4). */
@@ -85,47 +93,61 @@ export type HubTouchpoint =
 
 /** A class §8.5 gives ONE base code, so the touchpoint does not enter into the reading. */
 function atEveryTouchpoint(code: KnownHubErrorCode): Record<HubTouchpoint, KnownHubErrorCode> {
-  return { presentation: code, "own-session-submit": code, "addressed-send": code };
+  return {
+    presentation: code,
+    "session-lifecycle": code,
+    "own-session-submit": code,
+    "addressed-send": code,
+  };
 }
 
 /**
  * §8.5's unknown-code fallback as a table: within a recognized status class, the BASE code that
- * touchpoint returns absent any refinement.
+ * touchpoint returns absent any refinement. `undefined` marks a cell §8.5 gives NO reading — the
+ * caller stays loud there rather than inventing one.
  *
  * The shape carries the point — a row spells out per-touchpoint readings exactly when §8.5 gives
  * its class more than one base code, which is the case §8.5 says the touchpoint must disambiguate:
  *
  * - **409** — `idempotency_conflict` is the SUBMIT reading (a replay with a differing payload,
  *   §8.1); `already_terminal` is the cancel/resolve-after-terminal reading, which is the one a
- *   presentation touchpoint reaches.
- * - **410** — `gone` when presenting an own session, `destination_gone` when addressing a
- *   destination (§16.3).
- * - **422** — `invalid_field`, except on an addressed send, where the collapsed destination reading
- *   is `unknown_destination` (§4).
+ *   presentation touchpoint reaches. A session-lifecycle call has neither, so: no reading.
+ * - **410** — `gone` when presenting an own session, `destination_gone` when naming a session or
+ *   destination on a send (§16.3). A session-lifecycle call has **no reading**: reading a peer's
+ *   own 410 refinement as `gone` there would tell a supervisor "lease lapsed, re-register" and walk
+ *   it straight into a re-registration loop against whatever actually failed.
+ * - **422** — `invalid_field` at EVERY touchpoint. §8.5 states this one flatly ("an unrecognized
+ *   `422` as `invalid_field`") and does not split it: `unknown_destination` is the meaning of that
+ *   recognized code, never the fallback for an unrecognized sibling. Reading an addressed send's
+ *   unrecognized 422 as `unknown_destination` would send a client rerouting away from a destination
+ *   that was fine when the real fault was in its own request fields.
  *
  * Annotated `Record<HubErrorStatus, …>` rather than `satisfies` alone: a status class added to
  * `HubErrorStatus` without a row here is then a compile error, not a silent hole in the fallback.
  */
-const BASE_CODE_BY_CLASS: Record<HubErrorStatus, Record<HubTouchpoint, KnownHubErrorCode>> = {
+const BASE_CODE_BY_CLASS: Record<
+  HubErrorStatus,
+  Record<HubTouchpoint, KnownHubErrorCode | undefined>
+> = {
   400: atEveryTouchpoint("validation_error"),
+  // The credential classes are about the caller, not the session, so they read the same everywhere
+  // — including at a session-lifecycle call, where an unrecognized 403 is still an auth failure.
   401: atEveryTouchpoint("unauthenticated"),
   403: atEveryTouchpoint("not_authorized"),
   404: atEveryTouchpoint("not_found"),
   409: {
     presentation: "already_terminal",
+    "session-lifecycle": undefined,
     "own-session-submit": "idempotency_conflict",
     "addressed-send": "idempotency_conflict",
   },
   410: {
     presentation: "gone",
+    "session-lifecycle": undefined,
     "own-session-submit": "destination_gone",
     "addressed-send": "destination_gone",
   },
-  422: {
-    presentation: "invalid_field",
-    "own-session-submit": "invalid_field",
-    "addressed-send": "unknown_destination",
-  },
+  422: atEveryTouchpoint("invalid_field"),
   429: atEveryTouchpoint("rate_limited"),
 };
 
@@ -136,8 +158,8 @@ export function isHubErrorStatus(status: number | undefined): status is HubError
 
 /**
  * §8.5 (MUST): resolve an UNRECOGNIZED code to the base code its touchpoint would have returned.
- * `undefined` when the status is absent or outside §8.5's classes — the caller must then stay loud
- * rather than invent a reading for a class the spec does not define.
+ * `undefined` when the status is absent, outside §8.5's classes, or has no reading at this
+ * touchpoint — the caller must then stay loud rather than invent a reading the spec does not give.
  */
 export function baseCodeForStatus(
   status: number | undefined,

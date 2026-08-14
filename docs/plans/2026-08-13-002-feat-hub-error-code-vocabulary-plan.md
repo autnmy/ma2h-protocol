@@ -82,10 +82,12 @@ Nothing in this graph re-declares the code set. Adding a code means adding one t
 | 404 | `not_found` | `not_found` | `not_found` |
 | 409 | `already_terminal` | `already_terminal` | `already_terminal` |
 | **410** | **`gone`** | **`destination_gone`** | **`destination_gone`** |
-| 422 | `invalid_field` | `invalid_field` | `unknown_destination` |
+| 422 | `invalid_field` | `invalid_field` | `invalid_field` |
 | 429 | `rate_limited` | `rate_limited` | `rate_limited` |
 
-Only the 410 and 422 rows actually vary — those are exactly the two classes §8.5 calls out as multi-base ("an unrecognized `410` … reads as `gone` … at a destination-addressing touchpoint as `destination_gone` … and an unrecognized `422` as `invalid_field`"). The uniform rows are still written out rather than defaulted, so the table reads as the spec table it mirrors.
+Only the 410 row actually varies. §8.5 gives the 422 class one reading regardless of touchpoint ("an unrecognized `422` as `invalid_field`") — `unknown_destination` is the meaning of that *recognized* code, not the fallback for an unrecognized sibling. The uniform rows are still written out rather than defaulted, so the table reads as the spec table it mirrors.
+
+> Two corrections landed during review, after this plan was written and both recorded here so the plan does not misstate the spec: the **409** row splits by touchpoint too (`already_terminal` presenting, `idempotency_conflict` on a submit, per §8.1), and **register/close are not presentation touchpoints** — §16.3's presentation row is drain / ack / resolve / stream connect, so those calls get a fourth `session-lifecycle` touchpoint with no 410 reading at all. `errors.ts` is authoritative.
 
 ### `mapHubError` after the change
 

@@ -31,18 +31,27 @@ clean pull that gains one file.
   `{ code, message }`, and status rides the HTTP response, not the body.
 - **§8.5's unknown-code fallback, implemented rather than confessed (§8.5/§16.3)** — `mapHubError`
   now resolves an **unrecognized** code to the base code its touchpoint would have returned, via a
-  `BASE_CODE_BY_CLASS` matrix carrying §16.3's three touchpoint rows. A row spells out per-touchpoint
-  readings exactly when its class has more than one base code — the case §8.5 says the touchpoint
+  `BASE_CODE_BY_CLASS` matrix over §16.3's touchpoints. A row spells out per-touchpoint readings
+  exactly when its class has more than one base code — the case §8.5 says the touchpoint
   disambiguates: an unrecognized `410` reads as `gone` when presenting an own session and
-  `destination_gone` when addressing a destination; an unrecognized `409` as `already_terminal` at a
-  presentation touchpoint but `idempotency_conflict` on a submit (§8.1's replay-with-differing-payload
-  conflict); an unrecognized `422` as `invalid_field`, except `unknown_destination` on an addressed
-  send. Every
-  `runBridgeLoop` touchpoint is a presentation touchpoint, so a refining Hub's own 410 code now
-  exits `EXIT_SESSION_TERMINAL` instead of escaping unread, and the resolve-site 409 guard reads an
-  unrecognized 409 as the lost-CAS-race it is. The gate is **unrecognized**, not *unmapped*: a known
-  code the bridge does not map (`not_found`, `rate_limited`) still propagates as itself, a code whose
-  class is also unrecognizable still rethrows loudly, and the §16.4 `session_closed_by_operator`
+  `destination_gone` when naming a session or destination on a send, and an unrecognized `409` as
+  `already_terminal` at a presentation touchpoint but `idempotency_conflict` on a submit (§8.1's
+  replay-with-differing-payload conflict). An unrecognized `422` reads as `invalid_field`
+  **everywhere** — §8.5 states that one flatly and does not split it; `unknown_destination` is the
+  meaning of that recognized code, never the fallback for an unrecognized sibling.
+  The reading is per-call-site, because §8.5's answer depends on where you are standing: drain / ack
+  / resolve-`?session=` are §16.3's presentation row, so a refining Hub's own 410 there now exits
+  `EXIT_SESSION_TERMINAL` instead of escaping unread, and the resolve-site 409 guard reads an
+  unrecognized 409 as the lost-CAS-race it is. **Register and close are not in that row** — a
+  `session-lifecycle` touchpoint with no 410 reading at all, since registration has no session to
+  present and close is an idempotent terminal transition; misreading a peer's 410 there as `gone`
+  would walk a supervisor into a re-registration loop. The credential classes (401/403) read the
+  same everywhere; they are about the caller, not the session.
+  Three things deliberately do **not** fall back: a known code the bridge does not map (`not_found`,
+  `rate_limited`) propagates as itself, a code whose class is also unrecognizable rethrows, and an
+  error carrying **no code at all** rethrows — §8.5's envelope requires a code, so its absence is a
+  malformed response rather than an additive refinement, and papering over it would send a
+  supervisor re-registering against a broken transport. The §16.4 `session_closed_by_operator`
   marker still outranks the generic 410 class — a killed bridge must never be told to re-register.
   The `runBridgeLoop` header's "second boundary" paragraph is retired accordingly.
 

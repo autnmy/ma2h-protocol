@@ -237,15 +237,12 @@ function loopThrowing(touchpoint: keyof BridgeHub, thrown: unknown): unknown {
   }
 }
 
-test("§8.5 fallback: an UNRECOGNIZED 410 reads as `gone` at every presentation touchpoint (§16.3)", () => {
-  // The §16.3 presentation row — drain, ack, resolve-`?session=`, and the register/close that
-  // bracket them. A refining Hub's own 410 code must land on the re-register class, not escape
-  // unread; getting this wrong at ONE touchpoint is the failure a single-site test would miss.
-  for (const touchpoint of ["registerSession", "drainInbox", "closeSession"] as const) {
-    const e = loopThrowing(touchpoint, peerError("session_lease_revoked", 410));
-    assert.ok(e instanceof BridgeExitError, `${touchpoint} should exit loudly`);
-    assert.equal(e.exitCode, EXIT_SESSION_TERMINAL, `${touchpoint} reads an unrecognized 410 as gone`);
-  }
+test("§8.5 fallback: an UNRECOGNIZED 410 reads as `gone` at a presentation touchpoint (§16.3)", () => {
+  // Drain is §16.3's presentation row: a refining Hub's own 410 code must land on the re-register
+  // class rather than escape unread.
+  const e = loopThrowing("drainInbox", peerError("session_lease_revoked", 410));
+  assert.ok(e instanceof BridgeExitError, "drainInbox should exit loudly");
+  assert.equal(e.exitCode, EXIT_SESSION_TERMINAL, "an unrecognized 410 reads as gone");
 
   // `ackInbox` needs mail to ack, so it cannot use the empty-inbox harness above.
   const now = { t: T0 };
@@ -271,11 +268,45 @@ test("§8.5 fallback: an UNRECOGNIZED 410 reads as `gone` at every presentation 
   }
 });
 
-test("§8.5 fallback: an UNRECOGNIZED 401 or 403 reads as the auth class", () => {
+test("§8.5 fallback: an UNRECOGNIZED 401 or 403 reads as the auth class, at any touchpoint", () => {
+  // The credential classes are about the CALLER, not the session, so they read the same at a
+  // session-lifecycle call as at a presentation one — narrowing the 410 reading below must not
+  // collaterally drop these.
   for (const status of [401, 403]) {
-    const e = loopThrowing("registerSession", peerError("credential_needs_rotation", status));
-    assert.ok(e instanceof BridgeExitError, `status ${status} should exit loudly`);
-    assert.equal(e.exitCode, EXIT_AUTH_FAILURE);
+    for (const touchpoint of ["registerSession", "drainInbox"] as const) {
+      const e = loopThrowing(touchpoint, peerError("credential_needs_rotation", status));
+      assert.ok(e instanceof BridgeExitError, `${touchpoint}/${status} should exit loudly`);
+      assert.equal(e.exitCode, EXIT_AUTH_FAILURE);
+    }
+  }
+});
+
+test("register and close are NOT presentation touchpoints: an unrecognized 410 stays loud (§16.3)", () => {
+  // §16.3's presentation row is drain / ack / resolve / stream connect. Registration has no session
+  // to present and close is an idempotent terminal transition, so neither has an absent-refinement
+  // `gone` reading. Reading a peer's own 410 there as `gone` would tell a supervisor "lease lapsed,
+  // re-register" — walking it into a re-registration loop against whatever actually failed.
+  for (const touchpoint of ["registerSession", "closeSession"] as const) {
+    const e = loopThrowing(touchpoint, peerError("tenant_suspended", 410));
+    assert.ok(e instanceof HubError, `${touchpoint} should propagate the HubError`);
+    assert.ok(!(e instanceof BridgeExitError), `${touchpoint} must not read an unrecognized 410 as gone`);
+  }
+
+  // A RECOGNIZED `gone` still maps at those calls — the narrowing is to the fallback, not to the
+  // vocabulary: a Hub that genuinely says `gone` is understood wherever it says it.
+  const known = loopThrowing("registerSession", new HubError("gone", "session is gone"));
+  assert.ok(known instanceof BridgeExitError);
+  assert.equal(known.exitCode, EXIT_SESSION_TERMINAL);
+});
+
+test("an error with NO code stays loud — a missing code is malformed, not an additive refinement", () => {
+  // §8.5's envelope requires `code`. A transport or adapter that drops it while keeping a 410 or
+  // 401 status must not be read as a lapsed session or a bad credential: the real fault is the
+  // broken response, and papering over it sends the supervisor chasing the wrong remedy.
+  for (const status of [410, 401]) {
+    const e = loopThrowing("drainInbox", Object.assign(new Error("malformed hub response"), { status }));
+    assert.ok(!(e instanceof BridgeExitError), `a code-less ${status} must not map to an exit code`);
+    assert.ok(e instanceof Error);
   }
 });
 

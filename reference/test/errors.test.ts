@@ -20,7 +20,12 @@ import { Hub, HubError } from "../src/hub.js";
 
 const T0 = 1_786_752_000_000;
 
-const TOUCHPOINTS: HubTouchpoint[] = ["presentation", "own-session-submit", "addressed-send"];
+const TOUCHPOINTS: HubTouchpoint[] = [
+  "presentation",
+  "session-lifecycle",
+  "own-session-submit",
+  "addressed-send",
+];
 /** Derived, not restated — a class added to the table is then covered here automatically. */
 const STATUSES: HubErrorStatus[] = [...new Set(Object.values(HUB_ERROR_STATUS))];
 
@@ -81,6 +86,19 @@ test("the §16.3 split: an unrecognized 410 reads as `gone` presenting, `destina
   assert.equal(baseCodeForStatus(410, "addressed-send"), "destination_gone");
 });
 
+test("a session-lifecycle call gets NO 410 or 409 reading — §16.3 lists neither register nor close", () => {
+  // §16.3's presentation row is drain / ack / resolve / stream connect. Registration has no session
+  // to present and close is an idempotent terminal transition, so the spec gives no
+  // absent-refinement reading here — and inventing `gone` would tell a caller to re-register.
+  assert.equal(baseCodeForStatus(410, "session-lifecycle"), undefined);
+  assert.equal(baseCodeForStatus(409, "session-lifecycle"), undefined);
+  // The credential and request classes are about the caller, not the session: still read here.
+  assert.equal(baseCodeForStatus(401, "session-lifecycle"), "unauthenticated");
+  assert.equal(baseCodeForStatus(403, "session-lifecycle"), "not_authorized");
+  assert.equal(baseCodeForStatus(404, "session-lifecycle"), "not_found");
+  assert.equal(baseCodeForStatus(429, "session-lifecycle"), "rate_limited");
+});
+
 test("the §8.5 409 split: `already_terminal` presenting, `idempotency_conflict` on a submit (§8.1)", () => {
   // §8.5's 409 row carries both base codes and §8.1 splits them by touchpoint: a replay with a
   // differing payload is a SUBMIT conflict; cancel/resolve-after-terminal is what a presentation
@@ -91,10 +109,14 @@ test("the §8.5 409 split: `already_terminal` presenting, `idempotency_conflict`
   assert.equal(baseCodeForStatus(409, "addressed-send"), "idempotency_conflict");
 });
 
-test("the §8.5 422 split: `invalid_field`, except an addressed send's collapsed destination reading", () => {
-  assert.equal(baseCodeForStatus(422, "presentation"), "invalid_field");
-  assert.equal(baseCodeForStatus(422, "own-session-submit"), "invalid_field");
-  assert.equal(baseCodeForStatus(422, "addressed-send"), "unknown_destination");
+test("an unrecognized 422 reads as `invalid_field` at EVERY touchpoint — §8.5 states it flatly", () => {
+  // §8.5: "an unrecognized `422` as `invalid_field`", with no touchpoint split.
+  // `unknown_destination` is the meaning of that RECOGNIZED code, never the fallback for an
+  // unrecognized sibling — reading an addressed send's unrecognized 422 as `unknown_destination`
+  // would send a client rerouting away from a destination that was fine.
+  for (const touchpoint of TOUCHPOINTS) {
+    assert.equal(baseCodeForStatus(422, touchpoint), "invalid_field", `422 at ${touchpoint}`);
+  }
 });
 
 test("baseCodeForStatus stays silent on a class §8.5 does not define", () => {
@@ -107,11 +129,14 @@ test("baseCodeForStatus stays silent on a class §8.5 does not define", () => {
 
 test("every base code the matrix names is itself vocabulary, and classes back to its own row", () => {
   // Catches a matrix row that borrowed a code from the wrong status class — the transcription
-  // error a per-row eyeball would miss.
+  // error a per-row eyeball would miss. A cell may be `undefined` (a touchpoint §8.5 gives no
+  // reading); when it names a code, that code must belong to the row it sits in.
+  let named = 0;
   for (const status of STATUSES) {
     for (const touchpoint of TOUCHPOINTS) {
       const base = baseCodeForStatus(status, touchpoint);
-      assert.ok(base !== undefined, `${status}/${touchpoint} must have a base code`);
+      if (base === undefined) continue;
+      named++;
       assert.ok(isKnownHubErrorCode(base), `${base} must be in the table`);
       assert.equal(
         statusOfHubErrorCode(base),
@@ -120,6 +145,8 @@ test("every base code the matrix names is itself vocabulary, and classes back to
       );
     }
   }
+  // Guard the `continue` above: a matrix accidentally emptied would otherwise pass vacuously.
+  assert.ok(named >= 30, `expected most cells to name a base code, got ${named}`);
 });
 
 // ---- HubError carries the class (U2) ----
