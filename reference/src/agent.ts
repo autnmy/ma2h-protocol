@@ -630,6 +630,10 @@ export class Agent {
 // boundary, by design: the loop never inspects the session returned by its final step-4 close, so
 // an operator kill landing AFTER the last drain is indistinguishable from an orderly exit — the
 // mail is already drained and acked, and there is nothing left for the kill to stop.
+// A second boundary: this in-memory Hub speaks HubError codes with no HTTP status classes, so the
+// loop surfaces unknown codes loudly (rethrow) rather than implementing §8.5's unknown-code
+// fallback. An HTTP bridge MUST implement that fallback — an unrecognized 410 code at these
+// touchpoints reads as `gone` (§8.5).
 
 /** Auth failure: the credential was rejected or is not authorized (§9.1). */
 export const EXIT_AUTH_FAILURE = 2;

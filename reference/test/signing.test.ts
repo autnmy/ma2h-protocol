@@ -14,6 +14,7 @@ import {
   signResponse,
   verifyResponse,
 } from "../src/signing.js";
+import { parseSignatureHeader } from "../src/agent.js";
 import type { JsonObject, ResponseDetail, SignedContext } from "../src/types.js";
 
 interface Dp001Vector {
@@ -220,4 +221,27 @@ test("mac helpers — verify with a garbage v1 reports bad signature encoding", 
   const res = verifyResponse(sc, "not-base64url!!!", { key: vector.test_key, now: tMs + 5000 });
   assert.equal(res.ok, false);
   assert.equal(res.ok === false && res.reason, "bad signature encoding");
+});
+
+test("mac helpers — remainder-2 structural padding: an 86-char body takes exactly '==' (88 total), never a lone '='", () => {
+  const body = "B".repeat(86); // 86 mod 4 = 2, so exact RFC 4648 padding is two '='s; decodes to 64 bytes
+  const padded = `${body}==`;
+  assert.equal(padded.length, 88);
+  assert.equal(isWellFormedMac(padded), true);
+  assert.deepEqual(decodeMac(padded), decodeMac(body), "padded and unpadded twins decode to identical bytes");
+  assert.equal(decodeMac(padded)?.length, 64);
+  // Partial padding on a remainder-2 body (87 chars) violates the exact-pad rule — ill-formed.
+  assert.equal(isWellFormedMac(`${body}=`), false);
+  assert.equal(decodeMac(`${body}=`), null);
+});
+
+test("mac helpers — parseSignatureHeader preserves v1 padding: a padded genuine header still verifies end to end", () => {
+  const sc = buildSignedContext(vector.signed_context);
+  const { v1, header } = signResponse(sc, { key: vector.test_key });
+  // `v1` is the header's final part, so appending '=' pads exactly the v1 value on the wire.
+  const parsed = parseSignatureHeader(`${header}=`);
+  assert.equal(parsed.t, vector.signed_context.t);
+  assert.equal(parsed.jti, vector.signed_context.jti);
+  assert.equal(parsed.v1, `${v1}=`, "the parser slices after the FIRST '=' — trailing padding survives parsing");
+  assert.deepEqual(verifyResponse(sc, parsed.v1, { key: vector.test_key, now: tMs + 5000 }), { ok: true });
 });

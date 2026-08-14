@@ -323,6 +323,39 @@ test("getSession/listSessions surface closed_by_operator: true on an operator cl
   assert.ok(!("closed_by_operator" in (listed.find((s) => s.id === selfClosed.id) ?? {})));
 });
 
+test("a FOREIGN principal presenting the victim's operator-closed session id reads not_found, never the marker (§9.1/§16.3)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const dead = hub.registerSession(AGENT).session;
+  hub.closeSession(dead.id, OWNER); // the §16.4 kill-switch
+  // The ownership check precedes the marker branch (presentSession): to any principal that does not
+  // own the session, an operator-closed id stays indistinguishable from unknown — the marker must
+  // not become an oracle telling a third party WHO terminated someone else's session.
+  const isNotFound = (e: unknown): boolean => e instanceof HubError && e.code === "not_found";
+  assert.throws(() => hub.drainInbox(OTHER, { session: dead.id }), isNotFound);
+  assert.throws(() => hub.ackInbox(OTHER, ["dir_anything"], { session: dead.id }), isNotFound);
+});
+
+test("streamClaim against an operator-closed session reads session_closed_by_operator — the presentSession funnel (§8.7.2/§16.3)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const dead = hub.registerSession(AGENT).session;
+  hub.closeSession(dead.id, OWNER); // the §16.4 kill-switch
+  assert.throws(() => hub.streamClaim(AGENT, dead.id), isMarker);
+});
+
+test("CAS boundary: with the clock exactly AT expires_at an operator close still wins — settle expiry is strictly > (§16.3/§16.4)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const { session } = hub.registerSession(AGENT, { ttl_seconds: 60 });
+  now.t = T0 + 60_000; // t === expiresAtMs: the boundary instant, not yet PAST the lease
+  assert.equal(Date.parse(session.expires_at), now.t, "the clock sits exactly on the lease boundary");
+  const closed = hub.closeSession(session.id, OWNER).session;
+  assert.equal(closed.state, "closed", "settleSessions' strict > leaves the boundary instant inside the lease");
+  assert.equal(closed.closed_by_operator, true);
+  assert.equal(closed.closed_at, new Date(T0 + 60_000).toISOString());
+});
+
 // ---- The §14.2 explicit mailbox `prior`: stamped once at the bounce transition ----
 
 test("mailbox.prior: a never-drained bounce reads queued (no delivered_at), a drained orphan reads delivered — both equal the receipt's prior (§14.2)", () => {
@@ -367,4 +400,30 @@ test("an expired mailbox record carries NO prior — expired still means never d
   const got = hub.get(id, OTHER);
   assert.equal(got?.mailbox?.state, "expired", "never delivered → expired, not a seen-then-lost bounce");
   assert.ok(!("prior" in (got?.mailbox ?? {})), "a prior here would smuggle back the never-delivered ambiguity");
+});
+
+test("directive delivery prior: a never-drained session-addressed directive bounced by the kill-switch reads prior queued, no delivered_at (§14.2/§13.2)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const target = hub.registerSession(AGENT).session;
+  const { id } = hub.sendDirective({ from: OWNER, to: `agent:${AGENT}#${target.id}`, title: "hold deploys" });
+  hub.closeSession(target.id, OWNER); // the account human's operator kill (not the owning principal)
+  const d = hub.getDelivery(id, OWNER);
+  assert.equal(d?.state, "bounced");
+  assert.equal(d?.prior, "queued");
+  assert.equal(d?.delivered_at, undefined, "prior: queued asserts never-seen — no delivered_at beside it");
+});
+
+test("directive delivery prior: a drained-but-unacked directive bounced by the kill-switch reads prior delivered (§14.2/§13.4)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const target = hub.registerSession(AGENT).session;
+  const { id } = hub.sendDirective({ from: OWNER, to: `agent:${AGENT}#${target.id}`, title: "hold deploys" });
+  assert.equal(hub.drainInbox(AGENT, { session: target.id }).length, 1); // delivered, never acked (the §13.4 crash window)
+  now.t = T0 + 10_000;
+  hub.closeSession(target.id, OWNER); // the operator kill orphans the seen directive
+  const d = hub.getDelivery(id, OWNER);
+  assert.equal(d?.state, "bounced");
+  assert.equal(d?.prior, "delivered");
+  assert.equal(d?.delivered_at, new Date(T0).toISOString(), "the delivery timestamp is preserved");
 });

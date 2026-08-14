@@ -201,7 +201,7 @@ parentheses are the numbered sub-obligations inside a `dp` vector's `obligation`
 | Drain ownership (`?session=` foreign/unknown → `404`; own-terminal → `410`) | dp-020 (1), (2) |
 | Stream-delivery provisionality (never-acked push reverts to queued; track never left `queued`) | dp-021 (5), (6) |
 | Bounce-on-terminal for un-acked command entries (drained-but-unacked; `prior` distinction; principal-orphan; `response`/`receipt` never bounce) | dp-022 (1)–(4) |
-| Explicit `mailbox.prior` on the `bounced` terminal (stamped once at the bounce transition; equals the receipt's `prior`; `prior: "queued"` ⇒ no `delivered_at`; never on a non-bounced state) | sv-061, sv-062; dp-022 (2) |
+| Explicit `mailbox.prior` on the `bounced` terminal (stamped once at the bounce transition; equals the receipt's `prior`; `prior: "queued"` ⇒ no `delivered_at`; never on a non-bounced state) | sv-061, sv-062, sv-063; dp-022 (2) |
 | Ask auto-`cancelled` / task auto-`dismissed` as `system:undeliverable` on **both** undeliverable terminals | dp-022 (5) |
 | Receipts deduped on `(in_reply_to, event)`, best-effort, never cascading | dp-022 (6) |
 | Delivery-track truthfulness (`expired` ⇒ never delivered on both tracks; no `online` without qualifying activity) | dp-022 (7)–(9); dp-021 (6), (7) |
@@ -215,4 +215,4 @@ parentheses are the numbered sub-obligations inside a `dp` vector's `obligation`
 | Attested `from` carries exactly the submitted `agent.session` qualifier (cross-field equality) | dp-020 (8) |
 | 0.4 session-less drain isolation (never receives the v0.5 entry kinds; webhook directives-only) | dp-020 (3), (4) |
 | v0.5 durability (un-acked entries of any kind; active leases; pending bounce obligations survive restart) | pa-002 (§3.1) |
-| Normative v0.5 spec text present and correctly scoped (grammar, opt-in gates, §9.8 discipline, §10 additivity, §13.4/§13.5 duties, §14.2 terminals, §15/§16 rules) | pa-002 (23 asserts) |
+| Normative v0.5 spec text present and correctly scoped (grammar, opt-in gates, §9.8 discipline, §10 additivity, §13.4/§13.5 duties, §14.2 terminals, §15/§16 rules) | pa-002 (24 asserts) |

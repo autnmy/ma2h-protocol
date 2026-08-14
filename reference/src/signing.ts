@@ -149,6 +149,9 @@ export interface VerifyOptions {
  * rejected legitimately valid MACs). One deliberate tightening rides along: standard-base64
  * alphabet values (`+`/`/`) that Node's lenient `Buffer.from(v1, "base64url")` previously accepted
  * now reject — conformant §9.2 emitters are unaffected.
+ *
+ * The rule imposes a floor, not a ceiling, by design; callers using this as an ingest screen
+ * should length-bound `v1` upstream at their transport layer (header/envelope size caps, §8.6).
  */
 export function decodeMac(v1: string): Buffer | null {
   // Split trailing padding from the body; what remains must be pure base64url alphabet

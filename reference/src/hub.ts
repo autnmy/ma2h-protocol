@@ -420,6 +420,18 @@ export class Hub {
    * killed party never re-registers straight through the kill it was just dealt.
    * On success the presentation renews the lease (client-originated activity).
    */
+  /**
+   * The §16.4 kill-switch marker as a wire error: thrown ahead of each touchpoint's own terminal
+   * fallback (`gone` at presentation touchpoints, `destination_gone` at the own-session submit),
+   * so the split stays identical at every §16.3 row that emits it.
+   */
+  private static operatorClosedError(label: string, sessionId: string): HubError {
+    return new HubError(
+      "session_closed_by_operator",
+      `${label} ${sessionId} was closed by the account's operator — stop; do not re-register (§16.4)`,
+    );
+  }
+
   private presentSession(principal: string, sessionId: string, nowMs: number): SessionRecord {
     const rec = this.sessions.get(sessionId);
     if (!rec || rec.session.agent_id !== principal) {
@@ -427,10 +439,7 @@ export class Hub {
     }
     if (rec.session.state !== "active") {
       if (rec.session.closed_by_operator === true) {
-        throw new HubError(
-          "session_closed_by_operator",
-          `session ${sessionId} was closed by the account's operator — stop; do not re-register (§16.4)`,
-        );
+        throw Hub.operatorClosedError("session", sessionId);
       }
       throw new HubError("gone", `session ${sessionId} is ${rec.session.state} — re-register and continue (§16.3)`);
     }
@@ -513,10 +522,7 @@ export class Hub {
       // A stream connect is an own-session presentation touchpoint (§8.7.2), so its 410 carries the
       // same §16.3 split as presentSession: operator kill → the marker code, else plain `gone`.
       if (rec.session.closed_by_operator === true) {
-        throw new HubError(
-          "session_closed_by_operator",
-          `session ${sessionId} was closed by the account's operator — stop; do not re-register (§16.4)`,
-        );
+        throw Hub.operatorClosedError("session", sessionId);
       }
       throw new HubError("gone", `session ${sessionId} is ${rec.session.state}`);
     }
@@ -646,10 +652,7 @@ export class Hub {
         // the marker code; every OTHER terminal keeps the existing `destination_gone` wire contract
         // (this touchpoint never emitted `gone`, and moving it would be a wire change).
         if (rec.session.closed_by_operator === true) {
-          throw new HubError(
-            "session_closed_by_operator",
-            `agent.session ${message.agent.session} was closed by the account's operator — stop; do not re-register (§16.4)`,
-          );
+          throw Hub.operatorClosedError("agent.session", message.agent.session);
         }
         throw new HubError("destination_gone", `agent.session ${message.agent.session} is ${rec.session.state} (§4.1)`);
       }

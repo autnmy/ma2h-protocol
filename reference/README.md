@@ -10,7 +10,7 @@ implementations (including commercial ones) are measured against.
 ## What it covers
 
 Strict TypeScript (`tsc --noEmit` clean under `exactOptionalPropertyTypes`,
-`noUncheckedIndexedAccess`, `verbatimModuleSyntax`). All tests pass (204 at v0.5).
+`noUncheckedIndexedAccess`, `verbatimModuleSyntax`). All tests pass (212 at v0.5).
 
 | Module | Spec | Status |
 |--------|------|--------|
@@ -39,7 +39,7 @@ exit-code discipline).
 ## Run
 
 ```bash
-cd reference && npm install && npm test        # tsx + node:test (204 tests)
+cd reference && npm install && npm test        # tsx + node:test (212 tests)
 npm run typecheck                               # tsc --noEmit (strict)
 npm run vectors                                 # execute the conformance vectors
 

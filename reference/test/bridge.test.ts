@@ -265,6 +265,38 @@ test("the session-qualified addressee check refuses an entry for a PRIOR own ses
   assert.match(res.acted === false ? res.reason : "", /session mismatch/);
 });
 
+test("an operator kill landing after the final ack is an orderly exit by design — nothing left for the kill to stop (§16.3/§16.4)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const { id } = hub.submit(askTo(`agent:${WORKER}`));
+  // The §16.4 kill fires AFTER the loop's last ack but BEFORE its own step-4 close: all mail is
+  // already drained and acked, so there is nothing for the kill to stop — the loop's close is an
+  // idempotent re-close of the terminal session and the run resolves normally, never exit 5.
+  const killingAfterAck: BridgeHub = {
+    ...bridgeSurface(hub),
+    ackInbox: (principal, ids, o) => {
+      const out = hub.ackInbox(principal, ids, o);
+      if (o?.session !== undefined) hub.closeSession(o.session, OWNER, o.now); // the kill-switch, post-ack
+      return out;
+    },
+  };
+  const report = runBridgeLoop(killingAfterAck, {
+    principal: WORKER,
+    agent: newWorkerAgent([SENDER]),
+    decide: () => ({ resolution: "answered", value: "approve" }),
+    maxDrains: 1,
+    now: () => now.t,
+  });
+  assert.equal(report.closed, true, "resolved normally — no BridgeExitError");
+  assert.equal(report.processed.messages, 1);
+  assert.equal(report.refused.length, 0);
+  // The kill genuinely landed as an operator close…
+  assert.equal(hub.getSession(report.session, WORKER).session.closed_by_operator, true);
+  // …but every entry was consumed first, so nothing bounced: the sender's view stays clean.
+  assert.equal(hub.get(id, SENDER)?.status, "answered");
+  assert.equal(hub.get(id, SENDER)?.mailbox?.state, "acknowledged");
+});
+
 /** The real Hub's bridge surface, spreadable into failure-injecting stubs. */
 function bridgeSurface(hub: Hub): BridgeHub {
   return {

@@ -30,7 +30,6 @@ import {
   computePayloadSha256,
   computeReceiptSha256,
   decodeMac,
-  isWellFormedMac,
   signAck,
   signInbound,
   signMessageEntry,
@@ -513,10 +512,8 @@ function runOne(id: string, cls: string, v: Record<string, unknown>): VectorResu
       note: string;
     }>;
     for (const c of cases) {
+      // isWellFormedMac is decodeMac !== null by definition, so one decode covers both helpers.
       const bytes = decodeMac(c.value);
-      if (isWellFormedMac(c.value) !== (bytes !== null)) {
-        return { id, cls, status: "fail", detail: `isWellFormedMac and decodeMac disagree (${c.note})` };
-      }
       const got = bytes === null ? "ill-formed" : "well-formed";
       if (got !== c.expect) {
         return { id, cls, status: "fail", detail: `expected ${c.expect}, got ${got} (${c.note})` };
