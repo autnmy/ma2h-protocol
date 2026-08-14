@@ -66,11 +66,28 @@ parsed.each do |f, data|
       name = entry["name"].to_s.strip
       failed << "#{label}: missing or empty `name`" if name.empty?
 
+      # Only RECOGNIZED remote shapes bypass path resolution. Anything absent or malformed must fail:
+      # lumping it in with "remote" would skip every check below and report success on an entry
+      # `/plugin install` cannot resolve — the same vacuous pass this script exists to catch.
       source = entry["source"]
-      # Non-path sources (the git/GitHub object form, or a URL) are a documented plugin-spec option and
-      # cannot be resolved on disk. Skip rather than fail, so adding a remote source later does not
-      # break this gate.
-      next unless source.is_a?(String) && !source.include?("://")
+      case source
+      when Hash
+        # Documented object form, e.g. {"source": "github", "repo": "owner/name"} — not resolvable on
+        # disk, so path checks are skipped. Empty is not a shape, so it still fails.
+        failed << "#{label}: `source` is an empty object" if source.empty?
+        next
+      when String
+        if source.strip.empty?
+          failed << "#{label}: `source` is empty"
+          next
+        end
+        next if source.include?("://") # remote URL — nothing to resolve locally
+        # Otherwise it is a repo-relative path; fall through to resolution below.
+      else
+        failed << "#{label}: missing or malformed `source` (#{source.inspect}) — " \
+                  "`/plugin install` cannot resolve this entry"
+        next
+      end
 
       # cleanpath keeps reported paths repo-relative; absolute paths bury the useful part of the
       # message under the runner's checkout directory in CI logs.
