@@ -4,6 +4,57 @@ All notable changes to the MA2H (Multi-agent to Human Protocol) specification.
 
 ## Unreleased
 
+### Added (v0.5 — typed Hub error-code vocabulary + the §8.5 unknown-code fallback, implemented) — #43
+The one-definition discipline #41 applied to the wire version and the MAC rule, now applied to error
+codes — and the §8.5 fallback the reference previously documented as a deviation instead of
+implementing. Additive throughout: no exported identifier renamed, no `new HubError(...)` call site
+edited, no existing `e.code === "…"` assertion churned, so the downstream re-vendor (oh-hai#712) is a
+clean pull that gains one file.
+
+- **`reference/src/errors.ts` — the one definition (§8.5)** — a new standalone, dependency-free
+  module (shaped like `version.ts`, so it vendors byte-for-byte). `HUB_ERROR_STATUS` maps each
+  `error.code` to the §8.5 status class it is returned under; `KnownHubErrorCode` is `keyof typeof`
+  that table, `HubErrorCode` is the open `KnownHubErrorCode | (string & {})` refinement §8.5
+  sanctions, and `isKnownHubErrorCode`/`statusOfHubErrorCode` read the same table. The code set is
+  declared **once** — there is no parallel union or switch to drift from it. Two rows are sourced
+  outside §8.5's own table: `not_acknowledgeable` classes `409` per §14.3 ("acking an `open` message
+  is `409`" — the table's omission is a spec-side follow-up), and `agent_id_mismatch` /
+  `idempotency_conflict` are carried as protocol vocabulary this Hub does not itself emit.
+  Note on scope: the open union buys **autocomplete, not typo rejection** — no open union can reject
+  `"gonee"` — so the emitter-drift guard is a `test/errors.test.ts` scan of `src/**` that fails the
+  build on an emitted code outside the table.
+- **`HubError.status` — the §8.5 class, derived (§8.5)** — `HubError` gains a `status` field derived
+  from its `code` via the table, plus an optional fourth constructor parameter for a downstream Hub
+  raising a code this table cannot class. Derived rather than hand-passed at each of the ~50 throw
+  sites, which would have reintroduced precisely the drift being fixed. `HubError.code` and
+  `A2hError.code` now carry `HubErrorCode`; `A2hError` gains **nothing else** — §8.5's envelope is
+  `{ code, message }`, and status rides the HTTP response, not the body.
+- **§8.5's unknown-code fallback, implemented rather than confessed (§8.5/§16.3)** — `mapHubError`
+  now resolves an **unrecognized** code to the base code its touchpoint would have returned, via a
+  `BASE_CODE_BY_CLASS` matrix over §16.3's touchpoints. A row spells out per-touchpoint readings
+  exactly when its class has more than one base code — the case §8.5 says the touchpoint
+  disambiguates: an unrecognized `410` reads as `gone` when presenting an own session and
+  `destination_gone` when naming a session or destination on a send, and an unrecognized `409` as
+  `already_terminal` at a presentation touchpoint but `idempotency_conflict` on a submit (§8.1's
+  replay-with-differing-payload conflict). An unrecognized `422` reads as `invalid_field`
+  **everywhere** — §8.5 states that one flatly and does not split it; `unknown_destination` is the
+  meaning of that recognized code, never the fallback for an unrecognized sibling.
+  The reading is per-call-site, because §8.5's answer depends on where you are standing: drain / ack
+  / resolve-`?session=` are §16.3's presentation row, so a refining Hub's own 410 there now exits
+  `EXIT_SESSION_TERMINAL` instead of escaping unread, and the resolve-site 409 guard reads an
+  unrecognized 409 as the lost-CAS-race it is. **Register and close are not in that row** — a
+  `session-lifecycle` touchpoint with no 410 reading at all, since registration has no session to
+  present and close is an idempotent terminal transition; misreading a peer's 410 there as `gone`
+  would walk a supervisor into a re-registration loop. The credential classes (401/403) read the
+  same everywhere; they are about the caller, not the session.
+  Three things deliberately do **not** fall back: a known code the bridge does not map (`not_found`,
+  `rate_limited`) propagates as itself, a code whose class is also unrecognizable rethrows, and an
+  error carrying **no code at all** rethrows — §8.5's envelope requires a code, so its absence is a
+  malformed response rather than an additive refinement, and papering over it would send a
+  supervisor re-registering against a broken transport. The §16.4 `session_closed_by_operator`
+  marker still outranks the generic 410 class — a killed bridge must never be told to re-register.
+  The `runBridgeLoop` header's "second boundary" paragraph is retired accordingly.
+
 ### Added (v0.5 — shared MAC helpers, canonical version constant, marker formalization, vendored-surface re-sync) — #41
 One pass restoring the reference as the single source of truth for the surfaces downstream vendors
 byte-for-byte, and formalizing the two v0.5 markers a shipping Hub already emits. Additive within the
