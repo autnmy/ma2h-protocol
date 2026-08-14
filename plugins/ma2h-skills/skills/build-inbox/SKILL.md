@@ -43,7 +43,9 @@ what's missing:
   (`DELETE /v1/sessions/{id}`). That form is **required to receive the v0.5 entry kinds**
   (`message`/`response`/`receipt` — a session-less drain never sees them, §8.7.1) and every
   session-presenting call renews the session's lease/presence (§16.2). Its errors are pinned: `404` =
-  foreign/unknown session, `410` = your **own** session is terminal ⇒ re-register and continue. On a
+  foreign/unknown session; `410` = your **own** session is terminal, split by `error.code` (§16.3):
+  `gone` (lease lapsed / self-closed) ⇒ re-register and continue, `session_closed_by_operator` (the
+  §16.4 operator kill-switch) ⇒ **stop — do not re-register**. On a
   **pre-0.5 Hub** — or for a directives-only agent — keep the **session-less v0.4 drain**: it returns
   exactly the v0.4 shape. Honesty note (§15.1): an agent whose only consumer drains session-less never
   reads `online` for addressed-message reachability — directives still flow, but other agents'
@@ -62,8 +64,10 @@ surface), drain it, confirm the signature verifies and the ack removes it (a sec
 
 *(If you generated the v0.5 session-scoped mode)* also verify the session path: register a session,
 drain with `?session=`, confirm a **directive** still verifies and acks on this path, and confirm a
-closed session's drain returns `410` (re-register and continue) — not the `404` a *foreign* session
-id must return. If an addressed `message` entry appears, confirm the generated skill **refuses it
+lapsed or self-closed session's drain returns `410` `gone` (re-register and continue) — not the
+`404` a *foreign* session id must return, and not the `410` `session_closed_by_operator` an
+operator's kill-switch returns (stop — do not re-register). If an addressed `message` entry appears,
+confirm the generated skill **refuses it
 un-acked** (this helper ports only the §9.7 directive primitives — acking an entry it cannot verify
 would report `acknowledged` to the sender for work nobody checked or did). Consuming those entries
 for real is `build-bridge`'s job: it ports `receiveEntry` plus the §9.8 `message`/`response`/`receipt`
@@ -176,7 +180,8 @@ curl -sS -X POST "<HUB_URL>/v1/sessions" -H "Authorization: Bearer $<AUTH_ENV>" 
 curl -sS "<POLL_URL>?session=<sess>&wait=25" -H "Authorization: Bearer $<AUTH_ENV>"
 curl -sS -X POST "<ACK_URL>?session=<sess>" -H "Authorization: Bearer $<AUTH_ENV>" \
   -H "Content-Type: application/json" -d '{ "ids": ["<ack-key>"] }'
-# 404 = foreign/unknown session · 410 = own session terminal → re-register (step 1) and continue.
+# 404 = foreign/unknown session · 410 `gone` = own session terminal → re-register (step 1) and
+# continue · 410 `session_closed_by_operator` = the operator kill-switch → stop, do NOT re-register.
 
 # 4) close on orderly exit:
 curl -sS -X DELETE "<HUB_URL>/v1/sessions/<sess>" -H "Authorization: Bearer $<AUTH_ENV>"
