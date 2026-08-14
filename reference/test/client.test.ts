@@ -15,6 +15,7 @@ import {
   classifyEntryResult,
   sanitizeDirective,
   sanitizeMessageEntry,
+  splitAddress,
   type EntryResult,
   type EntryVerdict,
 } from "../src/client.js";
@@ -411,4 +412,14 @@ test("sanitizers strip a JSON-parsed OWN __proto__ key (§10/§13.4 — pinned a
   assert.equal(Object.getOwnPropertyNames(cleanDirective).includes("__proto__"), false);
   assert.equal(Object.getPrototypeOf(cleanDirective), Object.prototype);
   assert.equal(({} as { polluted?: boolean }).polluted, undefined, "no pollution escaped");
+});
+
+test("splitAddress enforces the full §4 session grammar — a bare `sess_` suffix is malformed (codex, PR #51)", () => {
+  // The newly-public parser must enforce `sess_` + at least one character itself: a downstream
+  // consumer using it standalone (no schema pass) must not read a malformed address as
+  // session-qualified.
+  assert.equal(splitAddress("agent:worker#sess_"), null);
+  assert.deepEqual(splitAddress("agent:worker#sess_x"), { principal: "worker", session: "sess_x" });
+  assert.deepEqual(splitAddress("agent:worker"), { principal: "worker" });
+  assert.equal(splitAddress("agent:worker#dev"), null);
 });

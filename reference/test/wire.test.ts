@@ -709,6 +709,24 @@ test("session-qualified allowed_resolvers alone lift the stamp to \"0.5\" — re
   assert.equal(usesSessionQualifiedResolvers({ agent: AGENT, request: { allowed_resolvers: ["human:you", "agent:peer"] } }), false);
   assert.equal(usesSessionQualifiedResolvers({ agent: AGENT, request: { allowed_resolvers: ["human:you#legacy"] } }), false);
   assert.equal(usesSessionQualifiedResolvers({ agent: AGENT }), false);
+  // Only a syntactically VALID §4 session qualifier lifts (codex, PR #51): a legacy hash-bearing
+  // agent principal, or a bare `sess_` suffix, is a pre-0.5 exact-literal resolver — not a lift.
+  assert.equal(usesSessionQualifiedResolvers({ agent: AGENT, request: { allowed_resolvers: ["agent:legacy#worker"] } }), false);
+  assert.equal(usesSessionQualifiedResolvers({ agent: AGENT, request: { allowed_resolvers: ["agent:peer#sess_"] } }), false);
+});
+
+test("a legacy hash-bearing agent resolver stays \"0.3\" and BUILDS — the predicate must not stamp a version whose grammar then rejects it (codex, PR #51)", () => {
+  const legacy = buildAsk(
+    {
+      agent: AGENT,
+      title: "legacy resolver",
+      idempotency_key: newIdempotencyKey(),
+      request: { ...MINIMAL_REQUEST, allowed_resolvers: ["agent:legacy#worker"] },
+    },
+    clock,
+  );
+  assert.equal(legacy.ma2h_version, "0.3", "a pre-0.5 exact-literal resolver is not a v0.5 feature");
+  assert.equal(validateMessage(legacy).valid, true, "buildable and valid under the pre-0.5 registry");
 });
 
 test("a plain ask naming only human resolvers still stamps \"0.3\"", () => {

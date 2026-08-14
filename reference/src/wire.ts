@@ -103,7 +103,12 @@ export function usesSessionQualifiedResolvers(envelope: VersionFeatureProbe): bo
     ...(envelope.request?.allowed_resolvers ?? []),
     ...(envelope.action?.allowed_resolvers ?? []),
   ];
-  return resolvers.some((actor) => actor.startsWith("agent:") && actor.includes("#"));
+  // Only a syntactically VALID v0.5 session qualifier lifts the version: `#` followed by
+  // `sess_` and at least one more character (the §4 grammar). A legacy hash-bearing principal
+  // like `agent:legacy#worker` is a valid pre-0.5 exact-literal resolver — treating its `#` as a
+  // session qualifier would stamp 0.5 and then fail the builder's own self-validation, making a
+  // legitimate human-inbox envelope unbuildable (codex, PR #51).
+  return resolvers.some((actor) => actor.startsWith("agent:") && /#sess_.+$/.test(actor));
 }
 
 /**

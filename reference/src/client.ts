@@ -212,7 +212,11 @@ export function splitAddress(addr: string): { principal: string; session?: strin
   if (hash === -1) return rest.length > 0 ? { principal: rest } : null;
   const principal = rest.slice(0, hash);
   const session = rest.slice(hash + 1);
-  if (principal.length === 0 || !session.startsWith("sess_")) return null;
+  // The §4 grammar requires `sess_` plus at least one character — a bare `sess_` suffix is
+  // malformed, and this newly-public parser must enforce that itself: a downstream consumer
+  // using it for routing/addressee checks without a preceding schema pass would otherwise treat
+  // a malformed address as session-qualified (codex, PR #51).
+  if (principal.length === 0 || !/^sess_.+$/.test(session)) return null;
   return { principal, session };
 }
 
