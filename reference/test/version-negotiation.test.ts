@@ -5,6 +5,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Hub, HubError } from "../src/hub.js";
+import { MA2H_VERSION } from "../src/version.js";
 import type { A2hMessage, Callback } from "../src/types.js";
 
 const SIGNING_KEY = "hub-signing-key-0123456789abcdef0123456789abcdef";
@@ -104,4 +105,19 @@ test("a leading-zero MINOR (0.03) is a validation_error, not silently treated as
   // falls through to the tightened schema pattern and is rejected as a validation_error (both modes).
   assert.throws(() => newHub().submit(makeAsk("0.03", PUSH)), isCode("validation_error"));
   assert.throws(() => newHub().submit(makeAsk("0.03", PULL)), isCode("validation_error"));
+});
+
+test("MA2H_VERSION is the canonical emitted version and matches the §10 0.x shape", () => {
+  assert.equal(MA2H_VERSION, "0.5");
+  assert.match(MA2H_VERSION, /^0\.(0|[1-9]\d*)$/);
+});
+
+test("a Hub-minted envelope carries ma2h_version === MA2H_VERSION (§14.1 ack)", () => {
+  // The Hub stamps ITS OWN version on envelopes it mints — it does not echo the submitter's.
+  const hub = newHub();
+  const { id } = hub.submit(makeAsk("0.5", PULL));
+  hub.resolve(id, { actor: "human:alice", resolution: "answered", value: "ship" });
+  hub.get(id, "deploybot/dev-team"); // §14.2: the pull GET marks delivered-to-agent, unlocking the ack
+  const ack = hub.ackMessage(id, "deploybot/dev-team");
+  assert.equal(ack.ma2h_version, MA2H_VERSION);
 });

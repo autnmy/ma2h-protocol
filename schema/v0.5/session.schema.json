@@ -14,12 +14,16 @@
     "last_seen": { "type": "string", "format": "date-time", "description": "The session's latest client-originated renewal event (spec §15.1 per-session presence). Optional: absent until first derivable, and exposed under exactly the visibility rules that gate the read itself (spec §16.4)." },
     "ttl_seconds": { "type": "integer", "minimum": 1, "description": "The lease TTL in effect (the requested value, clamped to the advertised sessions.max_ttl_seconds)." },
     "closed_at": { "type": "string", "format": "date-time", "description": "When the session reached a terminal state." },
+    "closed_by_operator": { "const": true, "description": "v0.5: present (and necessarily true) ONLY when the account's authenticated human closed the session via the §16.4 kill-switch exception — the closer was the operator, not the owning principal. True-only emission: a Hub MUST NOT emit `closed_by_operator: false` (hence `const: true`, not a boolean type — false must never validate); absent = not-operator-closed-or-unknown." },
     "run_id": { "type": "string", "minLength": 1, "description": "The invocation's run_id as supplied at registration (audit label; still non-authorizing, spec §9.1)." },
     "label": { "type": "string", "description": "Free-form human-readable label (e.g. \"dev-team · issue #612\")." },
     "kind": { "type": "string", "description": "Free-form deployment vocabulary (e.g. \"worker\", \"overseer\")." },
     "project": { "type": "string", "description": "Optional grouping key, as on the §4.1 agent descriptor." },
     "labels": { "type": "object", "additionalProperties": { "type": "string" } }
   },
+  "allOf": [
+    { "if": { "required": ["closed_by_operator"] }, "then": { "properties": { "state": { "const": "closed" } }, "required": ["state"] }, "$comment": "The marker rides the terminal CAS (spec §16.3/§16.4): it is set only on the WINNING operator close transition — never retroactively on an expired session, and first-terminal-wins means a `closed` session never flips to `expired` — so it can only ever coexist with state: \"closed\"." }
+  ],
   "$defs": {
     "registerRequest": {
       "title": "POST /v1/sessions request",

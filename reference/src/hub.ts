@@ -31,6 +31,7 @@ import {
   signResponseEntry,
 } from "./signing.js";
 import { validateAgainstSchema, validateMessage, validateV05, validateV05Def } from "./envelope.js";
+import { MA2H_VERSION } from "./version.js";
 import type {
   Ack,
   A2hMessage,
@@ -64,8 +65,6 @@ import type {
   TaskMessage,
 } from "./types.js";
 
-/** Highest version this reference Hub implements (spec §10) — major 0, up to minor 5. */
-const HUB_VERSION = "0.5";
 /**
  * The minor at which the §9.2 signature began binding `payload_sha256` (v0.3). Push parity is anchored
  * HERE, not at IMPLEMENTED_MINOR: 0.3 and 0.4 share the payload-bound signature, so a v0.4 Hub still
@@ -175,6 +174,12 @@ interface MailboxTrackRecord {
   state: MailboxState;
   deliveredAtMs?: number;
   acknowledgedAtMs?: number;
+  /**
+   * v0.5 (§14.2): the explicit never-seen (`queued`) vs seen-then-orphaned (`delivered`) split,
+   * stamped ONCE at the bounce transition from the same derivation as the bounce receipt's `prior`
+   * — never re-derived at read, so the MUST-equal-receipt rule holds by construction.
+   */
+  prior?: "queued" | "delivered";
   ack?: Ack;
 }
 
@@ -229,6 +234,11 @@ export class Hub {
   private readonly deliveries = new Map<string, ResponseDelivery>();
   /** Receipt track for directives (spec §14.2), keyed by directive id — kept separate from `deliveries`
    * so a `/v1/inbox/ack` retry can never surface a response-leg ack (the two ack APIs stay disjoint). */
+  /**
+   * §14.4 directive receipt-track view. Can reach `bounced` (session-addressed directive whose
+   * session goes terminal, or delivered-but-unacked past retention), so records carry the explicit
+   * §14.2 `prior`, stamped at the transition beside the mailbox track's.
+   */
   private readonly directiveDeliveries = new Map<string, Delivery>();
   /** Outbound mailbox track for ADDRESSED messages (spec §14.2, v0.5), keyed by message id. */
   private readonly mailboxTracks = new Map<string, MailboxTrackRecord>();
@@ -403,16 +413,34 @@ export class Hub {
   /**
    * Resolve a caller-presented `?session=` under the §8.7.1 drain rules: the caller's own LIVE
    * session, else foreign/unknown → `404 not_found` (indistinguishable, §9.1) and own-but-terminal
-   * → `410 gone` — distinct by design, so a bridge returning from a lease lapse learns
-   * "re-register and continue" instead of treating its own address as nonexistent (§16).
+   * → `410` — distinct by design, and the 410 itself splits by WHO terminated the session (§16.3):
+   * `gone` for expired/self-closed, so a bridge returning from a lease lapse learns "re-register
+   * and continue" instead of treating its own address as nonexistent (§16); the §16.4 operator
+   * kill-switch instead reads `session_closed_by_operator` — "stop; do not re-register" — so the
+   * killed party never re-registers straight through the kill it was just dealt.
    * On success the presentation renews the lease (client-originated activity).
    */
+  /**
+   * The §16.4 kill-switch marker as a wire error: thrown ahead of each touchpoint's own terminal
+   * fallback (`gone` at presentation touchpoints, `destination_gone` at the own-session submit),
+   * so the split stays identical at every §16.3 row that emits it.
+   */
+  private static operatorClosedError(label: string, sessionId: string): HubError {
+    return new HubError(
+      "session_closed_by_operator",
+      `${label} ${sessionId} was closed by the account's operator — stop; do not re-register (§16.4)`,
+    );
+  }
+
   private presentSession(principal: string, sessionId: string, nowMs: number): SessionRecord {
     const rec = this.sessions.get(sessionId);
     if (!rec || rec.session.agent_id !== principal) {
       throw new HubError("not_found", `unknown session: ${sessionId}`);
     }
     if (rec.session.state !== "active") {
+      if (rec.session.closed_by_operator === true) {
+        throw Hub.operatorClosedError("session", sessionId);
+      }
       throw new HubError("gone", `session ${sessionId} is ${rec.session.state} — re-register and continue (§16.3)`);
     }
     this.renewSession(rec, nowMs);
@@ -422,9 +450,13 @@ export class Hub {
   /**
    * Close a session (spec §16.3/§16.4): `DELETE /v1/sessions/{id}`. Owner-only, with ONE exception:
    * the account's authenticated human may close any account session — the attested operator
-   * KILL-SWITCH, whose §14.2 bounce unblocks senders waiting on a wedged addressee (§9.1).
-   * Idempotent: re-closing a terminal session returns it unchanged (first-terminal-wins). A caller
-   * that neither owns the session nor the account sees `404` (indistinguishable from unknown).
+   * KILL-SWITCH, whose §14.2 bounce unblocks senders waiting on a wedged addressee (§9.1). An
+   * operator close is MARKED on the session resource (`closed_by_operator: true`, §16.4) —
+   * true-only emission, never `false`, and only on the WINNING terminal transition: the settle
+   * above means a lapsed lease that already won the CAS stays plain `expired`, never retroactively
+   * marked (§16.3). Idempotent: re-closing a terminal session returns it unchanged
+   * (first-terminal-wins). A caller that neither owns the session nor the account sees `404`
+   * (indistinguishable from unknown).
    */
   closeSession(sessionId: string, caller: string, nowMs?: number): { session: Session } {
     const t = nowMs ?? this.now();
@@ -438,6 +470,10 @@ export class Hub {
     if (rec.session.state === "active") {
       rec.session.state = "closed";
       rec.session.closed_at = new Date(t).toISOString();
+      // §16.4: the closer was the account's human, NOT the owning principal — the kill-switch
+      // exception path. Recorded here (and only here — this branch IS the winning CAS) so the
+      // marker can never appear on an expired or self-closed session.
+      if (isAccountHuman && !isOwner) rec.session.closed_by_operator = true;
       rec.terminalAtMs = t;
       this.bounceSessionMail(rec, t);
     }
@@ -482,7 +518,14 @@ export class Hub {
     this.settleSessions(t);
     const rec = this.sessions.get(sessionId);
     if (!rec || rec.session.agent_id !== principal) throw new HubError("not_found", `unknown session: ${sessionId}`);
-    if (rec.session.state !== "active") throw new HubError("gone", `session ${sessionId} is ${rec.session.state}`);
+    if (rec.session.state !== "active") {
+      // A stream connect is an own-session presentation touchpoint (§8.7.2), so its 410 carries the
+      // same §16.3 split as presentSession: operator kill → the marker code, else plain `gone`.
+      if (rec.session.closed_by_operator === true) {
+        throw Hub.operatorClosedError("session", sessionId);
+      }
+      throw new HubError("gone", `session ${sessionId} is ${rec.session.state}`);
+    }
     const advertised = this.streamMaxHoldSeconds * 1000;
     // Implementation-defined nonzero margin (spec §8.7.2): a quarter of the lease, capped at 5s —
     // closing exactly AT expiry would hand the client a renewal moment it can only use after the
@@ -521,7 +564,7 @@ export class Hub {
     if (nonZeroMajor) {
       throw new HubError(
         "version_not_supported",
-        `ma2h_version "${raw}": major ${nonZeroMajor[1]} is not supported (this Hub implements ${HUB_VERSION}; §10)`,
+        `ma2h_version "${raw}": major ${nonZeroMajor[1]} is not supported (this Hub implements ${MA2H_VERSION}; §10)`,
       );
     }
     // Push parity (§9.2 v0.3 break) — a `0.x` with a CANONICAL minor (no leading zeros) below the
@@ -605,6 +648,12 @@ export class Hub {
         throw new HubError("invalid_field", `agent.session ${message.agent.session} is not a session of ${message.agent.id} (§4.1)`);
       }
       if (rec.session.state !== "active") {
+        // §16.3: the own-session submit splits by WHO terminated it — the §16.4 kill-switch reads
+        // the marker code; every OTHER terminal keeps the existing `destination_gone` wire contract
+        // (this touchpoint never emitted `gone`, and moving it would be a wire change).
+        if (rec.session.closed_by_operator === true) {
+          throw Hub.operatorClosedError("agent.session", message.agent.session);
+        }
         throw new HubError("destination_gone", `agent.session ${message.agent.session} is ${rec.session.state} (§4.1)`);
       }
       this.renewSession(rec, t);
@@ -831,7 +880,8 @@ export class Hub {
       // Clone the delivery so a caller mutating `got.delivery` can't corrupt the stored receipt track.
       ...(delivery ? { delivery: structuredClone(delivery) } : {}),
       // v0.5 (§8.2): the sender's AUTHORITATIVE outbound mailbox track — addressed messages only.
-      // On `bounced`, a present `delivered_at` means seen-then-orphaned (the receipt `prior` split).
+      // On `bounced` it carries the explicit `prior` stamped at the transition, equal to the bounce
+      // receipt's (§14.2); `delivered_at`-presence stays the legacy inference `prior` supersedes.
       ...(track ? { mailbox: Hub.publicMailboxTrack(track) } : {}),
     };
   }
@@ -844,6 +894,8 @@ export class Hub {
       ...(track.acknowledgedAtMs !== undefined
         ? { acknowledged_at: new Date(track.acknowledgedAtMs).toISOString() }
         : {}),
+      // v0.5 (§14.2): the stored bounce-transition stamp — present only on a `bounced` terminal.
+      ...(track.prior !== undefined ? { prior: track.prior } : {}),
     };
   }
 
@@ -1224,7 +1276,7 @@ export class Hub {
   /** Assemble a Hub-attested ack envelope (spec §14.1). */
   private buildAck(inReplyTo: string, principal: string, nowMs: number, note?: string, resolutionId?: string): Ack {
     return {
-      ma2h_version: HUB_VERSION,
+      ma2h_version: MA2H_VERSION,
       type: "ack",
       in_reply_to: inReplyTo,
       by: `agent:${principal}`,
@@ -1389,7 +1441,7 @@ export class Hub {
     }
     const id = newDirectiveId();
     const directive: InboundDirective = {
-      ma2h_version: HUB_VERSION,
+      ma2h_version: MA2H_VERSION,
       type: "directive",
       id,
       from: input.from,
@@ -1849,8 +1901,11 @@ export class Hub {
     const prior: "queued" | "delivered" = rec.deliveredAtMs !== undefined ? "delivered" : "queued";
     rec.acked = true; // consumed: a terminal destination can never drain it again
     if (rec.kind === "directive") {
+      // §14.2: a surfaced delivery record SHOULD carry the explicit `prior` on its `bounced`
+      // terminal — stamped here, once, from the same derivation as the receipt below.
       this.directiveDeliveries.set(rec.directive.id, {
         state: "bounced",
+        prior,
         ...(rec.deliveredAtMs !== undefined ? { delivered_at: new Date(rec.deliveredAtMs).toISOString() } : {}),
       });
       return;
@@ -1858,6 +1913,10 @@ export class Hub {
     const track = this.mailboxTracks.get(rec.message.id);
     if (track && track.state !== "acknowledged" && track.state !== "bounced" && track.state !== "expired") {
       track.state = "bounced";
+      // Stamped ONCE at the bounce transition (§14.2), from the same `rec.deliveredAtMs` the
+      // receipt derives its `prior` from — the MUST-equal-receipt rule holds by construction, and
+      // the read path only ever returns this stored value (never a re-derivation).
+      track.prior = prior;
       if (rec.deliveredAtMs !== undefined) track.deliveredAtMs = rec.deliveredAtMs;
       this.mirrorAddressedNotifyStatus(rec.message.id, "bounced");
     }
@@ -1905,7 +1964,7 @@ export class Hub {
     const senderSession = this.sessions.get(from.session);
     if (!senderSession || senderSession.session.state !== "active") return;
     const receipt: ReceiptEntry = {
-      ma2h_version: HUB_VERSION,
+      ma2h_version: MA2H_VERSION,
       type: "receipt",
       id: newReceiptId(),
       in_reply_to: message.id,

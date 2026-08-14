@@ -60,7 +60,10 @@ their expected runner wiring per-fixture and are **executed by the runner** (`np
 against the reference §9.8 signing/verifying code paths (issue #26): positives reproduce the pinned
 canonical bytes + `v1` with the payload digest recomputed from the delivered entry; the
 tamper/replay negatives reconstruct the destination binding from each case's **drain identity**,
-never the wire. The behavioural `dp-019`..`dp-024` obligations carry no deterministic fixture and
+never the wire. `dp-025` is likewise deterministic and runner-executed: its MAC well-formedness
+accept/reject cases run against the reference's exported `isWellFormedMac`/`decodeMac` helpers —
+THE wire rule for a `v1` value (§9.2/§9.7/§9.8; issue #41), with the well-formed case re-derived
+from the reference signer as the drift control. The behavioural `dp-019`..`dp-024` obligations carry no deterministic fixture and
 are reported as *skipped* with a pointer to the reference behavior suites that discharge them
 (`reference/test/sessions.test.ts`, `interagent.test.ts`, `bridge.test.ts`) — a skip there means
 "proven behaviourally, not fixture-replayable", never silently dropped.
@@ -149,6 +152,13 @@ are reported as *skipped* with a pointer to the reference behavior suites that d
     (§4/§8.1); the addressee resolver default with session-qualified matching, the §8.8 resolve
     binding, and the §13.4 v0.5 addressee duties (current-session check, explicit sender-authz policy)
     (§9.1/§13.4).
+22. **MAC well-formedness** (`dp-025`) — the shared wire rule for a `v1` MAC value, exported by the
+    reference as `isWellFormedMac`/`decodeMac` beside the signer that emits it (§9.2/§9.7/§9.8):
+    base64url alphabet, RFC 4648 padding tolerated only when structurally valid (a 43-char value
+    takes exactly one `=`, a 44-char value none), decoded length ≥ 32 bytes (floor, not exact) — and
+    nothing more: no canonical round-trip, so a 43-char hex-shaped MAC is valid, while the
+    standard-base64 alphabet (`+`/`/`) is a pinned reject. Deterministic accept/reject cases,
+    executed by the runner against the reference helpers (issue #41; oh-hai#711).
 
 The **schema-validation** class also gains the inbound envelope: `sv-008` (valid directive), `sv-009`
 (missing `to`), `sv-010` (a non-`human`/`system` `from`), `sv-011` (cross-type `request` rejected), `sv-012`
@@ -159,8 +169,9 @@ state rejected).
 ## v0.5 coverage map
 
 Every v0.5 obligation enumerated in spec §12's inter-agent paragraph, mapped to its coverage. Classes:
-**sv** = schema-validation (executable), **dp** = downstream-proof (`dp-011`..`dp-018`
-deterministic — executed by the runner against the reference §9.8 code paths, issue #26;
+**sv** = schema-validation (executable), **dp** = downstream-proof (`dp-011`..`dp-018` and `dp-025`
+deterministic — executed by the runner against the reference §9.8 code paths and the shared §9.2
+MAC helpers, issues #26/#41;
 `dp-019`..`dp-024` behavioural — discharged by the reference behavior suites and proven against a
 conformant Hub), **pa** = prose-audit (`pa-002`, human sign-off). Numbers in
 parentheses are the numbered sub-obligations inside a `dp` vector's `obligation` field.
@@ -181,13 +192,16 @@ parentheses are the numbered sub-obligations inside a `dp` vector's `obligation`
 | `response`-entry signature: `to`/`id` reconstruction; cross-session replay rejected; `resolved_at: null` pinning | dp-013, dp-014, dp-015 |
 | `receipt`-entry signature: six-key wrapper; `prior`/`in_reply_to`/`to` tamper rejected | dp-016, dp-017 |
 | Fresh `t`/`jti` per delivery; replayed `jti` rejected | dp-018 (with dp-011/dp-012 obligations) |
+| `v1` MAC well-formedness (base64url alphabet; structural RFC 4648 padding; ≥ 32-byte floor; hex-shaped accept; `+`/`/` reject) | dp-025 |
 | Session lease CAS (first terminal wins; renewal races; human kill-switch close) | dp-019 (4)–(7) |
+| Operator kill-switch marker (`closed_by_operator: true` const/true-only; ⇒ state `closed`; `session_closed_by_operator` on own-session 410s — stop, not restart) | sv-058, sv-059, sv-060; dp-019 (7); pa-002 (§16) |
 | First-claim-wins under concurrent session-presenting drains + crashed-claimant rescue | dp-020 (6), (7) |
 | Stream-liveness truthfulness (zombie socket offline + lease lapse; reconnect-at-bound stays online) | dp-021 (1)–(3) |
 | `stream_max_hold_seconds` ≤ `presence.freshness_seconds` (schema-inexpressible cross-field) | dp-021 (4); pa-002 (§8.0/§8.7.2) |
 | Drain ownership (`?session=` foreign/unknown → `404`; own-terminal → `410`) | dp-020 (1), (2) |
 | Stream-delivery provisionality (never-acked push reverts to queued; track never left `queued`) | dp-021 (5), (6) |
 | Bounce-on-terminal for un-acked command entries (drained-but-unacked; `prior` distinction; principal-orphan; `response`/`receipt` never bounce) | dp-022 (1)–(4) |
+| Explicit `mailbox.prior` on the `bounced` terminal (stamped once at the bounce transition; equals the receipt's `prior`; `prior: "queued"` ⇒ no `delivered_at`; never on a non-bounced state) | sv-061, sv-062, sv-063; dp-022 (2) |
 | Ask auto-`cancelled` / task auto-`dismissed` as `system:undeliverable` on **both** undeliverable terminals | dp-022 (5) |
 | Receipts deduped on `(in_reply_to, event)`, best-effort, never cascading | dp-022 (6) |
 | Delivery-track truthfulness (`expired` ⇒ never delivered on both tracks; no `online` without qualifying activity) | dp-022 (7)–(9); dp-021 (6), (7) |
@@ -201,4 +215,4 @@ parentheses are the numbered sub-obligations inside a `dp` vector's `obligation`
 | Attested `from` carries exactly the submitted `agent.session` qualifier (cross-field equality) | dp-020 (8) |
 | 0.4 session-less drain isolation (never receives the v0.5 entry kinds; webhook directives-only) | dp-020 (3), (4) |
 | v0.5 durability (un-acked entries of any kind; active leases; pending bounce obligations survive restart) | pa-002 (§3.1) |
-| Normative v0.5 spec text present and correctly scoped (grammar, opt-in gates, §9.8 discipline, §10 additivity, §13.4/§13.5 duties, §14.2 terminals, §15/§16 rules) | pa-002 (23 asserts) |
+| Normative v0.5 spec text present and correctly scoped (grammar, opt-in gates, §9.8 discipline, §10 additivity, §13.4/§13.5 duties, §14.2 terminals, §15/§16 rules) | pa-002 (24 asserts) |

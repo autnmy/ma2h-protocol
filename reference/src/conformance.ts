@@ -1,8 +1,9 @@
 // Conformance-vector runner — executes the vectors in ../conformance/vectors/.
 // Only the executable classes run here: `schema-validation` (against the published
-// schemas) and the `downstream-proof` signature fixtures (dp-001 payload-bound
+// schemas) and the deterministic `downstream-proof` fixtures (dp-001 payload-bound
 // signature with recompute-from-payload, dp-003 payload-tamper rejection, dp-004
-// numeric-payload canonicalization). `prose-audit` vectors are reported as skipped —
+// numeric-payload canonicalization, ... dp-025 MAC well-formedness against the
+// shared §9.2 helpers). `prose-audit` vectors are reported as skipped —
 // human sign-off, not executable (spec §12).
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -28,6 +29,7 @@ import {
   computeMessageEntryPayloadSha256,
   computePayloadSha256,
   computeReceiptSha256,
+  decodeMac,
   signAck,
   signInbound,
   signMessageEntry,
@@ -489,6 +491,44 @@ function runOne(id: string, cls: string, v: Record<string, unknown>): VectorResu
     // (dp-020/021/022/023), and the resolver rules (dp-024) — see reference/test/sessions.test.ts,
     // interagent.test.ts, and bridge.test.ts, which npm test runs alongside these vectors.
     return { id, cls, status: "skip", detail: "behavioral obligation — discharged by the reference behavior suites (sessions/interagent/bridge tests)" };
+  }
+  if (cls === "downstream-proof" && id.startsWith("dp-025")) {
+    // Shared MAC well-formedness rule (§9.2/§9.7/§9.8): deterministic accept/reject fixtures
+    // executed against the exported helpers themselves — isWellFormedMac/decodeMac ARE the wire
+    // rule for `v1` (issue #41; oh-hai#711's hand-rolled second validator rejected 100% of
+    // conformant traffic). Drift control first: the fixture's well-formed 43-char case is real
+    // signer output, so re-sign the pinned context and demand the pinned v1/canonical back.
+    const sc = v["signed_context"] as SignedContext;
+    const key = String(v["test_key"]);
+    const { v1, canonical } = signResponse(buildSignedContext(sc), { key });
+    if (v1 !== v["v1"] || canonical !== v["canonical_jcs"]) {
+      return { id, cls, status: "fail", detail: "signer control mismatch — the pinned v1 is not this signer's output over the pinned context" };
+    }
+    const cases = v["cases"] as Array<{
+      value: string;
+      expect: "well-formed" | "ill-formed";
+      decoded_length?: number;
+      decodes_identically_to?: string;
+      note: string;
+    }>;
+    for (const c of cases) {
+      // isWellFormedMac is decodeMac !== null by definition, so one decode covers both helpers.
+      const bytes = decodeMac(c.value);
+      const got = bytes === null ? "ill-formed" : "well-formed";
+      if (got !== c.expect) {
+        return { id, cls, status: "fail", detail: `expected ${c.expect}, got ${got} (${c.note})` };
+      }
+      if (bytes !== null && typeof c.decoded_length === "number" && bytes.length !== c.decoded_length) {
+        return { id, cls, status: "fail", detail: `decoded ${bytes.length} bytes, pinned ${c.decoded_length} (${c.note})` };
+      }
+      if (bytes !== null && typeof c.decodes_identically_to === "string") {
+        const ref = decodeMac(c.decodes_identically_to);
+        if (ref === null || !bytes.equals(ref)) {
+          return { id, cls, status: "fail", detail: `padded form did not decode byte-identically to its unpadded twin (${c.note})` };
+        }
+      }
+    }
+    return { id, cls, status: "pass" };
   }
   if (cls === "prose-audit") {
     return { id, cls, status: "skip", detail: "manual human sign-off (not executable)" };

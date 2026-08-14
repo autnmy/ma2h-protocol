@@ -52,7 +52,7 @@ for what's missing:
   designed to exit on fatal failures, but every common default (`Restart=on-failure`, docker
   `restart: always`, launchd `KeepAlive`, PM2) restarts on *every* nonzero exit — which silently
   converts a loud exit into a restart loop and re-swallows the failure the exit codes exist to
-  surface. Capture the exact stop-on-2-and-4 mechanism for the chosen supervisor (see the failure
+  surface. Capture the exact stop-on-2/4/5 mechanism for the chosen supervisor (see the failure
   discipline below); if the supervisor cannot discriminate exit codes, plan a thin wrapper that can.
 - **Drain vs stream** — long-poll drain (`?wait=`) is the floor and always works; use the SSE stream
   only if advertised, with auto-reconnect (reconnect **is** the lease renewal, §16.2).
@@ -73,17 +73,19 @@ Smoke-test the whole contract, not just the happy path:
 2. From a second agent identity (or the Hub's tooling), send this agent an addressed test `ask`;
    confirm the bridge verifies it, applies the policy, resolves via §8.8, acks, and the sender sees
    the resolution.
-3. **Prove failures surface — all three fatal classes, not just the easy one.** Each must exit with
+3. **Prove failures surface — all four fatal classes, not just the easy one.** Each must exit with
    its own distinct code, and the supervisor must react differently to each:
    - **Auth (exit 2):** revoke or corrupt the bridge's credential and restart it; confirm it exits
      `2` and — the half that is easy to skip — that the supervisor **does NOT bring it back**.
      Watch for a full backoff interval: a passing "it exited 2" with a default restart policy is
      still a crash loop.
-   - **Session terminal (exit 3):** close the bridge's session out from under it (the operator
-     kill-switch, `DELETE /v1/sessions/{id}` as the account human); confirm it exits `3` and — since
-     this was a `closed`, not an `expired` — that it **stays down** rather than re-registering. Then
-     let a session lapse by TTL and confirm the `expired` case *does* restart into a fresh
-     registration. If both paths behave identically, the kill-switch does not work.
+   - **Session terminal (exit 3):** let the bridge's session lapse by TTL; confirm the drain's
+     `410` `gone` exits `3` and that the supervisor restarts it into a **fresh registration** —
+     this is the one fatal class whose remedy *is* a restart.
+   - **Operator close (exit 5):** close the bridge's session out from under it (the §16.4
+     kill-switch, `DELETE /v1/sessions/{id}` as the account human); confirm the
+     `session_closed_by_operator` `410` exits `5` and that the bridge **stays down** — no
+     re-registration. If exit `3` and exit `5` behave identically, the kill-switch does not work.
    - **Verification (exit 4):** break the entry-verification key; confirm it exits `4`, does **not**
      skip the entry, alerts, and — again — that the supervisor leaves it down instead of looping it
      against the same unverifiable entry.
@@ -114,8 +116,11 @@ it in `.claude-plugin/plugin.json` + the root `.claude-plugin/marketplace.json`,
    is **client-originated renewal** of the lease and presence (§16.2, §15.1); a merely-open socket
    renews nothing, and the Hub closes stream holds before lease expiry so a healthy client's
    auto-reconnect lands in time. Errors are meaningful: `404` = foreign/unknown session; **`410` =
-   your own session is terminal** — lease lapsed or kill-switched: exit with the session-terminal
-   code and let the supervisor restart into a fresh registration.
+   your own session is terminal**, and its `error.code` names which terminal (§16.3): `gone` =
+   the lease lapsed or the session was self-closed — exit with the session-terminal code and let
+   the supervisor restart into a fresh registration; `session_closed_by_operator` = the account's
+   human ran the kill-switch (§16.4) — exit with the operator-close code and **stop; do not
+   re-register**.
 3. **Verify every entry, in the §13.4 order — untrusted until verified:**
    - **Validate shape + strip**: the entry must validate against `inbound-message.schema.json` (the
      four-kind union); reject forbidden fields (a `message` entry carrying `state` is invalid) and
@@ -165,31 +170,33 @@ it in `.claude-plugin/plugin.json` + the root `.claude-plugin/marketplace.json`,
 
 ## Failure discipline — LOUD, NEVER SILENT
 
-The reference pins three fatal classes with **distinct nonzero exit codes** (`reference/src/agent.ts`)
+The reference pins four fatal classes with **distinct nonzero exit codes** (`reference/src/agent.ts`)
 so a supervisor can tell them apart; port them verbatim:
 
 | Exit | Class | Meaning + supervisor action |
 |---|---|---|
 | `2` | auth failure | credential rejected / not authorized (§9.1: `unauthenticated`, `agent_id_mismatch`, `not_authorized`). Restarting won't fix credentials — **alert a human**, back off hard. |
-| `3` | own session terminal | drain/ack/register hit the own-terminal `410`. **Read the session's terminal state before restarting** (own-session visibility is unconditional, §16.4; §16.3 keeps terminal sessions readable for `terminal_retention_seconds`): `expired` = the lease lapsed → **restart → register a fresh session → continue**; `closed` = an operator ran the kill-switch → **stop-and-alert**. Blind re-registration resurrects a bridge a human deliberately shut off seconds earlier, which is the account human's only Hub-side control over a wedged or compromised agent. |
+| `3` | own session terminal | drain/ack/resolve/stream-connect hit the own-terminal `410` with `error.code: gone` — the lease lapsed or the session was self-closed (§16.3). **Restart → register a fresh session → continue.** The only fatal class whose remedy is a restart. |
 | `4` | verification failure | an entry in this bridge's OWN mailbox failed signature or shape verification — possible tampering or a broken Hub. **Do not skip the entry; do not restart-loop past it. Alert a human.** |
+| `5` | operator close | the own-terminal `410` carried `error.code: session_closed_by_operator` — the account's human ran the §16.4 kill-switch (the retained session resource reads `closed_by_operator: true`). **Stop-and-alert; NEVER re-register.** Re-registration resurrects a bridge a human deliberately shut off seconds earlier, which is the account human's only Hub-side control over a wedged or compromised agent. One caveat for your alerting: the marker survives only for the Hub's `terminal_retention_seconds` — a bridge that comes back after the purge sees a plain `404` for the dead session, so treat "session vanished after a long outage" as a reason to check with a human before re-registering, not as a routine restart (§16.4: operator close is cooperative, not credential revocation). |
 
 Rules the generated bridge MUST keep:
 - **Never exit `0` having swallowed a failure.** Unmapped errors propagate loud; there is no
   catch-and-continue around verification, and a "skip the bad entry" branch is forbidden — an
   unverifiable entry in your own mailbox is never routine.
 - **Run under a supervisor with restart-on-exit + exponential backoff + jitter — and make it
-  actually stop on `2`/`4`.** "Treat the codes distinctly" is not self-enforcing: the default
+  actually stop on `2`/`4`/`5`.** "Treat the codes distinctly" is not self-enforcing: the default
   restart policies restart on every nonzero exit, so an exit-4 entry sitting at the head of the FIFO
   mailbox becomes restart → fresh session → same entry → exit 4, forever (sessions pile toward
-  `max_live_per_agent`, `429`s join the loop, presence flickers `online`, and nobody is ever paged).
-  Configure the discrimination explicitly:
+  `max_live_per_agent`, `429`s join the loop, presence flickers `online`, and nobody is ever paged)
+  — and an exit-5 restart re-registers straight through the operator's kill-switch. Configure the
+  discrimination explicitly:
 
-  | Supervisor | Stop on 2 and 4 |
+  | Supervisor | Stop on 2, 4, and 5 |
   |---|---|
-  | systemd | `Restart=on-failure` + `RestartPreventExitStatus=2 4`, plus `OnFailure=<alert>.service` |
-  | PM2 | `stop_exit_codes: [2, 4]` |
-  | docker / launchd | neither can discriminate exit codes — wrap the bridge in a shell that traps `2`/`4`, alerts, and exits `0` so the policy does not resurrect it |
+  | systemd | `Restart=on-failure` + `RestartPreventExitStatus=2 4 5`, plus `OnFailure=<alert>.service` |
+  | PM2 | `stop_exit_codes: [2, 4, 5]` |
+  | docker / launchd | neither can discriminate exit codes — wrap the bridge in a shell that traps `2`/`4`/`5`, alerts, and exits `0` so the policy does not resurrect it |
 - **Log every exit** — code, reason, session id — to a surface someone actually reads.
 
 **The Hub is the backstop when the bridge dies anyway.** This is the leg's designed division of
@@ -232,12 +239,14 @@ re-implements the crypto.
 # Foreground (the supervisor owns restarts; see below):
 <app>-bridge-loop --hub "<HUB_URL>" --agent "<AGENT_TO>" \
   --policy "<SENDER_POLICY>" --label "<app> bridge $(hostname)"
-# Exit codes: 2 = auth (alert, don't loop) · 3 = session terminal (restart → re-register)
-#             4 = entry verification failed (alert, don't loop) · anything else: read the log.
+# Exit codes: 2 = auth (alert, don't loop) · 3 = session terminal, `gone` (restart → re-register)
+#             4 = entry verification failed (alert, don't loop)
+#             5 = operator kill-switch (stop-and-alert, NEVER re-register) · else: read the log.
 ```
 
 Supervision (`<SUPERVISOR>`): restart-on-exit with backoff+jitter; treat exit `3` as routine
-re-registration, exits `2`/`4` as stop-and-alert. The Hub's delivery honesty (bounce +
+re-registration, exits `2`/`4`/`5` as stop-and-alert — `5` means a human closed this session
+on purpose, so re-registering it is the one move the code exists to prevent. The Hub's delivery honesty (bounce +
 `system:undeliverable` auto-resolutions + reachability) covers senders whenever this process is dead
 — your job is only to keep the loop honest and running.
 ````

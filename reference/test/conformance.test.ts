@@ -6,7 +6,7 @@ test("all executable conformance vectors meet their declared expectation", () =>
   const report = runVectors();
   const failures = report.results.filter((r) => r.status === "fail");
   assert.equal(report.failed, 0, `failures: ${JSON.stringify(failures, null, 2)}`);
-  assert.ok(report.passed >= 23, `expected >= 23 executable passes, got ${report.passed}`);
+  assert.ok(report.passed >= 79, `expected >= 79 executable passes, got ${report.passed}`);
 });
 
 test("the dp-001 signature vector is exercised and passes", () => {
@@ -61,7 +61,7 @@ test("the dp-009 ack-tamper vector is exercised and passes", () => {
 test("the v0.5 schema-validation vectors are exercised and pass (spec/v0.5.md)", () => {
   const report = runVectors();
   const v05 = report.results.filter((r) => r.id.startsWith("sv-0") && Number(r.id.slice(3, 6)) >= 17);
-  assert.ok(v05.length >= 16, `expected >= 16 v0.5 vectors, got ${v05.length}`);
+  assert.ok(v05.length >= 47, `expected >= 47 v0.5 vectors, got ${v05.length}`);
   for (const r of v05) assert.equal(r.status, "pass", `${r.id}: ${r.detail ?? ""}`);
 });
 
@@ -72,6 +72,13 @@ test("the §9.8 entry-signature vectors dp-011..dp-018 are exercised and pass (s
     assert.ok(dp, `dp-${n} vector present`);
     assert.equal(dp.status, "pass", `dp-${n}: ${dp.detail ?? ""}`);
   }
+});
+
+test("the dp-025 MAC well-formedness vector is exercised and passes (never skipped)", () => {
+  const report = runVectors();
+  const dp = report.results.find((r) => r.id.startsWith("dp-025"));
+  assert.ok(dp, "dp-025 vector present");
+  assert.equal(dp.status, "pass", `dp-025: ${dp.detail ?? ""}`);
 });
 
 test("the behavioral obligation vectors dp-019..dp-024 skip with the discharging-suite pointer, never silently", () => {

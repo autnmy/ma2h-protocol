@@ -7,7 +7,8 @@
 // state — treating everything on the return leg as untrusted until verified.
 // `runBridgeLoop` is the v0.5 worked example: register → drain → verify → act →
 // ack → close, exiting LOUD (distinct nonzero codes) on auth failure, an
-// own-terminal session, or a signature failure — never a silent death.
+// own-terminal session (`gone` → re-register vs the §16.4 operator kill-switch's
+// `session_closed_by_operator` → stop), or a signature failure — never a silent death.
 
 import {
   buildInboundSignedContext,
@@ -619,17 +620,33 @@ export class Agent {
 // register session → bounded-hold drain (each iteration models one long-poll hold + the reconnect
 // that renews the lease, §16.2) → verify per §13.4 incl. the session-qualified addressee check →
 // declared-policy check → act (resolve an addressed ask/task via §8.8) → ack with `?session=` →
-// close. Failure discipline: LOUD, NEVER SILENT — distinct nonzero exit codes for the three
-// fatal classes, so a supervisor can tell "fix credentials" from "lease lapsed, re-register" from
-// "someone is tampering". (A production bridge would typically RE-register on the own-session 410,
-// §16.3 — the worked example exits with the distinct code so the operator sees the lease lapsed.)
+// close. Failure discipline: LOUD, NEVER SILENT — distinct nonzero exit codes for the FOUR fatal
+// classes, so a supervisor can tell "fix credentials" from "lease lapsed, re-register" from
+// "someone is tampering" from "the operator pulled the kill-switch — stop". The own-session 410
+// reads two ways (§16.3): `gone` means expired or self-closed — a production bridge would
+// typically RE-register and continue (the worked example exits with the distinct code so the
+// operator sees the lease lapsed); `session_closed_by_operator` means the account's human killed
+// this session (§16.4) — do NOT re-register or restart; stop and escalate to a human. One honest
+// boundary, by design: the loop never inspects the session returned by its final step-4 close, so
+// an operator kill landing AFTER the last drain is indistinguishable from an orderly exit — the
+// mail is already drained and acked, and there is nothing left for the kill to stop.
+// A second boundary: this in-memory Hub speaks HubError codes with no HTTP status classes, so the
+// loop surfaces unknown codes loudly (rethrow) rather than implementing §8.5's unknown-code
+// fallback. An HTTP bridge MUST implement that fallback — an unrecognized 410 code at these
+// touchpoints reads as `gone` (§8.5).
 
 /** Auth failure: the credential was rejected or is not authorized (§9.1). */
 export const EXIT_AUTH_FAILURE = 2;
-/** Own-but-terminal session on drain/ack (§8.7.1's 410): the lease lapsed or was kill-switched. */
+/** Own-but-terminal session on drain/ack (§8.7.1's 410 `gone`): the lease lapsed or the session
+ * was self-closed — re-register and continue (§16.3). */
 export const EXIT_SESSION_TERMINAL = 3;
 /** An entry in the OWN mailbox failed §9.7/§9.8 verification — possible tampering. */
 export const EXIT_SIGNATURE_FAILURE = 4;
+/** The operator kill-switch (§16.4): the account's human closed this session
+ * (`session_closed_by_operator`) — stop; do NOT re-register or restart; escalate to a human.
+ * Distinct from EXIT_SESSION_TERMINAL, whose remedy (re-register) is exactly what a kill must
+ * never trigger. */
+export const EXIT_SESSION_CLOSED_BY_OPERATOR = 5;
 
 /** A fatal bridge failure, carrying the distinct nonzero process exit code (never 0). */
 export class BridgeExitError extends Error {
@@ -709,6 +726,14 @@ function mapHubError(e: unknown): never {
   if (code === "unauthenticated" || code === "not_authorized" || code === "agent_id_mismatch") {
     throw new BridgeExitError(EXIT_AUTH_FAILURE, `auth failure: ${(e as Error).message}`);
   }
+  // §8.5/§16.4: the operator kill-switch is matched BEFORE the generic terminal class — both are
+  // 410s, and the marker's whole point is that the killed party stops instead of re-registering.
+  if (code === "session_closed_by_operator") {
+    throw new BridgeExitError(
+      EXIT_SESSION_CLOSED_BY_OPERATOR,
+      `session closed by the account's operator — stop, do not re-register: ${(e as Error).message}`,
+    );
+  }
   if (code === "gone") {
     throw new BridgeExitError(EXIT_SESSION_TERMINAL, `own session is terminal: ${(e as Error).message}`);
   }
@@ -717,7 +742,7 @@ function mapHubError(e: unknown): never {
 
 /**
  * Run the bridge loop once, end to end. Throws `BridgeExitError` (with the distinct code) on the
- * three fatal classes; every other Hub error propagates unwrapped. Never returns "success" having
+ * four fatal classes; every other Hub error propagates unwrapped. Never returns "success" having
  * swallowed a failure.
  */
 export function runBridgeLoop(hub: BridgeHub, opts: BridgeOptions): BridgeReport {

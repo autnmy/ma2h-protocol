@@ -61,16 +61,19 @@
     },
     "mailbox": {
       "type": "object",
-      "description": "v0.5: the outbound MAILBOX track of an ADDRESSED message on the sender's authoritative §8.2 pull (queued -> delivered -> acknowledged, or terminal bounced/expired, spec §14.2) — did the ADDRESSEE see it. Present only when `to` is present (the root conditional). On `bounced`, a present `delivered_at` means seen-then-orphaned and an absent one never-seen (the receipt `prior` distinction, spec §8.7.1). For an addressed notify this track IS the lifecycle (`status` mirrors it, spec §5.1); for an addressed ask/task it coexists with the response-track `delivery` object.",
+      "description": "v0.5: the outbound MAILBOX track of an ADDRESSED message on the sender's authoritative §8.2 pull (queued -> delivered -> acknowledged, or terminal bounced/expired, spec §14.2) — did the ADDRESSEE see it. Present only when `to` is present (the root conditional). On `bounced`, the explicit `prior` field carries the §14.2 never-seen vs seen-then-orphaned split; the older delivered_at-presence reading (present = seen-then-orphaned, absent = never-seen) is the LEGACY inference `prior` supersedes — a consumer keeps it only as the fallback when `prior` is absent. For an addressed notify this track IS the lifecycle (`status` mirrors it, spec §5.1); for an addressed ask/task it coexists with the response-track `delivery` object.",
       "required": ["state"],
       "properties": {
         "state": { "enum": ["queued", "delivered", "acknowledged", "bounced", "expired"] },
         "delivered_at": { "type": "string", "format": "date-time", "description": "When the addressee's drain first delivered the entry (spec §14.2; a stream push alone does not stamp it, spec §8.7.2)." },
-        "acknowledged_at": { "type": "string", "format": "date-time" }
+        "acknowledged_at": { "type": "string", "format": "date-time" },
+        "prior": { "enum": ["queued", "delivered"], "description": "v0.5: the EXPLICIT §14.2 never-seen vs seen-then-orphaned split on a `bounced` terminal — `queued` = the addressee never saw the entry; `delivered` = drained-but-unacked when the destination went terminal. Stamped ONCE at the bounce transition and MUST equal the bounce receipt's `prior` (spec §8.7.1/§14.2); supersedes the legacy delivered_at-presence inference." }
       },
       "allOf": [
-        { "if": { "properties": { "state": { "enum": ["queued", "expired"] } }, "required": ["state"] }, "then": { "not": { "required": ["delivered_at"] } }, "$comment": "Mailbox honesty (spec §14.2): queued = not delivered yet; a track `expired` MUST mean NEVER delivered. bounced deliberately allows delivered_at: presence = seen-then-orphaned, absence = never-seen." },
-        { "if": { "properties": { "state": { "const": "acknowledged" } }, "required": ["state"] }, "then": { "required": ["acknowledged_at"] }, "else": { "not": { "required": ["acknowledged_at"] } } }
+        { "if": { "properties": { "state": { "enum": ["queued", "expired"] } }, "required": ["state"] }, "then": { "not": { "required": ["delivered_at"] } }, "$comment": "Mailbox honesty (spec §14.2): queued = not delivered yet; a track `expired` MUST mean NEVER delivered. bounced deliberately allows delivered_at: the explicit `prior` field is the v0.5 rule for the seen-then-orphaned split, delivered_at-presence the legacy inference it supersedes." },
+        { "if": { "properties": { "state": { "const": "acknowledged" } }, "required": ["state"] }, "then": { "required": ["acknowledged_at"] }, "else": { "not": { "required": ["acknowledged_at"] } } },
+        { "if": { "required": ["prior"] }, "then": { "properties": { "state": { "const": "bounced" } }, "required": ["state"] }, "$comment": "`prior` is the bounce transition's stamp (spec §14.2): it exists only on a `bounced` terminal. In particular `expired` still MUST mean NEVER delivered, so a `prior` there would smuggle back the exact false belief the track exists to kill." },
+        { "if": { "properties": { "prior": { "const": "queued" } }, "required": ["prior"] }, "then": { "not": { "required": ["delivered_at"] } }, "$comment": "prior: \"queued\" asserts never-seen (spec §14.2) — a delivered_at beside it would state the opposite fact on the same record. The converse (prior: \"delivered\" implies delivered_at) is deliberately SHOULD-level spec text, NOT a third conditional: a Hub that knows delivery happened but no longer retains the timestamp must still state `prior` truthfully rather than fall back to the never-seen inference." }
       ]
     }
   }
