@@ -76,7 +76,18 @@ export function statusOfHubErrorCode(code: string | undefined): HubErrorStatus |
  * saying which touchpoint it is standing at.
  */
 export type HubTouchpoint =
-  /** Presenting an own session: drain / ack (`?session=`), resolve (`?session=`), stream connect. */
+  /**
+   * Presenting an own session: drain / ack (`?session=`), resolve (`?session=`), stream connect —
+   * §16.3's presentation row, verbatim.
+   *
+   * "ack" here is the §8.7.1 **mailbox consume** (`POST /v1/inbox/ack`), NOT the §14.3 response-leg
+   * ack (`POST /v1/messages/{id}/ack`) that the submitting principal calls. They are different
+   * endpoints with different 409s, and this row covers only the former. The response-leg ack's 409
+   * is `not_acknowledgeable`, which §8.5's status table does not list among the 409 class's base
+   * codes (`idempotency_conflict` / `already_terminal`) — so §8.5 gives no sanctioned fallback
+   * target there, and inventing one would be writing spec rather than implementing it. That gap is
+   * a spec-side follow-up; see the `not_acknowledgeable` note on `HUB_ERROR_STATUS`.
+   */
   | "presentation"
   /**
    * Operating on a session as a RESOURCE rather than presenting one: register (§16.1) and close
