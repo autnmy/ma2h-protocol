@@ -1,0 +1,24 @@
+{
+  "id": "sv-058-session-operator-closed-valid",
+  "class": "schema-validation",
+  "description": "A session the account's authenticated human closed via the §16.4 kill-switch, as the Hub returns it within the terminal retention window: state `closed` carrying the true-only `closed_by_operator: true` marker — the killed party's signal to stop, not re-register.",
+  "ref": "spec §16.3, §16.4 (v0.5)",
+  "target": "v0.5/session.schema.json",
+  "expect": "valid",
+  "input": {
+    "id": "sess_01J5WRK0007",
+    "agent_id": "deploybot/dev-team",
+    "state": "closed",
+    "created_at": "2026-08-10T11:55:00Z",
+    "expires_at": "2026-08-10T12:10:00Z",
+    "last_seen": "2026-08-10T11:58:00Z",
+    "ttl_seconds": 900,
+    "closed_at": "2026-08-10T12:01:00Z",
+    "closed_by_operator": true,
+    "run_id": "run_01J5WORKER07",
+    "label": "dev-team · issue #612",
+    "kind": "worker",
+    "project": "web-app",
+    "labels": { "repo": "acme/web-app" }
+  }
+}

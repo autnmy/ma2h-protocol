@@ -1,0 +1,23 @@
+{
+  "id": "sv-059-session-active-operator-marker-invalid",
+  "class": "schema-validation",
+  "description": "An `active` session carrying `closed_by_operator: true` is rejected — the marker rides the WINNING operator close transition of the §16.3 terminal CAS, so it can only ever coexist with state `closed`; a live session claiming it would assert a kill that never won.",
+  "ref": "spec §16.3, §16.4 (v0.5)",
+  "target": "v0.5/session.schema.json",
+  "expect": "invalid",
+  "input": {
+    "id": "sess_01J5WRK0007",
+    "agent_id": "deploybot/dev-team",
+    "state": "active",
+    "created_at": "2026-08-10T11:55:00Z",
+    "expires_at": "2026-08-10T12:10:00Z",
+    "last_seen": "2026-08-10T11:58:00Z",
+    "ttl_seconds": 900,
+    "closed_by_operator": true,
+    "run_id": "run_01J5WORKER07",
+    "label": "dev-team · issue #612",
+    "kind": "worker",
+    "project": "web-app",
+    "labels": { "repo": "acme/web-app" }
+  }
+}

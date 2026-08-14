@@ -1,0 +1,75 @@
+{
+  "id": "dp-025-mac-well-formedness",
+  "class": "downstream-proof",
+  "description": "Deterministic MAC well-formedness fixtures for the wire `v1` value (the §9.2 header MAC, mirrored by the §9.7 directive and §9.8 entry contexts). The shared rule — base64url alphabet, RFC 4648 padding tolerated only when structurally valid, decoded length ≥ 32 bytes, and NOTHING more (no canonical round-trip) — is exported by the reference as `isWellFormedMac`/`decodeMac` beside the signer that emits `v1`, so consumers import the rule instead of re-deriving it: a hand-rolled second validator with the wrong alphabet rejected 100% of conformant traffic (issue #41; oh-hai#711). Executed by the runner against the reference helpers themselves.",
+  "ref": "spec §9.2, §9.7, §9.8; RFC 4648 §4/§5; issue #41 (oh-hai#711)",
+  "obligation": "For each case, a consumer's well-formedness check MUST classify `value` as its `expect`, and its decoder MUST yield raw bytes for well-formed values (matching `decoded_length` where pinned, and byte-identical to `decodes_identically_to` where pinned) and nothing for ill-formed ones. Screening is exactly: alphabet `[A-Za-z0-9_-]`; optional trailing `=` padding accepted only in the exact RFC 4648 count — pad chars exactly (4 − unpadded_length mod 4) mod 4, so a 43-char value takes exactly one `=` and a 44-char value takes none; decoded length ≥ 32 bytes (a floor, not an exact match — HMAC-SHA256 is exactly 32, ed25519 is 64). Deliberately NOT enforced: canonical unpadded-form round-trip — a 43-char hex-shaped MAC is valid (the oh-hai#711 regression case). Deliberately rejected: the standard-base64 alphabet (`+`/`/`) that lenient decoders accept — a pinned tightening (issue #41); conformant §9.2 emitters are unaffected.",
+  "test_key": "ma2h-test-secret-key-0123456789ab",
+  "signature_alg": "hmac-sha256",
+  "generator": "The well-formed 43-char `v1` is real reference-signer output, never hand-computed: signResponse(buildSignedContext(signed_context), { key: test_key }) (reference/src/signing.ts) yields `canonical_jcs` and `v1`, which the runner re-derives as its drift control. The hex-shaped case is the first 43 chars of dp-001's payload_sha256; every reject is this vector's own `v1` minimally corrupted.",
+  "signed_context": {
+    "ma2h_version": "0.5",
+    "callback_url": "https://deploybot.example/ma2h/resume",
+    "id": "msg_01J5MACFIX001",
+    "in_reply_to": "msg_01J5MACFIX001",
+    "jti": "jti_01J5MACFIXDEMO",
+    "payload_sha256": "3073dec57c04075d0b6bfa17c300fa9600ad92fb13e485e410c8a95274ac47ed",
+    "resolution": "answered",
+    "resolution_id": "res_01J5MACFIXRES",
+    "resolved_at": "2026-08-13T00:00:00Z",
+    "t": "1786500000"
+  },
+  "canonical_jcs": "{\"callback_url\":\"https://deploybot.example/ma2h/resume\",\"id\":\"msg_01J5MACFIX001\",\"in_reply_to\":\"msg_01J5MACFIX001\",\"jti\":\"jti_01J5MACFIXDEMO\",\"ma2h_version\":\"0.5\",\"payload_sha256\":\"3073dec57c04075d0b6bfa17c300fa9600ad92fb13e485e410c8a95274ac47ed\",\"resolution\":\"answered\",\"resolution_id\":\"res_01J5MACFIXRES\",\"resolved_at\":\"2026-08-13T00:00:00Z\",\"t\":\"1786500000\"}",
+  "v1": "In3evtBNZywRzuNYkphbw-_764_Wu98zWM5rZ1iN4VI",
+  "cases": [
+    {
+      "value": "In3evtBNZywRzuNYkphbw-_764_Wu98zWM5rZ1iN4VI",
+      "expect": "well-formed",
+      "decoded_length": 32,
+      "note": "fresh signer `v1` — 43 chars unpadded, the canonical §9.2 emission; decodes to exactly 32 bytes (HMAC-SHA256)"
+    },
+    {
+      "value": "In3evtBNZywRzuNYkphbw-_764_Wu98zWM5rZ1iN4VI=",
+      "expect": "well-formed",
+      "decoded_length": 32,
+      "decodes_identically_to": "In3evtBNZywRzuNYkphbw-_764_Wu98zWM5rZ1iN4VI",
+      "note": "the same `v1` with exactly one `=` — 44 chars, structurally valid RFC 4648 padding: tolerated, and byte-identical to the unpadded form"
+    },
+    {
+      "value": "3073dec57c04075d0b6bfa17c300fa9600ad92fb13e",
+      "expect": "well-formed",
+      "decoded_length": 32,
+      "note": "43-char hex-shaped value (truncated SHA-256 hex) — every char is in the base64url alphabet and it decodes to 32 bytes; the oh-hai#711 regression case: no canonical round-trip check"
+    },
+    {
+      "value": "In3evtBNZywRzuNYkphbw!_764_Wu98zWM5rZ1iN4VI",
+      "expect": "ill-formed",
+      "note": "garbage alphabet — `!` is outside `[A-Za-z0-9_-]`"
+    },
+    {
+      "value": "In3evtBNZywRzuNYkphbw+_764_Wu98zWM5rZ1iN4VI",
+      "expect": "ill-formed",
+      "note": "standard-base64 `+` in place of `-` — §9.2 pins base64url; the deliberate tightening over Node's lenient decoder (issue #41)"
+    },
+    {
+      "value": "In3evtBNZywRzuNYkphbw-/764_Wu98zWM5rZ1iN4VI",
+      "expect": "ill-formed",
+      "note": "standard-base64 `/` in place of `_` — same rule"
+    },
+    {
+      "value": "In3evtBNZywRzuNYkphbw-_764_Wu98zWM5rZ1iN4VI==",
+      "expect": "ill-formed",
+      "note": "43-char body + `==` — malformed padding: a 43-char value takes exactly ONE `=` (45 total ≢ 0 mod 4)"
+    },
+    {
+      "value": "In3evtBNZywRzuNYkphbw-_764_Wu98zWM5rZ1iN4VIA=",
+      "expect": "ill-formed",
+      "note": "44-char unpadded-form body + a stray `=` — a body of length ≡ 0 mod 4 takes NO padding"
+    },
+    {
+      "value": "AAAAAAAAAAAAAAAAAAAA",
+      "expect": "ill-formed",
+      "note": "decodes to 15 bytes — under the ≥ 32-byte floor (HMAC-SHA256 is exactly 32; ed25519 is 64 — floor, not exact)"
+    }
+  ]
+}
