@@ -30,6 +30,17 @@ require "pathname"
 #
 # The KEYS, by contrast, are an exhaustive allowlist — a kind absent here is rejected rather than
 # skipped, so a typo cannot slip past as "some remote form". Add a kind here when upstream adds one.
+# Returns the trimmed value when it is genuinely a JSON string, otherwise nil. Type first, then
+# content: JSON hands back whatever the author typed, and `123.to_s` is a non-empty "123" — enough to
+# satisfy a presence check, and enough to equal its counterpart in the other manifest, so the gate
+# would report a resolvable entry that `/plugin install` cannot load.
+def string_value(value)
+  return nil unless value.is_a?(String)
+
+  trimmed = value.strip
+  trimmed.empty? ? nil : trimmed
+end
+
 OBJECT_SOURCE_REQUIRED_FIELDS = {
   "local" => ["path"].freeze,           # the only object form that resolves on disk
   "url" => ["url"].freeze,
@@ -82,8 +93,8 @@ parsed.each do |f, data|
         failed << "#{label} is not an object"
         next
       end
-      name = entry["name"].to_s.strip
-      failed << "#{label}: missing or empty `name`" if name.empty?
+      name = string_value(entry["name"])
+      failed << "#{label}: `name` must be a non-empty string (got #{entry['name'].inspect})" if name.nil?
 
       # Resolve `source` to a local path, or establish that it is legitimately remote. Anything absent
       # or malformed must fail rather than be waved through as "remote" — skipping the checks below
@@ -165,16 +176,16 @@ parsed.each do |f, data|
         end
       end
 
-      plugin_name = plugin.is_a?(Hash) ? plugin["name"].to_s.strip : ""
-      if !name.empty? && !plugin_name.empty? && name != plugin_name
+      plugin_name = plugin.is_a?(Hash) ? string_value(plugin["name"]) : nil
+      if name && plugin_name && name != plugin_name
         failed << "#{label}: name #{name.inspect} does not match #{plugin_manifest} name " \
                   "#{plugin_name.inspect} — `/plugin install` resolves by name"
       end
     end
   end
 
-  if File.basename(f) == "plugin.json" && data["name"].to_s.strip.empty?
-    failed << "#{f}: missing or empty `name`"
+  if File.basename(f) == "plugin.json" && string_value(data["name"]).nil?
+    failed << "#{f}: `name` must be a non-empty string (got #{data['name'].inspect})"
   end
 end
 
