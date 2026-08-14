@@ -17,7 +17,7 @@
 // not protocol mechanics: the worked-example loop and its exit-code contract (oh-hai#719's
 // exclusion — the wire marker, not the exit code, is the cross-implementation contract).
 
-import { ackKeyOf } from "./client.js";
+import { ackKeyOf, classifyEntryResult } from "./client.js";
 import type { Agent, BridgeHub } from "./client.js";
 import {
   baseCodeForStatus,
@@ -213,52 +213,62 @@ export function runBridgeLoop(hub: BridgeHub, opts: BridgeOptions): BridgeReport
     const toAck: string[] = [];
     for (const delivery of entries) {
       const outcome = opts.agent.receiveEntry(delivery, now());
-      const r = outcome.result;
-      if (!r.acted) {
-        // §13.4 discipline: a failed VERIFICATION is fatal and loud — an entry in the bridge's own
-        // mailbox that does not verify means tampering or a broken Hub, never something to skip
-        // past. SHAPE validation (`invalid …`) is part of the same §8.7.1 verification step — a
-        // malformed entry or one carrying unsigned forbidden fields is unverifiable Hub output, so
-        // it is fatal too, not a skippable refusal. Dedup refusals are benign (the work already
-        // happened durably): ack the redelivery.
-        if (r.reason.startsWith("signature:") || r.reason.startsWith("replay:") || r.reason.startsWith("invalid ")) {
-          throw new BridgeExitError(EXIT_SIGNATURE_FAILURE, `entry failed verification: ${r.reason}`);
-        }
-        if (r.reason.includes("already acted") || r.reason.includes("already seen")) {
-          toAck.push(ackKeyOf(delivery)); // benign redelivery: the work already happened durably
-        } else {
-          report.refused.push(r.reason); // policy / addressee refusals: never acted on, never acked
-        }
-        continue;
-      }
-      // 3. Act, then consume (verify → policy → act durably → commit dedup → ack, §13.4).
-      if (outcome.kind === "message" && outcome.result.acted) {
-        const m = outcome.result.message;
-        if (m.type !== "notify" && opts.decide) {
-          const decision = opts.decide(m);
-          if (decision) {
-            try {
-              hub.resolveAsAgent(m.id, opts.principal, decision, { session: sessionId, now: now() });
-            } catch (e) {
-              // Losing the §7 CAS race is a normal outcome (the 409 carries the real terminal);
-              // everything else maps to the loud exits. Read through §8.5's fallback so a refining
-              // Hub's own 409 code reads as that same lost race — resolve with `?session=` is a
-              // presentation touchpoint (§16.3), the row mapHubError resolves against too.
-              if (effectiveCode(e, "presentation") !== "already_terminal") mapHubError(e, "presentation");
+      // §13.4 discipline via the layer's classifier (issue #45): the layer owns the VERDICT —
+      // which outcomes are fatal verification failures, benign redeliveries, refusals, or
+      // acceptances — and this loop keeps only the per-implementation POLICY on each disposition
+      // (exit code, ack, report). The switch follows `EntryVerdict`'s documented consumption
+      // contract: exhaustive cases closed by a `never`-assertion, never a handling default — a
+      // default branch would fold `fatal-verification` into refused-and-continue, silently
+      // consuming the mailbox after a signature failure.
+      const verdict = classifyEntryResult(outcome);
+      switch (verdict.disposition) {
+        case "fatal-verification":
+          // Fatal and loud: an entry in the bridge's own mailbox that does not verify — §9.7/§9.8
+          // signature or replay, or malformed/forbidden-field Hub output (shape is part of the same
+          // §8.7.1 verification step) — means tampering or a broken Hub, never something to skip past.
+          throw new BridgeExitError(EXIT_SIGNATURE_FAILURE, `entry failed verification: ${verdict.reason}`);
+        case "benign-redelivery":
+          toAck.push(ackKeyOf(delivery)); // the work already happened durably: ack the redelivery
+          break;
+        case "refused":
+          report.refused.push(verdict.reason); // policy / addressee refusals: never acted on, never acked
+          break;
+        case "accepted": {
+          // 3. Act, then consume (verify → policy → act durably → commit dedup → ack, §13.4).
+          if (outcome.kind === "message" && outcome.result.acted) {
+            const m = outcome.result.message;
+            if (m.type !== "notify" && opts.decide) {
+              const decision = opts.decide(m);
+              if (decision) {
+                try {
+                  hub.resolveAsAgent(m.id, opts.principal, decision, { session: sessionId, now: now() });
+                } catch (e) {
+                  // Losing the §7 CAS race is a normal outcome (the 409 carries the real terminal);
+                  // everything else maps to the loud exits. Read through §8.5's fallback so a refining
+                  // Hub's own 409 code reads as that same lost race — resolve with `?session=` is a
+                  // presentation touchpoint (§16.3), the row mapHubError resolves against too.
+                  if (effectiveCode(e, "presentation") !== "already_terminal") mapHubError(e, "presentation");
+                }
+              }
             }
+            outcome.result.commit();
+            report.processed.messages++;
+          } else if (outcome.kind === "directive" && outcome.result.acted) {
+            outcome.result.commit();
+            report.processed.directives++;
+          } else if (outcome.kind === "response") {
+            report.processed.responses++;
+          } else if (outcome.kind === "receipt") {
+            report.processed.receipts++;
           }
+          toAck.push(ackKeyOf(delivery));
+          break;
         }
-        outcome.result.commit();
-        report.processed.messages++;
-      } else if (outcome.kind === "directive" && outcome.result.acted) {
-        outcome.result.commit();
-        report.processed.directives++;
-      } else if (outcome.kind === "response") {
-        report.processed.responses++;
-      } else if (outcome.kind === "receipt") {
-        report.processed.receipts++;
+        default: {
+          const unhandled: never = verdict; // the consumption contract: a fifth disposition fails HERE
+          throw unhandled;
+        }
       }
-      toAck.push(ackKeyOf(delivery));
     }
     if (toAck.length > 0) {
       try {

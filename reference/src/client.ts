@@ -81,9 +81,47 @@ export function parseSignatureHeader(header: string): ParsedSignature {
   return { t, jti, v1 };
 }
 
+// ---- The §13.4 verdict taxonomy (issue #45, R4) ----
+
+/**
+ * The four dispositions of one consumed entry's outcome (spec §13.4 applied to the §8.7.1 entry
+ * kinds) — the classification every consuming loop must make before it may act, ack, or exit:
+ *
+ * - `fatal-verification` — the entry failed the VERIFICATION step itself: §9.7/§9.8 signature
+ *   failure, a `jti` replay, or wire-shape validation of the Hub's own output. Tampering or a
+ *   broken Hub — never something to skip past. Never acked.
+ * - `benign-redelivery` — an at-least-once redelivery of work that already durably happened
+ *   (the committed §13.4 dedup): ack it (key via `ackKeyOf(delivery)`) without re-acting.
+ * - `refused` — verified (or verifiable) but not acted on: addressee/session mismatch, sender
+ *   policy, missing consumer configuration, an unopenable state seal, or an in-flight duplicate.
+ *   Never acked — left to redelivery.
+ * - `accepted` — verified, policy-passed, and acted on: act durably, `commit()`, then ack.
+ *
+ * Minted as a STRUCTURED code (the optional `disposition` field on the result types) at every
+ * refusal/acceptance site; the `reason` string is PRESENTATION — unstable (it interpolates raw
+ * `Error` messages) and never to be parsed by consumers. `classifyEntryResult` is the exported
+ * evaluation; act/ack/emit policy stays with each consumer.
+ */
+export type EntryDisposition = "fatal-verification" | "benign-redelivery" | "refused" | "accepted";
+
+/** The disposition codes an `acted: false` refusal branch may carry (everything but `accepted`). */
+export type RefusalDisposition = Exclude<EntryDisposition, "accepted">;
+
 export type ResumeResult =
-  | { acted: true; resolution: Resolution; state: JsonObject | null; value?: string | JsonObject }
-  | { acted: false; reason: string };
+  | {
+      acted: true;
+      /** Structured §13.4 disposition code (issue #45, R4); always `"accepted"` when minted here. */
+      disposition?: "accepted";
+      resolution: Resolution;
+      state: JsonObject | null;
+      value?: string | JsonObject;
+    }
+  | {
+      acted: false;
+      /** Structured §13.4 disposition code (issue #45, R4) — the classifier keys on this, not on `reason`. */
+      disposition?: RefusalDisposition;
+      reason: string;
+    };
 
 export interface AgentOptions {
   /** This agent's own callback URL (bound into the signature). */
@@ -123,6 +161,8 @@ export interface AgentOptions {
 export type DirectiveResult =
   | {
       acted: true;
+      /** Structured §13.4 disposition code (issue #45, R4); always `"accepted"` when minted here. */
+      disposition?: "accepted";
       /** The directive, projected to its known schema fields — any unsigned unknown field is stripped. */
       directive: InboundDirective;
       /**
@@ -140,7 +180,12 @@ export type DirectiveResult =
        */
       release: () => void;
     }
-  | { acted: false; reason: string };
+  | {
+      acted: false;
+      /** Structured §13.4 disposition code (issue #45, R4) — the classifier keys on this, not on `reason`. */
+      disposition?: RefusalDisposition;
+      reason: string;
+    };
 
 /**
  * Split an `agent:<id>[#<session>]` address by the §4 first-`#` grammar; null when malformed.
@@ -164,6 +209,8 @@ export function splitAddress(addr: string): { principal: string; session?: strin
 export type MessageEntryResult =
   | {
       acted: true;
+      /** Structured §13.4 disposition code (issue #45, R4); always `"accepted"` when minted here. */
+      disposition?: "accepted";
       /** The entry, projected to its known schema fields — any unsigned unknown field is stripped. */
       message: InterAgentMessage;
       /** Finalize dedup after durable processing (spec §13.4) — as DirectiveResult. */
@@ -171,9 +218,26 @@ export type MessageEntryResult =
       /** Abandon the in-flight reservation so a later redelivery may retry (spec §13.4). */
       release: () => void;
     }
-  | { acted: false; reason: string };
+  | {
+      acted: false;
+      /** Structured §13.4 disposition code (issue #45, R4) — the classifier keys on this, not on `reason`. */
+      disposition?: RefusalDisposition;
+      reason: string;
+    };
 
-export type ReceiptResult = { acted: true; receipt: ReceiptEntry } | { acted: false; reason: string };
+export type ReceiptResult =
+  | {
+      acted: true;
+      /** Structured §13.4 disposition code (issue #45, R4); always `"accepted"` when minted here. */
+      disposition?: "accepted";
+      receipt: ReceiptEntry;
+    }
+  | {
+      acted: false;
+      /** Structured §13.4 disposition code (issue #45, R4) — the classifier keys on this, not on `reason`. */
+      disposition?: RefusalDisposition;
+      reason: string;
+    };
 
 /** One drained entry's outcome, discriminated by its §8.7.1 kind. */
 export type EntryResult =
@@ -181,6 +245,77 @@ export type EntryResult =
   | { kind: "message"; result: MessageEntryResult }
   | { kind: "response"; result: ResumeResult }
   | { kind: "receipt"; result: ReceiptResult };
+
+/**
+ * One classified entry outcome — the §13.4 verdict as a DISCRIMINATED UNION over the four
+ * dispositions, shaped so a TypeScript consumer is forced to handle every disposition.
+ *
+ * THE CONSUMPTION CONTRACT is an exhaustive switch closed by a `never`-assertion:
+ *
+ * ```ts
+ * const verdict = classifyEntryResult(agent.receiveEntry(delivery));
+ * switch (verdict.disposition) {
+ *   case "fatal-verification": throw new Error(verdict.reason); // loud — never skip past
+ *   case "benign-redelivery":  ack(ackKeyOf(delivery)); break;  // already durably done
+ *   case "refused":            report(verdict.reason); break;   // no ack — leave to redelivery
+ *   case "accepted":           act(); commit(); ack(ackKeyOf(delivery)); break;
+ *   default: { const unhandled: never = verdict; throw unhandled; }
+ * }
+ * ```
+ *
+ * A HANDLING default branch is the misuse this union exists to reject: writing
+ * `default: report(verdict.reason)` instead folds `fatal-verification` into refused-and-continue,
+ * and the loop silently keeps consuming a mailbox AFTER a signature failure — the drift class
+ * (oh-hai#711/#712) this layer exists to kill. The `never`-assertion keeps the check honest:
+ * when a future spec version adds a fifth disposition, every consumer fails TYPECHECK at its
+ * switch instead of routing the new disposition through whatever its default happened to do.
+ *
+ * The verdict deliberately carries NO ack key — an `EntryResult` does not carry the entry id (a
+ * benign-redelivery result is `{ acted: false, reason }` only). Consumers take the key from
+ * `ackKeyOf(delivery)`, exactly as the reference loop does.
+ */
+export type EntryVerdict =
+  | { disposition: "fatal-verification"; reason: string }
+  | { disposition: "benign-redelivery"; reason: string }
+  | { disposition: "refused"; reason: string }
+  | { disposition: "accepted" };
+
+/**
+ * Classify one consumed entry's outcome into its §13.4 disposition (issue #45, R4).
+ *
+ * Keyed on the STRUCTURED `disposition` code minted at each refusal/acceptance site — the code is
+ * authoritative even when the presentation text superficially resembles another class (reasons
+ * interpolate raw `Error` messages and are documented as unstable). For a result minted WITHOUT a
+ * code (older or third-party minting against the pre-#45 result shapes), the reason string is
+ * parsed as a documented FALLBACK with **fatal-before-benign precedence explicit**: the fatal
+ * prefixes (`signature:`, `replay:`, `invalid `) are checked BEFORE the benign substrings
+ * (`already acted`, `already seen`), because `"replay: jti already seen"` matches both — a replay
+ * refusal MUST classify `fatal-verification`, never `benign-redelivery` (acking a replayed
+ * signature as benign would consume mail the verification step rejected).
+ *
+ * The in-flight duplicate (`duplicate delivery (in flight)`) classifies `refused`, NOT benign —
+ * frozen reference behavior with a real concurrency nuance: the overlapping first delivery has
+ * not yet committed, so its work is not durably done; acking the overlap would discard the
+ * redelivery a crashed first attempt needs to retry. Only the COMMITTED dedup
+ * (`already acted` / `already seen`) is a benign redelivery.
+ *
+ * Duty order (§13.4): pure evaluation over an already-produced result — it verifies nothing and
+ * acks nothing. Act/ack/exit policy on the verdict stays with the consumer (see `EntryVerdict`'s
+ * consumption contract).
+ */
+export function classifyEntryResult(outcome: EntryResult): EntryVerdict {
+  const r = outcome.result;
+  if (r.acted) return { disposition: "accepted" };
+  if (r.disposition !== undefined) return { disposition: r.disposition, reason: r.reason };
+  // Fallback for unminted results only — FATAL BEFORE BENIGN (see the doc comment above).
+  if (r.reason.startsWith("signature:") || r.reason.startsWith("replay:") || r.reason.startsWith("invalid ")) {
+    return { disposition: "fatal-verification", reason: r.reason };
+  }
+  if (r.reason.includes("already acted") || r.reason.includes("already seen")) {
+    return { disposition: "benign-redelivery", reason: r.reason };
+  }
+  return { disposition: "refused", reason: r.reason };
+}
 
 /**
  * Project a message entry to its known schema fields, dropping any unsigned unknown property (§10, §13.4).
@@ -265,9 +400,10 @@ export class Agent {
       sig = parseSignatureHeader(signatureHeader);
     } catch (e) {
       // A malformed/missing signature header is a VERIFICATION failure, not an ordinary refusal:
-      // prefix it `signature:` so the bridge's fatal classification (§13.4 loud-failure) catches it
-      // — an unverifiable entry in the agent's own mailbox must never be silently skipped.
-      return { acted: false, reason: `signature: ${(e as Error).message}` };
+      // the structured code (with the `signature:` presentation prefix) puts it in the fatal
+      // classification (§13.4 loud-failure) — an unverifiable entry in the agent's own mailbox
+      // must never be silently skipped.
+      return { acted: false, disposition: "fatal-verification", reason: `signature: ${(e as Error).message}` };
     }
 
     const sc = buildSignedContext({
@@ -289,10 +425,12 @@ export class Agent {
       now: nowMs ?? Date.now(),
       ...(this.opts.windowSeconds !== undefined ? { windowSeconds: this.opts.windowSeconds } : {}),
     });
-    if (!verified.ok) return { acted: false, reason: `signature: ${verified.reason}` };
+    if (!verified.ok) return { acted: false, disposition: "fatal-verification", reason: `signature: ${verified.reason}` };
 
     const dedupKey = `${response.in_reply_to}::${response.resolution_id}`;
-    if (this.seen.has(dedupKey)) return { acted: false, reason: "duplicate delivery (already acted)" };
+    if (this.seen.has(dedupKey)) {
+      return { acted: false, disposition: "benign-redelivery", reason: "duplicate delivery (already acted)" };
+    }
 
     // Open sealed state ONLY after signature verification; reject tamper.
     let state: JsonObject | null = null;
@@ -301,13 +439,16 @@ export class Agent {
       try {
         state = openState(sealed, this.opts.sealKey);
       } catch (e) {
-        return { acted: false, reason: (e as Error).message };
+        // `refused`, not fatal (frozen behavior): the §9.2 signature verified — the recomputed
+        // digest covers `state` — so an unopenable seal is an agent-side key problem, not tamper.
+        return { acted: false, disposition: "refused", reason: (e as Error).message };
       }
     }
 
     this.seen.add(dedupKey); // commit only once we will actually act
     return {
       acted: true,
+      disposition: "accepted",
       resolution: response.resolution,
       state,
       ...(response.response?.value !== undefined ? { value: response.response.value } : {}),
@@ -324,7 +465,11 @@ export class Agent {
     // §13.4: a conformant inbound consumer MUST know its own identity to check the addressee.
     const self = this.opts.agentId;
     if (self === undefined) {
-      return { acted: false, reason: "agent identity (agentId) not configured — cannot verify the directive addressee (§13.4)" };
+      return {
+        acted: false,
+        disposition: "refused",
+        reason: "agent identity (agentId) not configured — cannot verify the directive addressee (§13.4)",
+      };
     }
 
     // Validate SHAPE first (before any hashing): a malformed wire object (e.g. missing `title`) would
@@ -340,16 +485,20 @@ export class Agent {
       dv !== null && Number(dv[1]) >= 5
         ? validateV05("inbound-message.schema.json", directive)
         : validateInboundMessage(directive);
-    if (!shape.valid) return { acted: false, reason: `invalid directive: ${shape.errors.join("; ")}` };
+    if (!shape.valid) {
+      // Shape validation of the Hub's own output is part of the §8.7.1 verification step: fatal.
+      return { acted: false, disposition: "fatal-verification", reason: `invalid directive: ${shape.errors.join("; ")}` };
+    }
 
     let sig: ParsedSignature;
     try {
       sig = parseSignatureHeader(signatureHeader);
     } catch (e) {
       // A malformed/missing signature header is a VERIFICATION failure, not an ordinary refusal:
-      // prefix it `signature:` so the bridge's fatal classification (§13.4 loud-failure) catches it
-      // — an unverifiable entry in the agent's own mailbox must never be silently skipped.
-      return { acted: false, reason: `signature: ${(e as Error).message}` };
+      // the structured code (with the `signature:` presentation prefix) puts it in the fatal
+      // classification (§13.4 loud-failure) — an unverifiable entry in the agent's own mailbox
+      // must never be silently skipped.
+      return { acted: false, disposition: "fatal-verification", reason: `signature: ${(e as Error).message}` };
     }
 
     const sc = buildInboundSignedContext({
@@ -367,7 +516,7 @@ export class Agent {
       now: nowMs ?? Date.now(),
       ...(this.opts.windowSeconds !== undefined ? { windowSeconds: this.opts.windowSeconds } : {}),
     });
-    if (!verified.ok) return { acted: false, reason: `signature: ${verified.reason}` };
+    if (!verified.ok) return { acted: false, disposition: "fatal-verification", reason: `signature: ${verified.reason}` };
 
     // §13.4: confirm this directive is addressed to THIS agent. The signature binds `to`, so a valid
     // signature proves the Hub intended a specific addressee — but only the recipient checking the
@@ -380,25 +529,30 @@ export class Agent {
     // session; a legacy `#`-bearing addressee that splitAddress cannot parse falls back to exact.)
     const toAddr = splitAddress(directive.to);
     if (toAddr === null ? directive.to !== self : `agent:${toAddr.principal}` !== self) {
-      return { acted: false, reason: `addressee mismatch: directive.to ${directive.to} != ${self}` };
+      return { acted: false, disposition: "refused", reason: `addressee mismatch: directive.to ${directive.to} != ${self}` };
     }
     if (toAddr?.session !== undefined && toAddr.session !== this.opts.session) {
       return {
         acted: false,
+        disposition: "refused",
         reason: `addressee session mismatch: ${toAddr.session} is not this invocation's current session (§13.4)`,
       };
     }
 
     // §9.7: reject an exact-bytes signature replay (same jti) independently of the id business-dedup.
+    // FATAL, never benign — the reason text contains "already seen", but a replayed signature is a
+    // verification failure; the structured code makes that precedence structural (issue #45, R4).
     if (this.seenDirectiveJti.has(sig.jti)) {
-      return { acted: false, reason: "replay: jti already seen" };
+      return { acted: false, disposition: "fatal-verification", reason: "replay: jti already seen" };
     }
     // id dedup — committed (already processed) beats in-flight (a concurrent/overlapping delivery).
     if (this.seenDirectives.has(directive.id)) {
-      return { acted: false, reason: "duplicate delivery (already acted)" };
+      return { acted: false, disposition: "benign-redelivery", reason: "duplicate delivery (already acted)" };
     }
     if (this.inFlightDirectives.has(directive.id)) {
-      return { acted: false, reason: "duplicate delivery (in flight)" };
+      // `refused`, not benign: the overlapping first delivery has not committed yet, so nothing is
+      // durably done — see `classifyEntryResult`'s concurrency note.
+      return { acted: false, disposition: "refused", reason: "duplicate delivery (in flight)" };
     }
 
     // Commit the jti now — the same signed bytes must never be re-accepted. RESERVE the id in-flight so
@@ -409,6 +563,7 @@ export class Agent {
     this.inFlightDirectives.add(id);
     return {
       acted: true,
+      disposition: "accepted",
       directive: sanitizeDirective(directive), // §10/§13.4: strip any unsigned unknown field
       commit: () => {
         this.seenDirectives.add(id);
@@ -443,19 +598,27 @@ export class Agent {
   receiveMessageEntry(message: InterAgentMessage, signatureHeader: string, nowMs?: number): MessageEntryResult {
     const self = this.ownPrincipal();
     if (self === undefined) {
-      return { acted: false, reason: "agent identity (agentId) not configured — cannot verify the addressee (§13.4)" };
+      return {
+        acted: false,
+        disposition: "refused",
+        reason: "agent identity (agentId) not configured — cannot verify the addressee (§13.4)",
+      };
     }
     const shape = validateV05("inbound-message.schema.json", message);
-    if (!shape.valid) return { acted: false, reason: `invalid message entry: ${shape.errors.join("; ")}` };
+    if (!shape.valid) {
+      // Shape validation of the Hub's own output is part of the §8.7.1 verification step: fatal.
+      return { acted: false, disposition: "fatal-verification", reason: `invalid message entry: ${shape.errors.join("; ")}` };
+    }
 
     let sig: ParsedSignature;
     try {
       sig = parseSignatureHeader(signatureHeader);
     } catch (e) {
       // A malformed/missing signature header is a VERIFICATION failure, not an ordinary refusal:
-      // prefix it `signature:` so the bridge's fatal classification (§13.4 loud-failure) catches it
-      // — an unverifiable entry in the agent's own mailbox must never be silently skipped.
-      return { acted: false, reason: `signature: ${(e as Error).message}` };
+      // the structured code (with the `signature:` presentation prefix) puts it in the fatal
+      // classification (§13.4 loud-failure) — an unverifiable entry in the agent's own mailbox
+      // must never be silently skipped.
+      return { acted: false, disposition: "fatal-verification", reason: `signature: ${(e as Error).message}` };
     }
     const sc = buildMessageEntrySignedContext({
       from: message.from,
@@ -472,22 +635,27 @@ export class Agent {
       now: nowMs ?? Date.now(),
       ...(this.opts.windowSeconds !== undefined ? { windowSeconds: this.opts.windowSeconds } : {}),
     });
-    if (!verified.ok) return { acted: false, reason: `signature: ${verified.reason}` };
+    if (!verified.ok) return { acted: false, disposition: "fatal-verification", reason: `signature: ${verified.reason}` };
 
     // §13.4 amendment: the addressee check extends to the session qualifier — `to`'s principal must
     // be this agent AND, when session-qualified, the named session must be its own CURRENT session.
     const to = splitAddress(message.to);
     if (to === null || to.principal !== self) {
-      return { acted: false, reason: `addressee mismatch: message.to ${message.to} != agent:${self}` };
+      return { acted: false, disposition: "refused", reason: `addressee mismatch: message.to ${message.to} != agent:${self}` };
     }
     if (to.session !== undefined && to.session !== this.opts.session) {
       return {
         acted: false,
+        disposition: "refused",
         reason: `addressee session mismatch: ${to.session} is not this invocation's current session (§13.4)`,
       };
     }
 
-    if (this.seenDirectiveJti.has(sig.jti)) return { acted: false, reason: "replay: jti already seen" };
+    // Replay is FATAL, never benign, despite the "already seen" presentation text — the structured
+    // code makes the precedence structural (issue #45, R4).
+    if (this.seenDirectiveJti.has(sig.jti)) {
+      return { acted: false, disposition: "fatal-verification", reason: "replay: jti already seen" };
+    }
 
     // §13.4 amendment (MUST): an EXPLICIT deployment-declared policy gates acting on an addressed
     // ask/task — no implicit default. A notify carries no request/action surface and is exempt.
@@ -495,21 +663,31 @@ export class Agent {
       const policy = this.opts.senderPolicy;
       const from = splitAddress(message.from);
       if (policy === undefined) {
-        return { acted: false, reason: "no declared sender policy — refusing to act on an addressed ask/task (§13.4)" };
+        return {
+          acted: false,
+          disposition: "refused",
+          reason: "no declared sender policy — refusing to act on an addressed ask/task (§13.4)",
+        };
       }
       if (policy !== "any-same-account" && (from === null || !policy.includes(from.principal))) {
-        return { acted: false, reason: `sender ${message.from} is not in the declared policy (§13.4)` };
+        return { acted: false, disposition: "refused", reason: `sender ${message.from} is not in the declared policy (§13.4)` };
       }
     }
 
-    if (this.seenDirectives.has(message.id)) return { acted: false, reason: "duplicate delivery (already acted)" };
-    if (this.inFlightDirectives.has(message.id)) return { acted: false, reason: "duplicate delivery (in flight)" };
+    if (this.seenDirectives.has(message.id)) {
+      return { acted: false, disposition: "benign-redelivery", reason: "duplicate delivery (already acted)" };
+    }
+    if (this.inFlightDirectives.has(message.id)) {
+      // `refused`, not benign — see `classifyEntryResult`'s concurrency note.
+      return { acted: false, disposition: "refused", reason: "duplicate delivery (in flight)" };
+    }
 
     this.seenDirectiveJti.add(sig.jti);
     const id = message.id;
     this.inFlightDirectives.add(id);
     return {
       acted: true,
+      disposition: "accepted",
       message: sanitizeMessageEntry(message), // §10/§13.4: strip any unsigned unknown field
       commit: () => {
         this.seenDirectives.add(id);
@@ -530,7 +708,11 @@ export class Agent {
   receiveResponseEntry(response: A2hResponse, signatureHeader: string, nowMs?: number): ResumeResult {
     const self = this.ownPrincipal();
     if (self === undefined || this.opts.session === undefined) {
-      return { acted: false, reason: "agent identity + current session required to reconstruct the §9.8 context" };
+      return {
+        acted: false,
+        disposition: "refused",
+        reason: "agent identity + current session required to reconstruct the §9.8 context",
+      };
     }
     // §8.7.1: a consuming agent MUST validate the delivered payload's shape before acting — the
     // sibling directive/message/receipt handlers all do. Validate against the inbound-entry UNION
@@ -538,15 +720,19 @@ export class Agent {
     // constraint is enforced: a mailbox response entry cannot predate v0.5 (delivery requires a
     // registered submitting session), and the resource schema would wrongly accept a 0.4 body.
     const shape = validateV05("inbound-message.schema.json", response);
-    if (!shape.valid) return { acted: false, reason: `invalid response entry: ${shape.errors.join("; ")}` };
+    if (!shape.valid) {
+      // Shape validation of the Hub's own output is part of the §8.7.1 verification step: fatal.
+      return { acted: false, disposition: "fatal-verification", reason: `invalid response entry: ${shape.errors.join("; ")}` };
+    }
     let sig: ParsedSignature;
     try {
       sig = parseSignatureHeader(signatureHeader);
     } catch (e) {
       // A malformed/missing signature header is a VERIFICATION failure, not an ordinary refusal:
-      // prefix it `signature:` so the bridge's fatal classification (§13.4 loud-failure) catches it
-      // — an unverifiable entry in the agent's own mailbox must never be silently skipped.
-      return { acted: false, reason: `signature: ${(e as Error).message}` };
+      // the structured code (with the `signature:` presentation prefix) puts it in the fatal
+      // classification (§13.4 loud-failure) — an unverifiable entry in the agent's own mailbox
+      // must never be silently skipped.
+      return { acted: false, disposition: "fatal-verification", reason: `signature: ${(e as Error).message}` };
     }
     const sc = buildResponseEntrySignedContext({
       id: response.in_reply_to,
@@ -565,12 +751,17 @@ export class Agent {
       now: nowMs ?? Date.now(),
       ...(this.opts.windowSeconds !== undefined ? { windowSeconds: this.opts.windowSeconds } : {}),
     });
-    if (!verified.ok) return { acted: false, reason: `signature: ${verified.reason}` };
-    if (this.seenDirectiveJti.has(sig.jti)) return { acted: false, reason: "replay: jti already seen" };
+    if (!verified.ok) return { acted: false, disposition: "fatal-verification", reason: `signature: ${verified.reason}` };
+    // Replay is FATAL, never benign — see the sibling handlers (issue #45, R4).
+    if (this.seenDirectiveJti.has(sig.jti)) {
+      return { acted: false, disposition: "fatal-verification", reason: "replay: jti already seen" };
+    }
     this.seenDirectiveJti.add(sig.jti);
 
     const dedupKey = `${response.in_reply_to}::${response.resolution_id}`;
-    if (this.seen.has(dedupKey)) return { acted: false, reason: "duplicate delivery (already acted)" };
+    if (this.seen.has(dedupKey)) {
+      return { acted: false, disposition: "benign-redelivery", reason: "duplicate delivery (already acted)" };
+    }
 
     let state: JsonObject | null = null;
     const sealed = response.state?.["sealed"];
@@ -578,12 +769,15 @@ export class Agent {
       try {
         state = openState(sealed, this.opts.sealKey);
       } catch (e) {
-        return { acted: false, reason: (e as Error).message };
+        // `refused`, not fatal (frozen behavior): the §9.8 signature verified — the recomputed
+        // digest covers `state` — so an unopenable seal is an agent-side key problem, not tamper.
+        return { acted: false, disposition: "refused", reason: (e as Error).message };
       }
     }
     this.seen.add(dedupKey);
     return {
       acted: true,
+      disposition: "accepted",
       resolution: response.resolution,
       state,
       ...(response.response?.value !== undefined ? { value: response.response.value } : {}),
@@ -601,18 +795,26 @@ export class Agent {
   receiveReceipt(receipt: ReceiptEntry, signatureHeader: string, nowMs?: number): ReceiptResult {
     const self = this.ownPrincipal();
     if (self === undefined || this.opts.session === undefined) {
-      return { acted: false, reason: "agent identity + current session required to reconstruct the §9.8 context" };
+      return {
+        acted: false,
+        disposition: "refused",
+        reason: "agent identity + current session required to reconstruct the §9.8 context",
+      };
     }
     const shape = validateV05("inbound-message.schema.json", receipt);
-    if (!shape.valid) return { acted: false, reason: `invalid receipt: ${shape.errors.join("; ")}` };
+    if (!shape.valid) {
+      // Shape validation of the Hub's own output is part of the §8.7.1 verification step: fatal.
+      return { acted: false, disposition: "fatal-verification", reason: `invalid receipt: ${shape.errors.join("; ")}` };
+    }
     let sig: ParsedSignature;
     try {
       sig = parseSignatureHeader(signatureHeader);
     } catch (e) {
       // A malformed/missing signature header is a VERIFICATION failure, not an ordinary refusal:
-      // prefix it `signature:` so the bridge's fatal classification (§13.4 loud-failure) catches it
-      // — an unverifiable entry in the agent's own mailbox must never be silently skipped.
-      return { acted: false, reason: `signature: ${(e as Error).message}` };
+      // the structured code (with the `signature:` presentation prefix) puts it in the fatal
+      // classification (§13.4 loud-failure) — an unverifiable entry in the agent's own mailbox
+      // must never be silently skipped.
+      return { acted: false, disposition: "fatal-verification", reason: `signature: ${(e as Error).message}` };
     }
     const sc = buildReceiptSignedContext({
       in_reply_to: receipt.in_reply_to,
@@ -628,13 +830,18 @@ export class Agent {
       now: nowMs ?? Date.now(),
       ...(this.opts.windowSeconds !== undefined ? { windowSeconds: this.opts.windowSeconds } : {}),
     });
-    if (!verified.ok) return { acted: false, reason: `signature: ${verified.reason}` };
-    if (this.seenDirectiveJti.has(sig.jti)) return { acted: false, reason: "replay: jti already seen" };
+    if (!verified.ok) return { acted: false, disposition: "fatal-verification", reason: `signature: ${verified.reason}` };
+    // Replay is FATAL, never benign — see the sibling handlers (issue #45, R4).
+    if (this.seenDirectiveJti.has(sig.jti)) {
+      return { acted: false, disposition: "fatal-verification", reason: "replay: jti already seen" };
+    }
     this.seenDirectiveJti.add(sig.jti);
     const dedupKey = `${receipt.in_reply_to}::${receipt.event}`;
-    if (this.seenReceipts.has(dedupKey)) return { acted: false, reason: "duplicate receipt (already seen)" };
+    if (this.seenReceipts.has(dedupKey)) {
+      return { acted: false, disposition: "benign-redelivery", reason: "duplicate receipt (already seen)" };
+    }
     this.seenReceipts.add(dedupKey);
-    return { acted: true, receipt };
+    return { acted: true, disposition: "accepted", receipt };
   }
 
   /** Dispatch one drained §8.7.1 entry to its kind's handler (spec §13.4). */
