@@ -18,6 +18,22 @@
 require "json"
 require "pathname"
 
+# `plugins[].source` is either a path string or an object discriminated by its own `source` key. These
+# are the object shapes in use, with the field(s) without which `/plugin install` genuinely cannot
+# resolve the entry — surveyed from the 234 entries in Anthropic's official marketplace (`url` 121,
+# `git-subdir` 60, `github` 2) plus the `local` form.
+#
+# Deliberately minimal: only fields that make resolution IMPOSSIBLE when absent are listed, not every
+# field the official entries happen to carry (e.g. `sha` appears on all 121 `url` entries, but a
+# manifest tracking a floating ref without one still installs). Requiring optional metadata would fail
+# valid manifests, and a guard that cries wolf gets deleted rather than fixed.
+OBJECT_SOURCE_REQUIRED_FIELDS = {
+  "local" => ["path"].freeze,           # the only object form that resolves on disk
+  "url" => ["url"].freeze,
+  "git-subdir" => %w[url path].freeze,
+  "github" => ["repo"].freeze
+}.freeze
+
 # FNM_DOTMATCH governs whether the `**` wildcard descends into dot-prefixed DIRECTORIES; the literal
 # `.claude-plugin` in the pattern matches with or without it. It is here for the nested case — a plugin
 # vendored under something like `.claude/` — which `**` would otherwise walk straight past, the same
@@ -66,23 +82,42 @@ parsed.each do |f, data|
       name = entry["name"].to_s.strip
       failed << "#{label}: missing or empty `name`" if name.empty?
 
-      # Only RECOGNIZED remote shapes bypass path resolution. Anything absent or malformed must fail:
-      # lumping it in with "remote" would skip every check below and report success on an entry
-      # `/plugin install` cannot resolve — the same vacuous pass this script exists to catch.
+      # Resolve `source` to a local path, or establish that it is legitimately remote. Anything absent
+      # or malformed must fail rather than be waved through as "remote" — skipping the checks below
+      # would report success on an entry `/plugin install` cannot resolve, the same vacuous pass this
+      # script exists to catch.
       source = entry["source"]
+      local_path = nil
       case source
-      when Hash
-        # Documented object form, e.g. {"source": "github", "repo": "owner/name"} — not resolvable on
-        # disk, so path checks are skipped. Empty is not a shape, so it still fails.
-        failed << "#{label}: `source` is an empty object" if source.empty?
-        next
       when String
         if source.strip.empty?
           failed << "#{label}: `source` is empty"
           next
         end
-        next if source.include?("://") # remote URL — nothing to resolve locally
-        # Otherwise it is a repo-relative path; fall through to resolution below.
+        next if source.include?("://") # remote URL — nothing to resolve on disk
+        local_path = source            # otherwise a repo-relative path
+      when Hash
+        kind = source["source"]
+        unless kind.is_a?(String) && !kind.strip.empty?
+          failed << "#{label}: object `source` has no `source` discriminator — " \
+                    "`/plugin install` cannot resolve this entry"
+          next
+        end
+        required = OBJECT_SOURCE_REQUIRED_FIELDS[kind]
+        # An unrecognized discriminator is passed through on purpose: this list reflects the shapes
+        # that exist today, and rejecting a future one would fail a manifest that installs fine —
+        # a false failure is what gets a guard deleted rather than fixed.
+        next unless required
+
+        missing = required.reject { |k| source[k].is_a?(String) && !source[k].strip.empty? }
+        unless missing.empty?
+          failed << "#{label}: `#{kind}` source is missing #{missing.map(&:inspect).join(', ')} — " \
+                    "`/plugin install` cannot resolve this entry"
+          next
+        end
+        next unless kind == "local" # the only object form that resolves on disk
+
+        local_path = source["path"]
       else
         failed << "#{label}: missing or malformed `source` (#{source.inspect}) — " \
                   "`/plugin install` cannot resolve this entry"
@@ -91,15 +126,15 @@ parsed.each do |f, data|
 
       # cleanpath keeps reported paths repo-relative; absolute paths bury the useful part of the
       # message under the runner's checkout directory in CI logs.
-      dir = Pathname.new(File.join(root, source)).cleanpath.to_s
+      dir = Pathname.new(File.join(root, local_path)).cleanpath.to_s
       unless File.directory?(dir)
-        failed << "#{label}: source #{source.inspect} does not exist (resolved to #{dir})"
+        failed << "#{label}: source #{local_path.inspect} does not exist (resolved to #{dir})"
         next
       end
 
       plugin_manifest = File.join(dir, ".claude-plugin", "plugin.json")
       unless File.file?(plugin_manifest)
-        failed << "#{label}: source #{source.inspect} has no .claude-plugin/plugin.json — " \
+        failed << "#{label}: source #{local_path.inspect} has no .claude-plugin/plugin.json — " \
                   "`/plugin install` would fail"
         next
       end
