@@ -19,12 +19,8 @@
 
 import { ackKeyOf, classifyEntryResult } from "./client.js";
 import type { Agent, BridgeHub } from "./client.js";
-import {
-  baseCodeForStatus,
-  isKnownHubErrorCode,
-  type HubTouchpoint,
-  type KnownHubErrorCode,
-} from "./errors.js";
+import { classifyHubError } from "./wire.js";
+import type { HubTouchpoint } from "./errors.js";
 import type { InboxEntryDelivery, InterAgentMessage, JsonObject } from "./types.js";
 
 // The re-export seam (issue #45): every previously-public moved symbol keeps resolving from this
@@ -127,29 +123,14 @@ export interface BridgeReport {
 }
 
 /**
- * The code to READ this error as, applying §8.5's unknown-code fallback (MUST): a code this
- * implementation recognizes reads as itself; an UNRECOGNIZED code reads as the base code its
- * touchpoint would have returned absent the refinement. `undefined` when neither the code nor its
- * class is recognizable — the caller must then stay loud rather than invent a reading.
- *
- * The `isKnownHubErrorCode` gate is load-bearing and is NOT "is this code mapped below". A
- * recognized code the bridge deliberately does not map — `not_found`, `rate_limited` — must keep
- * propagating as itself; routing it through the base-code table would hand it exit semantics §8.5
- * never gives it. Only genuinely unrecognized codes fall back.
- */
-function effectiveCode(e: unknown, touchpoint: HubTouchpoint): KnownHubErrorCode | undefined {
-  const code = (e as { code?: unknown }).code;
-  // §8.5's envelope REQUIRES `code`. A MISSING one is a malformed response or a broken adapter, not
-  // an unrecognized refinement — the fallback does not apply, and the failure must stay loud. Fall
-  // back on a code-less 410 and a supervisor re-registers against a broken transport forever;
-  // fall back on a code-less 401 and it chases a credential that was never the problem.
-  if (typeof code !== "string" || code === "") return undefined;
-  if (isKnownHubErrorCode(code)) return code;
-  return baseCodeForStatus((e as { status?: number }).status, touchpoint);
-}
-
-/**
  * Map a Hub error to the pinned exit codes; anything unmapped rethrows as itself (still loud).
+ *
+ * SPLIT per issue #45 (R9): the §8.5 READING — `effectiveCode` and the six-class semantic
+ * classification — is protocol mechanics and lives in `wire.ts` (`classifyHubError`); what stays
+ * here is the per-IMPLEMENTATION policy of turning each class into an exit code. The switch
+ * follows `classifyHubError`'s consumption contract: exhaustive cases closed by a
+ * `never`-assertion, never a handling default — a default branch folding `operator-close` into a
+ * re-register path would drive a killed session straight back through the §16.4 kill-switch.
  *
  * The caller passes its OWN touchpoint — §8.5's fallback reads an unrecognized code as what that
  * touchpoint would have returned, so the answer differs by call site. Drain / ack / resolve-
@@ -158,22 +139,33 @@ function effectiveCode(e: unknown, touchpoint: HubTouchpoint): KnownHubErrorCode
  * those calls from being misread as a lapsed lease.
  */
 function mapHubError(e: unknown, touchpoint: HubTouchpoint): never {
-  const code = effectiveCode(e, touchpoint);
-  if (code === "unauthenticated" || code === "not_authorized" || code === "agent_id_mismatch") {
-    throw new BridgeExitError(EXIT_AUTH_FAILURE, `auth failure: ${(e as Error).message}`);
+  const reading = classifyHubError(e, touchpoint);
+  switch (reading.class) {
+    case "auth":
+      throw new BridgeExitError(EXIT_AUTH_FAILURE, `auth failure: ${(e as Error).message}`);
+    // §8.5/§16.4: the kill-switch is its own class, never collapsed into the terminal one — both
+    // are 410s, and the marker's whole point is that the killed party stops instead of
+    // re-registering (`classifyHubError` never lets a recognized marker fall back).
+    case "operator-close":
+      throw new BridgeExitError(
+        EXIT_SESSION_CLOSED_BY_OPERATOR,
+        `session closed by the account's operator — stop, do not re-register: ${(e as Error).message}`,
+      );
+    case "own-terminal":
+      throw new BridgeExitError(EXIT_SESSION_TERMINAL, `own session is terminal: ${(e as Error).message}`);
+    // The reference maps no exit code to these three: a lost §7 CAS race is handled AT the resolve
+    // site (the only place it is a normal outcome), and unreadable/propagate errors rethrow AS
+    // THEMSELVES — the honest loud boundary (`code`-less responses and codes §8.5 gives this
+    // touchpoint no reading for must not acquire invented exit semantics).
+    case "lost-cas-race":
+    case "unreadable":
+    case "propagate":
+      throw e;
+    default: {
+      const unhandled: never = reading; // the consumption contract: a seventh class fails HERE
+      throw unhandled;
+    }
   }
-  // §8.5/§16.4: the operator kill-switch is matched BEFORE the generic terminal class — both are
-  // 410s, and the marker's whole point is that the killed party stops instead of re-registering.
-  if (code === "session_closed_by_operator") {
-    throw new BridgeExitError(
-      EXIT_SESSION_CLOSED_BY_OPERATOR,
-      `session closed by the account's operator — stop, do not re-register: ${(e as Error).message}`,
-    );
-  }
-  if (code === "gone") {
-    throw new BridgeExitError(EXIT_SESSION_TERMINAL, `own session is terminal: ${(e as Error).message}`);
-  }
-  throw e;
 }
 
 /**
@@ -247,7 +239,7 @@ export function runBridgeLoop(hub: BridgeHub, opts: BridgeOptions): BridgeReport
                   // everything else maps to the loud exits. Read through §8.5's fallback so a refining
                   // Hub's own 409 code reads as that same lost race — resolve with `?session=` is a
                   // presentation touchpoint (§16.3), the row mapHubError resolves against too.
-                  if (effectiveCode(e, "presentation") !== "already_terminal") mapHubError(e, "presentation");
+                  if (classifyHubError(e, "presentation").class !== "lost-cas-race") mapHubError(e, "presentation");
                 }
               }
             }

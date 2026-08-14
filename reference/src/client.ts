@@ -45,6 +45,7 @@ import {
 } from "./signing.js";
 import { openState } from "./state-seal.js";
 import { validateInboundMessage, validateV05 } from "./envelope.js";
+import { DIRECTIVE_KEEP_FIELDS, MESSAGE_ENTRY_KEEP_FIELDS } from "./wire.js";
 import type {
   A2hResponse,
   AgentAddress,
@@ -317,8 +318,36 @@ export function classifyEntryResult(outcome: EntryResult): EntryVerdict {
   return { disposition: "refused", reason: r.reason };
 }
 
+// The sanitize KEEP-LISTS (issue #45, R10) — the per-kind data the two sanitizers below derive
+// from, re-exported here beside them. DEFINED in wire.ts (the keyless side) so the refusing
+// consumer contract (`validateKnownFields`) can vendor the same one definition without dragging in
+// this keyed module's dependency tree; re-exported from this module so keyed consumers import the
+// data where the sanitizers live. NOT derivable from signing.ts's content-field lists: keep-lists
+// also carry the delivered-but-UNSIGNED advisory fields (`created_at`, `agent`, `expires_at`,
+// `idempotency_key`).
+export { DIRECTIVE_KEEP_FIELDS, MESSAGE_ENTRY_KEEP_FIELDS } from "./wire.js";
+
+/**
+ * Copy the PRESENT `fields` of `source` into a fresh projection, in list order. The keep-lists
+ * cover every required field of their kind, so projecting a schema-valid entry yields a complete
+ * entry of the same kind — the cast at each call site rests on schema validation having already
+ * run (the duty-order contract on the sanitizers).
+ */
+function keepPresentFields<T extends object>(source: T, fields: ReadonlyArray<keyof T & string>): Partial<T> {
+  const out: Partial<T> = {};
+  for (const field of fields) {
+    const value = source[field];
+    if (value !== undefined) out[field] = value;
+  }
+  return out;
+}
+
 /**
  * Project a message entry to its known schema fields, dropping any unsigned unknown property (§10, §13.4).
+ * Derives from the exported per-kind keep-lists (`MESSAGE_ENTRY_KEEP_FIELDS`) — the one field
+ * vocabulary this strip and wire.ts's `validateKnownFields` share, so the two consumer contracts
+ * (strip vs refuse) cannot drift apart. The `agent` descriptor is kept but ADVISORY (§8.7.1) —
+ * never identity or authorization.
  *
  * Duty order (§13.4): the strip is the LAST duty. This assumes schema validation, §9.8 signature
  * verification, the session-qualified addressee check, and the declared sender policy already ran
@@ -326,50 +355,27 @@ export function classifyEntryResult(outcome: EntryResult): EntryVerdict {
  * trusted-looking shape.
  */
 export function sanitizeMessageEntry(m: InterAgentMessage): InterAgentMessage {
-  const base = {
-    ma2h_version: m.ma2h_version,
-    id: m.id,
-    from: m.from,
-    to: m.to,
-    created_at: m.created_at,
-    agent: m.agent, // delivered but ADVISORY (§8.7.1) — never identity or authorization
-    title: m.title,
-    ...(m.body !== undefined ? { body: m.body } : {}),
-    ...(m.priority !== undefined ? { priority: m.priority } : {}),
-    ...(m.tags !== undefined ? { tags: m.tags } : {}),
-    ...(m.context !== undefined ? { context: m.context } : {}),
-    ...(m.expires_at !== undefined ? { expires_at: m.expires_at } : {}),
-    ...(m.sensitive !== undefined ? { sensitive: m.sensitive } : {}),
-  };
-  if (m.type === "ask") return { ...base, type: "ask", idempotency_key: m.idempotency_key, request: m.request };
-  if (m.type === "task") return { ...base, type: "task", idempotency_key: m.idempotency_key, action: m.action };
-  return { ...base, type: "notify", ...(m.idempotency_key !== undefined ? { idempotency_key: m.idempotency_key } : {}) };
+  // Sound per keepPresentFields' contract: the kind's keep-list covers every required field, and
+  // the entry was schema-validated before this duty ran.
+  if (m.type === "ask") return keepPresentFields(m, MESSAGE_ENTRY_KEEP_FIELDS.ask) as InterAgentMessage;
+  if (m.type === "task") return keepPresentFields(m, MESSAGE_ENTRY_KEEP_FIELDS.task) as InterAgentMessage;
+  return keepPresentFields(m, MESSAGE_ENTRY_KEEP_FIELDS.notify) as InterAgentMessage;
 }
 
 /**
  * Project a directive to its known schema fields, dropping any unsigned unknown property (§10, §13.4).
+ * Derives from the exported keep-list (`DIRECTIVE_KEEP_FIELDS`) — the one field vocabulary this
+ * strip and wire.ts's `validateKnownFields` share, so the two consumer contracts (strip vs refuse)
+ * cannot drift apart.
  *
  * Duty order (§13.4): the strip is the LAST duty. This assumes schema validation, §9.7 signature
  * verification, the addressee check, and replay/dedup already ran and passed — sanitizing an
  * unverified directive launders unauthenticated input into a trusted-looking shape.
  */
 export function sanitizeDirective(d: InboundDirective): InboundDirective {
-  const out: InboundDirective = {
-    ma2h_version: d.ma2h_version,
-    type: "directive",
-    id: d.id,
-    from: d.from,
-    to: d.to,
-    created_at: d.created_at,
-    title: d.title,
-  };
-  if (d.body !== undefined) out.body = d.body;
-  if (d.priority !== undefined) out.priority = d.priority;
-  if (d.tags !== undefined) out.tags = d.tags;
-  if (d.context !== undefined) out.context = d.context;
-  if (d.expires_at !== undefined) out.expires_at = d.expires_at;
-  if (d.sensitive !== undefined) out.sensitive = d.sensitive;
-  return out;
+  // Sound per keepPresentFields' contract: the keep-list covers every required directive field,
+  // and the directive was schema-validated before this duty ran.
+  return keepPresentFields(d, DIRECTIVE_KEEP_FIELDS) as InboundDirective;
 }
 
 export class Agent {
