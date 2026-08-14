@@ -24,8 +24,11 @@ import type {
 
 export type SignatureAlg = "hmac-sha256" | "ed25519";
 
+// Every exported field table in this module is Object.frozen: `as const` is compile-only, and a
+// runtime-mutated signed-field or content-field list would silently move what the digests bind.
+
 /** Fields bound by the signature, in spec order (canonicalize sorts them anyway). */
-export const SIGNED_FIELDS = [
+export const SIGNED_FIELDS = Object.freeze([
   "ma2h_version",
   "callback_url",
   "id",
@@ -36,7 +39,7 @@ export const SIGNED_FIELDS = [
   "resolution_id",
   "resolved_at",
   "t",
-] as const satisfies ReadonlyArray<keyof SignedContext>;
+] as const satisfies ReadonlyArray<keyof SignedContext>);
 
 export interface SignedContextParts {
   ma2h_version: SignedContext["ma2h_version"];
@@ -210,7 +213,7 @@ export function verifyResponse(sc: SignedContext, v1: string, opts: VerifyOption
 // ---- Inbound directive signature (spec §9.7) ----
 
 /** Fields bound by the directive signature, in spec order (canonicalize sorts them anyway). */
-export const SIGNED_INBOUND_FIELDS = [
+export const SIGNED_INBOUND_FIELDS = Object.freeze([
   "from",
   "id",
   "jti",
@@ -218,7 +221,7 @@ export const SIGNED_INBOUND_FIELDS = [
   "payload_sha256",
   "t",
   "to",
-] as const satisfies ReadonlyArray<keyof InboundSignedContext>;
+] as const satisfies ReadonlyArray<keyof InboundSignedContext>);
 
 export interface InboundSignedContextParts {
   from: InboundSignedContext["from"];
@@ -253,31 +256,31 @@ export function buildInboundSignedContext(parts: InboundSignedContextParts): Inb
  * excludes. NOT the sanitize keep-list: the keep-list (wire.ts) also carries delivered-but-unsigned
  * advisory fields, and is not derivable from this list.
  */
-export const DIRECTIVE_CONTENT_FIELDS = [
+export const DIRECTIVE_CONTENT_FIELDS = Object.freeze([
   "title",
   "body",
   "priority",
   "tags",
   "context",
-] as const satisfies ReadonlyArray<keyof InboundDirective & string>;
+] as const satisfies ReadonlyArray<keyof InboundDirective & string>);
 
 /**
- * Copy `fields` present on `source` into a plain content wrapper for canonicalization.
- * canonicalize() accepts `unknown` and validates JSON shape at runtime, so the wrapper is built as
- * a `Record<string, unknown>` with the fields passed directly (incl. `Part[]` context) — no
- * `as unknown as` escape hatch on this security-relevant digest input. RFC 8785 JCS sorts keys, so
- * list order never moves the bytes; only the field SET does.
+ * Copy the PRESENT `fields` of `source` into a fresh projection, in list order — the one
+ * present-field projection shared by the digest content wrappers here and the §13.4 sanitize
+ * strip in client.ts, so the two paths cannot drift. Type-safe by construction (no
+ * `as unknown as` escape hatch on the security-relevant digest input); canonicalize() sorts keys
+ * per RFC 8785 JCS, so list order never moves digest bytes — only the field SET does.
  */
-function presentContentFields<T extends object>(
+export function pickPresentFields<T extends object>(
   source: T,
   fields: ReadonlyArray<keyof T & string>,
-): Record<string, unknown> {
-  const content: Record<string, unknown> = {};
+): Partial<T> {
+  const out: Partial<T> = {};
   for (const field of fields) {
     const value = source[field];
-    if (value !== undefined) content[field] = value;
+    if (value !== undefined) out[field] = value;
   }
-  return content;
+  return out;
 }
 
 /**
@@ -291,7 +294,7 @@ function presentContentFields<T extends object>(
  * directive it received — rejects a tampered directive.
  */
 export function computeDirectivePayloadSha256(directive: InboundDirective): string {
-  const content = presentContentFields(directive, DIRECTIVE_CONTENT_FIELDS);
+  const content = pickPresentFields(directive, DIRECTIVE_CONTENT_FIELDS);
   const canonical = canonicalize({ directive: content });
   return createHash("sha256").update(canonical).digest("hex");
 }
@@ -355,7 +358,7 @@ export function verifyAck(sc: AckSignedContext, v1: string, opts: VerifyOptions)
 // ---- v0.5 inter-agent entry signatures (spec §9.8) ----
 
 /** Fields bound by the `message` entry signature, in spec order (the §9.7 mirror, same key set). */
-export const SIGNED_MESSAGE_ENTRY_FIELDS = [
+export const SIGNED_MESSAGE_ENTRY_FIELDS = Object.freeze([
   "from",
   "id",
   "jti",
@@ -363,7 +366,7 @@ export const SIGNED_MESSAGE_ENTRY_FIELDS = [
   "payload_sha256",
   "t",
   "to",
-] as const satisfies ReadonlyArray<keyof MessageEntrySignedContext>;
+] as const satisfies ReadonlyArray<keyof MessageEntrySignedContext>);
 
 export interface MessageEntrySignedContextParts {
   from: MessageEntrySignedContext["from"];
@@ -401,11 +404,11 @@ export function buildMessageEntrySignedContext(parts: MessageEntrySignedContextP
  * as §9.2 leaves the Response's top-level `agent` unbound. NOT the sanitize keep-lists: those
  * (wire.ts) also carry the delivered-but-unsigned advisory fields and are not derivable from here.
  */
-export const MESSAGE_ENTRY_CONTENT_FIELDS = {
-  notify: ["type", "title", "body", "priority", "tags", "context", "sensitive"],
-  ask: ["type", "title", "body", "priority", "tags", "context", "request", "sensitive"],
-  task: ["type", "title", "body", "priority", "tags", "context", "action", "sensitive"],
-} as const satisfies {
+export const MESSAGE_ENTRY_CONTENT_FIELDS = Object.freeze({
+  notify: Object.freeze(["type", "title", "body", "priority", "tags", "context", "sensitive"] as const),
+  ask: Object.freeze(["type", "title", "body", "priority", "tags", "context", "request", "sensitive"] as const),
+  task: Object.freeze(["type", "title", "body", "priority", "tags", "context", "action", "sensitive"] as const),
+}) satisfies {
   notify: ReadonlyArray<keyof Extract<InterAgentMessage, { type: "notify" }> & string>;
   ask: ReadonlyArray<keyof Extract<InterAgentMessage, { type: "ask" }> & string>;
   task: ReadonlyArray<keyof Extract<InterAgentMessage, { type: "task" }> & string>;
@@ -428,10 +431,10 @@ export const MESSAGE_ENTRY_CONTENT_FIELDS = {
 export function computeMessageEntryPayloadSha256(message: InterAgentMessage): string {
   const content =
     message.type === "ask"
-      ? presentContentFields(message, MESSAGE_ENTRY_CONTENT_FIELDS.ask)
+      ? pickPresentFields(message, MESSAGE_ENTRY_CONTENT_FIELDS.ask)
       : message.type === "task"
-        ? presentContentFields(message, MESSAGE_ENTRY_CONTENT_FIELDS.task)
-        : presentContentFields(message, MESSAGE_ENTRY_CONTENT_FIELDS.notify);
+        ? pickPresentFields(message, MESSAGE_ENTRY_CONTENT_FIELDS.task)
+        : pickPresentFields(message, MESSAGE_ENTRY_CONTENT_FIELDS.notify);
   const canonical = canonicalize({ message: content });
   return createHash("sha256").update(canonical).digest("hex");
 }
@@ -452,7 +455,7 @@ export function verifyMessageEntry(
  * Fields bound by the `response` entry signature, in spec order — §9.2's key set with the mailbox
  * destination (`to`) in place of `callback_url`, and the IDENTICAL payload digest (spec §9.8).
  */
-export const SIGNED_RESPONSE_ENTRY_FIELDS = [
+export const SIGNED_RESPONSE_ENTRY_FIELDS = Object.freeze([
   "id",
   "in_reply_to",
   "jti",
@@ -463,7 +466,7 @@ export const SIGNED_RESPONSE_ENTRY_FIELDS = [
   "resolved_at",
   "t",
   "to",
-] as const satisfies ReadonlyArray<keyof ResponseEntrySignedContext>;
+] as const satisfies ReadonlyArray<keyof ResponseEntrySignedContext>);
 
 export interface ResponseEntrySignedContextParts {
   /**
@@ -518,14 +521,14 @@ export function verifyResponseEntry(
 }
 
 /** Fields bound by the `receipt` entry signature, in spec order (the §14.4 ack pattern). */
-export const SIGNED_RECEIPT_FIELDS = [
+export const SIGNED_RECEIPT_FIELDS = Object.freeze([
   "in_reply_to",
   "jti",
   "ma2h_version",
   "receipt_sha256",
   "t",
   "to",
-] as const satisfies ReadonlyArray<keyof ReceiptSignedContext>;
+] as const satisfies ReadonlyArray<keyof ReceiptSignedContext>);
 
 export interface ReceiptSignedContextParts {
   in_reply_to: string;

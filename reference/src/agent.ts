@@ -18,7 +18,7 @@
 // exclusion — the wire marker, not the exit code, is the cross-implementation contract).
 
 import { ackKeyOf, classifyEntryResult } from "./client.js";
-import type { Agent, BridgeHub } from "./client.js";
+import type { Agent, BridgeHub, EntryResult } from "./client.js";
 import { classifyHubError } from "./wire.js";
 import type { HubTouchpoint } from "./errors.js";
 import type { InboxEntryDelivery, InterAgentMessage, JsonObject } from "./types.js";
@@ -163,8 +163,50 @@ function mapHubError(e: unknown, touchpoint: HubTouchpoint): never {
       throw e;
     default: {
       const unhandled: never = reading; // the consumption contract: a seventh class fails HERE
-      throw unhandled;
+      // Runtime backstop for a type-erased caller: an inspectable Error, never a raw object throw.
+      throw new Error(`unhandled Hub error reading: ${JSON.stringify(unhandled)}`);
     }
+  }
+}
+
+/**
+ * The accepted-entry act step (§13.4: verify → policy → act durably → commit dedup → ack).
+ * Split from the drain switch so the disposition-driven control flow reads flat; the ack push
+ * stays at the call site — acking is the loop's contract, acting is this helper's.
+ */
+function actOnAcceptedEntry(
+  outcome: EntryResult,
+  hub: BridgeHub,
+  opts: BridgeOptions,
+  sessionId: string,
+  now: () => number,
+  report: BridgeReport,
+): void {
+  if (outcome.kind === "message" && outcome.result.acted) {
+    const m = outcome.result.message;
+    if (m.type !== "notify" && opts.decide) {
+      const decision = opts.decide(m);
+      if (decision) {
+        try {
+          hub.resolveAsAgent(m.id, opts.principal, decision, { session: sessionId, now: now() });
+        } catch (e) {
+          // Losing the §7 CAS race is a normal outcome (the 409 carries the real terminal);
+          // everything else maps to the loud exits. Read through §8.5's fallback so a refining
+          // Hub's own 409 code reads as that same lost race — resolve with `?session=` is a
+          // presentation touchpoint (§16.3), the row mapHubError resolves against too.
+          if (classifyHubError(e, "presentation").class !== "lost-cas-race") mapHubError(e, "presentation");
+        }
+      }
+    }
+    outcome.result.commit();
+    report.processed.messages++;
+  } else if (outcome.kind === "directive" && outcome.result.acted) {
+    outcome.result.commit();
+    report.processed.directives++;
+  } else if (outcome.kind === "response") {
+    report.processed.responses++;
+  } else if (outcome.kind === "receipt") {
+    report.processed.receipts++;
   }
 }
 
@@ -225,40 +267,15 @@ export function runBridgeLoop(hub: BridgeHub, opts: BridgeOptions): BridgeReport
         case "refused":
           report.refused.push(verdict.reason); // policy / addressee refusals: never acted on, never acked
           break;
-        case "accepted": {
+        case "accepted":
           // 3. Act, then consume (verify → policy → act durably → commit dedup → ack, §13.4).
-          if (outcome.kind === "message" && outcome.result.acted) {
-            const m = outcome.result.message;
-            if (m.type !== "notify" && opts.decide) {
-              const decision = opts.decide(m);
-              if (decision) {
-                try {
-                  hub.resolveAsAgent(m.id, opts.principal, decision, { session: sessionId, now: now() });
-                } catch (e) {
-                  // Losing the §7 CAS race is a normal outcome (the 409 carries the real terminal);
-                  // everything else maps to the loud exits. Read through §8.5's fallback so a refining
-                  // Hub's own 409 code reads as that same lost race — resolve with `?session=` is a
-                  // presentation touchpoint (§16.3), the row mapHubError resolves against too.
-                  if (classifyHubError(e, "presentation").class !== "lost-cas-race") mapHubError(e, "presentation");
-                }
-              }
-            }
-            outcome.result.commit();
-            report.processed.messages++;
-          } else if (outcome.kind === "directive" && outcome.result.acted) {
-            outcome.result.commit();
-            report.processed.directives++;
-          } else if (outcome.kind === "response") {
-            report.processed.responses++;
-          } else if (outcome.kind === "receipt") {
-            report.processed.receipts++;
-          }
+          actOnAcceptedEntry(outcome, hub, opts, sessionId, now, report);
           toAck.push(ackKeyOf(delivery));
           break;
-        }
         default: {
           const unhandled: never = verdict; // the consumption contract: a fifth disposition fails HERE
-          throw unhandled;
+          // Runtime backstop for a type-erased caller: an inspectable Error, never a raw object throw.
+          throw new Error(`unhandled entry verdict: ${JSON.stringify(unhandled)}`);
         }
       }
     }

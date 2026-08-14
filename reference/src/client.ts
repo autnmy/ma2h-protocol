@@ -26,6 +26,14 @@
 //
 // This module mints NO Hub errors: `test/errors.test.ts`'s emitter floor scans `src/` flat, and
 // every `HubError` construction site belongs to the Hub, not the client layer — keep it that way.
+//
+// DEPENDENCY DISCLOSURE (vendoring): this keyed module imports the sanitize keep-lists from
+// `./wire.js` — the keyless side. The direction is deliberate and safe: keyless consumers take
+// wire.ts ALONE, while a keyed consumer vendoring this file must vendor wire.ts with it.
+// THREE-FILE LOCKSTEP: client.ts's sanitize keep-lists (via wire.ts), signing.ts's content-field
+// lists, and wire.ts itself must be re-vendored TOGETHER — skewing one against the others can
+// strip newly-signed fields AFTER verification (a sanitizer running an old keep-list over an
+// entry whose digest now binds a newer field silently drops verified content).
 
 import {
   buildInboundSignedContext,
@@ -37,6 +45,7 @@ import {
   computeMessageEntryPayloadSha256,
   computePayloadSha256,
   computeReceiptSha256,
+  pickPresentFields,
   verifyInbound,
   verifyMessageEntry,
   verifyReceipt,
@@ -307,7 +316,12 @@ export type EntryVerdict =
 export function classifyEntryResult(outcome: EntryResult): EntryVerdict {
   const r = outcome.result;
   if (r.acted) return { disposition: "accepted" };
-  if (r.disposition !== undefined) return { disposition: r.disposition, reason: r.reason };
+  // Runtime-narrow the minted code: the type says `RefusalDisposition`, but a structurally-widened
+  // third-party mint could carry a contradictory `"accepted"` on an `acted: false` result. An
+  // ack-without-act must never come out of that, so a contradictory mint falls through to the
+  // string fallback (worst case `refused` — never acked, left to redelivery).
+  const minted = r.disposition as EntryDisposition | undefined;
+  if (minted !== undefined && minted !== "accepted") return { disposition: minted, reason: r.reason };
   // Fallback for unminted results only — FATAL BEFORE BENIGN (see the doc comment above).
   if (r.reason.startsWith("signature:") || r.reason.startsWith("replay:") || r.reason.startsWith("invalid ")) {
     return { disposition: "fatal-verification", reason: r.reason };
@@ -328,21 +342,6 @@ export function classifyEntryResult(outcome: EntryResult): EntryVerdict {
 export { DIRECTIVE_KEEP_FIELDS, MESSAGE_ENTRY_KEEP_FIELDS } from "./wire.js";
 
 /**
- * Copy the PRESENT `fields` of `source` into a fresh projection, in list order. The keep-lists
- * cover every required field of their kind, so projecting a schema-valid entry yields a complete
- * entry of the same kind — the cast at each call site rests on schema validation having already
- * run (the duty-order contract on the sanitizers).
- */
-function keepPresentFields<T extends object>(source: T, fields: ReadonlyArray<keyof T & string>): Partial<T> {
-  const out: Partial<T> = {};
-  for (const field of fields) {
-    const value = source[field];
-    if (value !== undefined) out[field] = value;
-  }
-  return out;
-}
-
-/**
  * Project a message entry to its known schema fields, dropping any unsigned unknown property (§10, §13.4).
  * Derives from the exported per-kind keep-lists (`MESSAGE_ENTRY_KEEP_FIELDS`) — the one field
  * vocabulary this strip and wire.ts's `validateKnownFields` share, so the two consumer contracts
@@ -355,11 +354,11 @@ function keepPresentFields<T extends object>(source: T, fields: ReadonlyArray<ke
  * trusted-looking shape.
  */
 export function sanitizeMessageEntry(m: InterAgentMessage): InterAgentMessage {
-  // Sound per keepPresentFields' contract: the kind's keep-list covers every required field, and
+  // Sound per the keep-lists' contract (via the shared pickPresentFields projection): the kind's keep-list covers every required field, and
   // the entry was schema-validated before this duty ran.
-  if (m.type === "ask") return keepPresentFields(m, MESSAGE_ENTRY_KEEP_FIELDS.ask) as InterAgentMessage;
-  if (m.type === "task") return keepPresentFields(m, MESSAGE_ENTRY_KEEP_FIELDS.task) as InterAgentMessage;
-  return keepPresentFields(m, MESSAGE_ENTRY_KEEP_FIELDS.notify) as InterAgentMessage;
+  if (m.type === "ask") return pickPresentFields(m, MESSAGE_ENTRY_KEEP_FIELDS.ask) as InterAgentMessage;
+  if (m.type === "task") return pickPresentFields(m, MESSAGE_ENTRY_KEEP_FIELDS.task) as InterAgentMessage;
+  return pickPresentFields(m, MESSAGE_ENTRY_KEEP_FIELDS.notify) as InterAgentMessage;
 }
 
 /**
@@ -373,9 +372,9 @@ export function sanitizeMessageEntry(m: InterAgentMessage): InterAgentMessage {
  * unverified directive launders unauthenticated input into a trusted-looking shape.
  */
 export function sanitizeDirective(d: InboundDirective): InboundDirective {
-  // Sound per keepPresentFields' contract: the keep-list covers every required directive field,
+  // Sound per the keep-lists' contract (via the shared pickPresentFields projection): the keep-list covers every required directive field,
   // and the directive was schema-validated before this duty ran.
-  return keepPresentFields(d, DIRECTIVE_KEEP_FIELDS) as InboundDirective;
+  return pickPresentFields(d, DIRECTIVE_KEEP_FIELDS) as InboundDirective;
 }
 
 export class Agent {
@@ -850,18 +849,33 @@ export class Agent {
     return { acted: true, disposition: "accepted", receipt };
   }
 
-  /** Dispatch one drained §8.7.1 entry to its kind's handler (spec §13.4). */
+  /**
+   * Dispatch one drained §8.7.1 entry to its kind's handler (spec §13.4). Dispatch keys on a
+   * DEFINED payload (`delivery.<kind> !== undefined`), never on key presence: JSON-parsed rows
+   * cannot differ (JSON has no `undefined`), but a hand-built `{ directive: undefined,
+   * message: {...} }` row would otherwise pass `validateDrainBatch` (which tests definedness) and
+   * then throw `receiveDirective(undefined)` outside the exit-code discipline. A row with no
+   * defined kind falls through to the receipt handler, whose shape validation refuses it as a
+   * structured fatal result — never a throw.
+   */
   receiveEntry(delivery: InboxEntryDelivery, nowMs?: number): EntryResult {
-    if ("directive" in delivery) {
-      return { kind: "directive", result: this.receiveDirective(delivery.directive, delivery.signature, nowMs) };
+    const row = delivery as {
+      directive?: InboundDirective;
+      message?: InterAgentMessage;
+      response?: A2hResponse;
+      receipt?: ReceiptEntry;
+      signature: string;
+    };
+    if (row.directive !== undefined) {
+      return { kind: "directive", result: this.receiveDirective(row.directive, row.signature, nowMs) };
     }
-    if ("message" in delivery) {
-      return { kind: "message", result: this.receiveMessageEntry(delivery.message, delivery.signature, nowMs) };
+    if (row.message !== undefined) {
+      return { kind: "message", result: this.receiveMessageEntry(row.message, row.signature, nowMs) };
     }
-    if ("response" in delivery) {
-      return { kind: "response", result: this.receiveResponseEntry(delivery.response, delivery.signature, nowMs) };
+    if (row.response !== undefined) {
+      return { kind: "response", result: this.receiveResponseEntry(row.response, row.signature, nowMs) };
     }
-    return { kind: "receipt", result: this.receiveReceipt(delivery.receipt, delivery.signature, nowMs) };
+    return { kind: "receipt", result: this.receiveReceipt(row.receipt as ReceiptEntry, row.signature, nowMs) };
   }
 }
 

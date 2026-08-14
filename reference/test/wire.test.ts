@@ -26,10 +26,11 @@ import {
   effectiveCode,
   ENTRY_KINDS,
   HUMAN_INBOX_NOTIFY_STATUSES,
-  isAddressedEnvelope,
   MESSAGE_ENTRY_KEEP_FIELDS,
   newIdempotencyKey,
   statusesFor,
+  usesInterAgentAddressing,
+  usesSessionQualifiedResolvers,
   TASK_STATUSES,
   TERMINAL_ASK_TASK_STATUSES,
   validateDrainBatch,
@@ -41,6 +42,7 @@ import {
   WIRE_FEATURES,
   type AskInput,
   type HubErrorClass,
+  type HubErrorReading,
   type TaskInput,
 } from "../src/wire.js";
 import {
@@ -48,10 +50,15 @@ import {
   computeMessageEntryPayloadSha256,
   DIRECTIVE_CONTENT_FIELDS,
   MESSAGE_ENTRY_CONTENT_FIELDS,
+  SIGNED_FIELDS,
+  SIGNED_INBOUND_FIELDS,
+  SIGNED_MESSAGE_ENTRY_FIELDS,
+  SIGNED_RECEIPT_FIELDS,
+  SIGNED_RESPONSE_ENTRY_FIELDS,
 } from "../src/signing.js";
 import { canonicalize } from "../src/canonicalize.js";
 import { validateMessage, validateV05 } from "../src/envelope.js";
-import type { AgentDescriptor, AskRequest, InboundDirective, InterAgentMessage } from "../src/types.js";
+import type { AgentDescriptor, AskRequest, InboundDirective, InterAgentMessage, TaskAction } from "../src/types.js";
 
 const AGENT: AgentDescriptor = { id: "wire-bot", run_id: "run_1", runtime: "cli" };
 const FIXED_NOW = "2026-08-13T12:00:00.000Z";
@@ -60,9 +67,10 @@ const MINIMAL_REQUEST: AskRequest = { mode: "select", options: [{ value: "ok", l
 
 // ---- The version-stamp rule (both arms pinned by literal) ----
 
-test("the rule's arms are the module's own literals: base \"0.3\", addressed minimum \"0.5\"", () => {
+test("the rule's arms are the module's own literals: base \"0.3\", inter-agent minima \"0.5\"", () => {
   assert.equal(WIRE_BASE_VERSION, "0.3");
-  assert.equal(WIRE_FEATURES.addressed.minimum, "0.5");
+  assert.equal(WIRE_FEATURES.interAgentEnvelope.minimum, "0.5");
+  assert.equal(WIRE_FEATURES.sessionQualifiedResolvers.minimum, "0.5");
 });
 
 test("non-addressed notify stamps \"0.3\" and never carries an idempotency_key", () => {
@@ -82,10 +90,10 @@ test("`agent.session` alone makes the envelope addressed → stamps \"0.5\"", ()
   assert.equal(notify.ma2h_version, "0.5");
 });
 
-test("isAddressedEnvelope: `to` present or `agent.session` present, nothing else", () => {
-  assert.equal(isAddressedEnvelope({ agent: AGENT }), false);
-  assert.equal(isAddressedEnvelope({ agent: AGENT, to: "agent:peer" }), true);
-  assert.equal(isAddressedEnvelope({ agent: { ...AGENT, session: "sess_me" } }), true);
+test("usesInterAgentAddressing: `to` present or `agent.session` present, nothing else", () => {
+  assert.equal(usesInterAgentAddressing({ agent: AGENT }), false);
+  assert.equal(usesInterAgentAddressing({ agent: AGENT, to: "agent:peer" }), true);
+  assert.equal(usesInterAgentAddressing({ agent: { ...AGENT, session: "sess_me" } }), true);
   assert.equal(wireVersionFor({ agent: AGENT }), "0.3");
   assert.equal(wireVersionFor({ agent: AGENT, to: "agent:peer#sess_p" }), "0.5");
 });
@@ -665,4 +673,420 @@ test("the six-class vocabulary is fully reachable — every class observed from 
     [...observed].sort(),
     ["auth", "lost-cas-race", "operator-close", "own-terminal", "propagate", "unreadable"],
   );
+});
+
+// ==== Review-fix batch (issue #45): the consolidated hardening additions ====
+
+// ---- The sessionQualifiedResolvers feature row (version-stamp rule, second arm) ----
+
+test("session-qualified allowed_resolvers alone lift the stamp to \"0.5\" — request side, task side, and the predicate directly", () => {
+  const ask = buildAsk(
+    {
+      agent: AGENT,
+      title: "peer approval",
+      idempotency_key: newIdempotencyKey(),
+      request: { ...MINIMAL_REQUEST, allowed_resolvers: ["agent:peer#sess_p"] },
+    },
+    clock,
+  );
+  assert.equal(ask.ma2h_version, "0.5", "a session-qualified resolver commits the envelope to minor 5");
+  assert.equal(validateV05("message.schema.json", ask).valid, true);
+
+  const task = buildTask(
+    {
+      agent: AGENT,
+      title: "rotate",
+      idempotency_key: newIdempotencyKey(),
+      action: { instructions: "rotate the key", allowed_resolvers: ["agent:peer#sess_p"] },
+    },
+    clock,
+  );
+  assert.equal(task.ma2h_version, "0.5");
+
+  assert.equal(usesSessionQualifiedResolvers({ agent: AGENT, request: { allowed_resolvers: ["agent:peer#sess_p"] } }), true);
+  assert.equal(usesSessionQualifiedResolvers({ agent: AGENT, action: { allowed_resolvers: ["agent:peer#sess_p"] } }), true);
+  // Non-lifting: human/system resolvers (even hash-bearing), bare agent principals, no surface at all.
+  assert.equal(usesSessionQualifiedResolvers({ agent: AGENT, request: { allowed_resolvers: ["human:you", "agent:peer"] } }), false);
+  assert.equal(usesSessionQualifiedResolvers({ agent: AGENT, request: { allowed_resolvers: ["human:you#legacy"] } }), false);
+  assert.equal(usesSessionQualifiedResolvers({ agent: AGENT }), false);
+});
+
+test("a plain ask naming only human resolvers still stamps \"0.3\"", () => {
+  const plain = buildAsk(
+    {
+      agent: AGENT,
+      title: "ship?",
+      idempotency_key: newIdempotencyKey(),
+      request: { ...MINIMAL_REQUEST, allowed_resolvers: ["human:you"] },
+    },
+    clock,
+  );
+  assert.equal(plain.ma2h_version, "0.3");
+  assert.equal(validateMessage(plain).valid, true);
+});
+
+// ---- The builder self-validation net ----
+
+test("builder self-validation: a misconstruction throws a descriptive Error at build time, not at submit", () => {
+  // A malformed `to` stamps "0.5" (the interAgentEnvelope row) and then dies against the v0.5
+  // grammar its own stamp selects: the first `#` must start a `sess_` segment.
+  assert.throws(
+    () => buildNotify({ agent: AGENT, title: "t", to: "agent:peer#bogus" }, clock),
+    /builder self-check, stamped 0\.5/,
+  );
+  // A base-minor misconstruction dies against the v0.4 registry the "0.3" stamp selects.
+  assert.throws(
+    () => buildNotify({ agent: AGENT, title: "x".repeat(201) }, clock),
+    /builder self-check, stamped 0\.3/,
+  );
+});
+
+// ---- Known-key-set rebuild of request/action + post-build mutation isolation ----
+
+test("widened caller objects cannot leak extra keys onto the wire: request/action are rebuilt from their known key sets", () => {
+  const dirtyRequest = {
+    ...MINIMAL_REQUEST,
+    internal_note: "do not leak",
+    api_token_ref: "env:SECRET",
+  } as AskRequest;
+  const ask = buildAsk(
+    { agent: AGENT, title: "t", idempotency_key: newIdempotencyKey(), request: dirtyRequest },
+    clock,
+  );
+  assert.equal("internal_note" in ask.request, false);
+  assert.equal("api_token_ref" in ask.request, false);
+  assert.deepEqual(ask.request, MINIMAL_REQUEST, "exactly the known keys survive");
+
+  const dirtyAction = {
+    instructions: "rotate the key",
+    internal_note: "do not leak",
+    api_token_ref: "env:SECRET",
+  } as TaskAction;
+  const task = buildTask(
+    { agent: AGENT, title: "t", idempotency_key: newIdempotencyKey(), action: dirtyAction },
+    clock,
+  );
+  assert.equal("internal_note" in task.action, false);
+  assert.equal("api_token_ref" in task.action, false);
+  assert.deepEqual(task.action, { instructions: "rotate the key" });
+});
+
+test("post-build mutation of caller-owned objects does not alter the built envelope (stable under a minted idempotency_key)", () => {
+  const state = { sealed: "blob-1" };
+  const tags = ["deploy"];
+  const request: AskRequest = { mode: "select", options: [{ value: "ok", label: "OK" }] };
+  const ask = buildAsk(
+    { agent: AGENT, title: "t", idempotency_key: newIdempotencyKey(), state, tags, request },
+    clock,
+  );
+  state["sealed"] = "attacker";
+  tags.push("late");
+  request.mode = "input";
+  request.options?.push({ value: "evil", label: "Evil" });
+  assert.deepEqual(ask.state, { sealed: "blob-1" });
+  assert.deepEqual(ask.tags, ["deploy"]);
+  assert.equal(ask.request.mode, "select");
+  assert.deepEqual(ask.request.options, [{ value: "ok", label: "OK" }]);
+
+  const checklist = [{ text: "open console" }];
+  const task = buildTask(
+    { agent: AGENT, title: "t", idempotency_key: newIdempotencyKey(), action: { instructions: "x", checklist } },
+    clock,
+  );
+  checklist[0]!.text = "changed";
+  checklist.push({ text: "late step" });
+  assert.deepEqual(task.action.checklist, [{ text: "open console" }]);
+});
+
+// ---- Non-object error guards, the reverse misroute, null Response, type-vs-kind ----
+
+test("effectiveCode and classifyHubError guard non-object errors: null/undefined/primitive read as code-less, never TypeError", () => {
+  for (const e of [null, undefined, "gone", 410]) {
+    assert.equal(effectiveCode(e, "presentation"), undefined, JSON.stringify(e));
+  }
+  assert.deepEqual(classifyHubError(undefined, "presentation"), { class: "unreadable" });
+  assert.deepEqual(classifyHubError(410, "presentation"), { class: "unreadable" });
+});
+
+test("reverse misroute: a non-addressed submit acked with a destination snapshot or an addressed-only status fails structurally", () => {
+  const withSnapshot = validateSubmitAck(
+    { id: "msg_09", status: "open", poll_url: POLL_URL, destination: { state: "unknown" } },
+    { addressed: false },
+  );
+  assert.equal(withSnapshot.valid, false);
+  if (withSnapshot.valid) assert.fail("expected invalid");
+  assert.equal(withSnapshot.misroute, false, "misroute stays reserved for the addressed-path failure");
+  assert.ok(withSnapshot.errors.some((e) => e.includes("destination snapshot")), JSON.stringify(withSnapshot.errors));
+
+  for (const status of ["queued", "bounced", "acknowledged"]) {
+    const result = validateSubmitAck({ id: "msg_10", status, poll_url: POLL_URL }, { addressed: false });
+    assert.equal(result.valid, false, status);
+    if (result.valid) assert.fail("expected invalid");
+    assert.equal(result.misroute, false);
+    assert.ok(result.errors.some((e) => e.includes("addressed-only status")), JSON.stringify(result.errors));
+  }
+  // The SAME snapshot-carrying ack on an ADDRESSED submit stays valid — context is the detector.
+  assert.equal(
+    validateSubmitAck(
+      { id: "msg_09", status: "open", poll_url: POLL_URL, destination: { state: "unknown" } },
+      { addressed: true },
+    ).valid,
+    true,
+  );
+});
+
+test("terminal-requires-Response treats JSON null as missing (§8.2)", () => {
+  const result = validatePollStatus(
+    { id: "msg_01", status: "answered", response: null },
+    { id: "msg_01", type: "ask", addressed: false },
+  );
+  assert.equal(result.valid, false);
+  if (result.valid) assert.fail("expected invalid");
+  assert.ok(result.errors.some((e) => e.includes("requires the embedded response")), JSON.stringify(result.errors));
+});
+
+test("validateKnownFields cross-checks a declared `type` against the checked message kind", () => {
+  // The fixture is an ask: checked as `task` it must refuse on the declaration itself, not pass
+  // under the wrong keep-list.
+  const mismatched = validateKnownFields(MESSAGE_FIXTURE, "task");
+  assert.equal(mismatched.valid, false);
+  if (mismatched.valid) assert.fail("expected invalid");
+  assert.ok(mismatched.errors.some((e) => e.includes('declares type "ask"')), JSON.stringify(mismatched.errors));
+  // The matching kind still passes, and the directive kind performs no message cross-check.
+  assert.deepEqual(validateKnownFields(MESSAGE_FIXTURE, "ask"), { valid: true });
+  assert.deepEqual(validateKnownFields(DIRECTIVE_FIXTURE, "directive"), { valid: true });
+});
+
+// ---- Frozen-table pins and the JSON-parsed own-__proto__ entry ----
+
+test("every exported table is frozen — a runtime mutation cannot widen a status/keep/content/signed list", () => {
+  const tables: Record<string, object> = {
+    ASK_STATUSES,
+    TASK_STATUSES,
+    HUMAN_INBOX_NOTIFY_STATUSES,
+    ADDRESSED_NOTIFY_STATUSES,
+    TERMINAL_ASK_TASK_STATUSES,
+    ENTRY_KINDS,
+    DIRECTIVE_KEEP_FIELDS,
+    MESSAGE_ENTRY_KEEP_FIELDS,
+    "MESSAGE_ENTRY_KEEP_FIELDS.notify": MESSAGE_ENTRY_KEEP_FIELDS.notify,
+    "MESSAGE_ENTRY_KEEP_FIELDS.ask": MESSAGE_ENTRY_KEEP_FIELDS.ask,
+    "MESSAGE_ENTRY_KEEP_FIELDS.task": MESSAGE_ENTRY_KEEP_FIELDS.task,
+    WIRE_FEATURES,
+    "WIRE_FEATURES.interAgentEnvelope": WIRE_FEATURES.interAgentEnvelope,
+    "WIRE_FEATURES.sessionQualifiedResolvers": WIRE_FEATURES.sessionQualifiedResolvers,
+    SIGNED_FIELDS,
+    SIGNED_INBOUND_FIELDS,
+    DIRECTIVE_CONTENT_FIELDS,
+    MESSAGE_ENTRY_CONTENT_FIELDS,
+    "MESSAGE_ENTRY_CONTENT_FIELDS.notify": MESSAGE_ENTRY_CONTENT_FIELDS.notify,
+    "MESSAGE_ENTRY_CONTENT_FIELDS.ask": MESSAGE_ENTRY_CONTENT_FIELDS.ask,
+    "MESSAGE_ENTRY_CONTENT_FIELDS.task": MESSAGE_ENTRY_CONTENT_FIELDS.task,
+    SIGNED_MESSAGE_ENTRY_FIELDS,
+    SIGNED_RESPONSE_ENTRY_FIELDS,
+    SIGNED_RECEIPT_FIELDS,
+  };
+  for (const [name, table] of Object.entries(tables)) {
+    assert.equal(Object.isFrozen(table), true, `${name} must be frozen`);
+  }
+});
+
+test("a JSON-parsed entry with an OWN __proto__ key is refused by validateKnownFields", () => {
+  // JSON.parse mints `__proto__` as an ordinary own property (no setter runs) — the refusing
+  // contract must see it as the unknown field it is, whatever enumeration primitive is in use.
+  const entry = JSON.parse('{"title":"t","__proto__":{"polluted":true}}') as object;
+  assert.ok(Object.getOwnPropertyNames(entry).includes("__proto__"), "own property, not a prototype swap");
+  const result = validateKnownFields(entry, "directive");
+  assert.equal(result.valid, false);
+  if (result.valid) assert.fail("expected invalid");
+  assert.ok(result.errors.some((e) => e.includes('"__proto__"')), JSON.stringify(result.errors));
+  assert.equal(({} as { polluted?: boolean }).polluted, undefined, "no pollution escaped");
+});
+
+// ---- Keep-lists ⊇ schema-required fields (the derivation guard, R10 side) ----
+
+const MESSAGE_SCHEMA = JSON.parse(
+  readFileSync(new URL("../../schema/v0.5/message.schema.json", import.meta.url), "utf8"),
+) as {
+  required: string[];
+  oneOf: { properties: { type: { const: string } }; required?: string[] }[];
+};
+const INBOUND_SCHEMA = JSON.parse(
+  readFileSync(new URL("../../schema/v0.5/inbound-message.schema.json", import.meta.url), "utf8"),
+) as { $defs: Record<string, { required?: string[]; allOf?: { required?: string[] }[] }> };
+
+test("derivation guard: each keep-list covers every schema-required field of its kind", () => {
+  // The directive keep-list ⊇ the delivered directive shape's required fields.
+  const directiveRequired = INBOUND_SCHEMA.$defs["directive"]?.required;
+  assert.ok(directiveRequired !== undefined && directiveRequired.length > 0);
+  for (const field of directiveRequired) {
+    assert.ok((DIRECTIVE_KEEP_FIELDS as readonly string[]).includes(field), `directive keep-list covers ${field}`);
+  }
+  // Each message-entry keep-list ⊇ the submit schema's root+branch required fields PLUS the
+  // delivered-entry additions (id/from/to from the interAgentMessage wrapper).
+  const entryExtra = (INBOUND_SCHEMA.$defs["interAgentMessage"]?.allOf ?? []).flatMap((b) => b.required ?? []);
+  for (const field of ["id", "from", "to"]) assert.ok(entryExtra.includes(field), `wrapper requires ${field}`);
+  for (const kind of ["notify", "ask", "task"] as const) {
+    const branch = MESSAGE_SCHEMA.oneOf.find((b) => b.properties.type.const === kind);
+    assert.ok(branch !== undefined, `oneOf branch for ${kind}`);
+    const required = [...MESSAGE_SCHEMA.required, ...(branch.required ?? []), ...entryExtra];
+    for (const field of required) {
+      assert.ok(
+        (MESSAGE_ENTRY_KEEP_FIELDS[kind] as readonly string[]).includes(field),
+        `${kind} keep-list covers ${field}`,
+      );
+    }
+  }
+});
+
+// ---- classifyHubError's compile-level exhaustiveness pin (the EntryVerdict mirror) ----
+
+/** The consumption contract, positively: an EXHAUSTIVE switch narrows the reading to `never`. */
+function exhaustiveReadingSwitchCompiles(reading: HubErrorReading): string {
+  switch (reading.class) {
+    case "auth":
+      return reading.code;
+    case "operator-close":
+      return reading.code;
+    case "own-terminal":
+      return reading.code;
+    case "lost-cas-race":
+      return reading.code;
+    case "propagate":
+      return reading.code ?? "propagate";
+    case "unreadable":
+      return "unreadable";
+    default: {
+      const unhandled: never = reading;
+      throw unhandled;
+    }
+  }
+}
+
+/**
+ * The misuse the union exists to reject: a switch MISSING `operator-close` cannot satisfy the
+ * never-assertion — folding the §16.4 kill-switch into a handling default is exactly the
+ * re-register-through-the-kill drift. The @ts-expect-error is LOAD-BEARING: if the union ever
+ * loosens so a non-exhaustive switch narrows to `never` anyway, the directive turns unused and
+ * `tsc --noEmit` fails the build.
+ */
+function nonExhaustiveReadingSwitchIsRejected(reading: HubErrorReading): string {
+  switch (reading.class) {
+    case "auth":
+      return reading.code;
+    case "own-terminal":
+      return reading.code;
+    case "lost-cas-race":
+      return reading.code;
+    case "propagate":
+      return reading.code ?? "propagate";
+    case "unreadable":
+      return "unreadable";
+    default: {
+      // @ts-expect-error — `reading` is NOT `never` here: the `operator-close` case is unhandled.
+      const unhandled: never = reading;
+      return (unhandled as { code: string }).code;
+    }
+  }
+}
+
+test("type-level: HubErrorReading forces exhaustive handling (the never-assertion contract)", () => {
+  // The real assertions are compile-time; these runtime calls only keep the fixtures live.
+  assert.equal(exhaustiveReadingSwitchCompiles({ class: "unreadable" }), "unreadable");
+  assert.equal(
+    nonExhaustiveReadingSwitchIsRejected({ class: "operator-close", code: "session_closed_by_operator" }),
+    "session_closed_by_operator",
+  );
+});
+
+// ---- The notify and task digest branches (the existing ask case's three-way style) ----
+
+test("notify digest: function == exported-list recompute == hand-enumerated recompute (advisory fields excluded)", () => {
+  const entry: InterAgentMessage = {
+    ma2h_version: "0.5",
+    type: "notify",
+    id: "msg_n1",
+    from: "agent:overseer/fleet#sess_o",
+    to: "agent:worker",
+    created_at: FIXED_NOW,
+    agent: { id: "overseer/fleet", run_id: "run_n", runtime: "cli" },
+    title: "fleet digest",
+    body: "all green",
+    priority: "low",
+    tags: ["digest"],
+    sensitive: true,
+  };
+  const byList = createHash("sha256")
+    .update(canonicalize({ message: pickPresent(entry, MESSAGE_ENTRY_CONTENT_FIELDS.notify) }))
+    .digest("hex");
+  // Hand-enumerated: the notify branch's documented binding set, spelled out independently of
+  // BOTH the exported list and the shared projection helper.
+  const byHand = createHash("sha256")
+    .update(
+      canonicalize({
+        message: {
+          type: "notify",
+          title: "fleet digest",
+          body: "all green",
+          priority: "low",
+          tags: ["digest"],
+          sensitive: true,
+        },
+      }),
+    )
+    .digest("hex");
+  assert.equal(computeMessageEntryPayloadSha256(entry), byList);
+  assert.equal(byList, byHand, "id/from/to/created_at/agent are excluded from the digest");
+});
+
+test("task digest: function == exported-list recompute == hand-enumerated recompute (idempotency_key stays inert)", () => {
+  const entry: InterAgentMessage = {
+    ma2h_version: "0.5",
+    type: "task",
+    id: "msg_t1",
+    from: "agent:overseer/fleet",
+    to: "agent:worker#sess_w",
+    created_at: FIXED_NOW,
+    agent: { id: "overseer/fleet", run_id: "run_t", runtime: "cli" },
+    title: "rotate the key",
+    idempotency_key: "idem_task_1",
+    action: { instructions: "rotate", checklist: [{ text: "open console" }] },
+  };
+  const byList = createHash("sha256")
+    .update(canonicalize({ message: pickPresent(entry, MESSAGE_ENTRY_CONTENT_FIELDS.task) }))
+    .digest("hex");
+  const byHand = createHash("sha256")
+    .update(
+      canonicalize({
+        message: {
+          type: "task",
+          title: "rotate the key",
+          action: { instructions: "rotate", checklist: [{ text: "open console" }] },
+        },
+      }),
+    )
+    .digest("hex");
+  assert.equal(computeMessageEntryPayloadSha256(entry), byList);
+  assert.equal(byList, byHand, "idempotency_key and the advisory agent descriptor are excluded");
+});
+
+// ---- Non-object body guards and the empty drain batch ----
+
+test("non-object bodies refuse cleanly (never throw), and an empty drain batch is a valid zero-entry batch", () => {
+  for (const body of [null, "x"]) {
+    const ack = validateSubmitAck(body, { addressed: false });
+    assert.equal(ack.valid, false, JSON.stringify(body));
+    if (ack.valid) assert.fail("expected invalid");
+    assert.equal(ack.misroute, false);
+    assert.ok(ack.errors.some((e) => e.includes("JSON object")), JSON.stringify(ack.errors));
+  }
+  const poll = validatePollStatus(null, { id: "msg_01", type: "ask", addressed: false });
+  assert.equal(poll.valid, false);
+  if (poll.valid) assert.fail("expected invalid");
+  assert.ok(poll.errors.some((e) => e.includes("JSON object")), JSON.stringify(poll.errors));
+
+  const empty = validateDrainBatch([]);
+  assert.equal(empty.valid, true);
+  if (!empty.valid) assert.fail("expected valid");
+  assert.equal(empty.entries.length, 0);
 });

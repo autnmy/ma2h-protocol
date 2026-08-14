@@ -22,8 +22,9 @@ import {
   type HubTouchpoint,
   type KnownHubErrorCode,
 } from "./errors.js";
-import { validateV05, type ValidationResult } from "./envelope.js";
+import { validateMessage, validateV05, type ValidationResult } from "./envelope.js";
 import type {
+  A2hMessage,
   A2hVersion,
   AgentAddress,
   AgentDescriptor,
@@ -62,22 +63,47 @@ export const newIdempotencyKey = (): string => `idem_${randomUUID()}`;
 // ---- The client-side version-stamp rule (spec §10; the oh-hai#712 twin) ----
 
 /**
- * The envelope fields the version rule (and the `addressed` feature test) reads — structurally
+ * The envelope fields the version rule (and its feature predicates) reads — structurally
  * satisfied by any `A2hMessage` or builder input, so consumers can classify envelopes they did
  * not build.
  */
 export interface VersionFeatureProbe {
   to?: AgentAddress;
   agent: Pick<AgentDescriptor, "session">;
+  /** The ask surface, when present — read for session-qualified `allowed_resolvers` entries. */
+  request?: Pick<AskRequest, "allowed_resolvers">;
+  /** The task surface, when present — read for session-qualified `allowed_resolvers` entries. */
+  action?: Pick<TaskAction, "allowed_resolvers">;
 }
 
 /**
- * Is this envelope ADDRESSED — i.e. on the v0.5 inter-agent leg? True iff `to` is present
- * (spec §4) or `agent.session` is present (spec §4.1). Either feature commits the envelope to
- * minor >= 5 (message.schema.json's root conditional enforces the same rule server-side).
+ * Does this envelope use v0.5 INTER-AGENT ADDRESSING? True iff `to` is present (spec §4) or
+ * `agent.session` is present (spec §4.1). Either feature commits the envelope to minor >= 5
+ * (message.schema.json's root conditional enforces the same rule server-side).
+ *
+ * VOCABULARY NOTE: this predicate is deliberately BROADER than §8.1's strict "addressed" sense
+ * (keyed on `to` alone) — `agent.session` without `to` still submits to the HUMAN inbox, yet
+ * commits the envelope to the inter-agent leg's minor. `SubmitContext.addressed` /
+ * `PollExpectation.addressed` carry the strict §8.1 sense and must never be derived from this.
  */
-export function isAddressedEnvelope(envelope: VersionFeatureProbe): boolean {
+export function usesInterAgentAddressing(envelope: VersionFeatureProbe): boolean {
   return envelope.to !== undefined || envelope.agent.session !== undefined;
+}
+
+/**
+ * Does this envelope's `request`/`action` name a SESSION-QUALIFIED agent-form resolver — an
+ * `agent:` `allowed_resolvers` entry containing `#` (the §4 address grammar's session qualifier)?
+ * Session-qualified resolver matching exists only at minor >= 5 (spec §9.1): a pre-0.5 registry
+ * validates such an entry under the legacy `^(human|agent|system):.+$` pattern, but a pre-0.5 Hub
+ * matches resolvers EXACTLY, so the entry could never match an attested actor — the message would
+ * be accepted yet unresolvable. Carrying one therefore commits the envelope to minor >= 5.
+ */
+export function usesSessionQualifiedResolvers(envelope: VersionFeatureProbe): boolean {
+  const resolvers = [
+    ...(envelope.request?.allowed_resolvers ?? []),
+    ...(envelope.action?.allowed_resolvers ?? []),
+  ];
+  return resolvers.some((actor) => actor.startsWith("agent:") && actor.includes("#"));
 }
 
 /**
@@ -94,10 +120,15 @@ export const WIRE_BASE_VERSION = "0.3" satisfies A2hVersion;
  * stamp rule's non-base arms — `wireVersionFor` derives from it, and a v0.6 feature generalizes
  * this by ADDING A ROW (predicate + `"0.6"` minimum), never by touching existing rows.
  */
-export const WIRE_FEATURES = {
+export const WIRE_FEATURES = Object.freeze({
   /** `to` and/or `agent.session` — the v0.5 inter-agent addressing surface (spec §4, §4.1). */
-  addressed: { minimum: "0.5", present: isAddressedEnvelope },
-} as const satisfies Record<
+  interAgentEnvelope: Object.freeze({ minimum: "0.5", present: usesInterAgentAddressing } as const),
+  /** A session-qualified agent-form `allowed_resolvers` entry (spec §4 grammar, §9.1 matching). */
+  sessionQualifiedResolvers: Object.freeze({
+    minimum: "0.5",
+    present: usesSessionQualifiedResolvers,
+  } as const),
+}) satisfies Record<
   string,
   { minimum: A2hVersion; present: (envelope: VersionFeatureProbe) => boolean }
 >;
@@ -111,11 +142,11 @@ const minorOf = (version: A2hVersion): number => Number(version.slice("0.".lengt
 /**
  * The canonical version-stamp rule (spec §10): the LOWEST minor the envelope's features require —
  * `WIRE_BASE_VERSION` lifted to each present feature's `WIRE_FEATURES` minimum. Today that means
- * `"0.3"` for a plain envelope and `"0.5"` for an addressed one.
+ * `"0.3"` for a plain envelope and `"0.5"` for one carrying any inter-agent-leg feature.
  *
  * `MA2H_VERSION` is deliberately NOT an input. Lowest-minor-required is a STATIC property of the
  * features an envelope carries, not of the version this implementation currently speaks: coupling
- * the addressed arm to `MA2H_VERSION` would silently stamp `0.6` on v0.5-feature envelopes at the
+ * a feature arm to `MA2H_VERSION` would silently stamp `0.6` on v0.5-feature envelopes at the
  * next version bump — the oh-hai#712 drift class recreated inside its own fix. That is why both
  * arms are this module's own named literals and why the tests pin them as string literals.
  */
@@ -213,7 +244,9 @@ type BaseFields = Pick<
  * Assemble the shared fields: stamp the version, default `created_at` from the clock, and carry
  * each optional through a conditional spread so absent stays ABSENT on the wire (never
  * `undefined`-valued; `exactOptionalPropertyTypes` discipline). The agent descriptor is rebuilt
- * field-by-field so a structurally-widened caller object cannot leak extra keys into the envelope.
+ * field-by-field so a structurally-widened caller object cannot leak extra keys into the envelope,
+ * and every container-valued optional (`tags`/`context`/`state`/`labels`) is DEFENSIVELY COPIED so
+ * post-build caller mutation cannot change an envelope under an already-minted idempotency_key.
  */
 function baseFields(input: WireEnvelopeInput, clock: WireClock): BaseFields {
   const agent: AgentDescriptor = {
@@ -222,7 +255,7 @@ function baseFields(input: WireEnvelopeInput, clock: WireClock): BaseFields {
     runtime: input.agent.runtime,
     ...(input.agent.session !== undefined ? { session: input.agent.session } : {}),
     ...(input.agent.project !== undefined ? { project: input.agent.project } : {}),
-    ...(input.agent.labels !== undefined ? { labels: input.agent.labels } : {}),
+    ...(input.agent.labels !== undefined ? { labels: structuredClone(input.agent.labels) } : {}),
   };
   return {
     ma2h_version: wireVersionFor(input),
@@ -232,13 +265,61 @@ function baseFields(input: WireEnvelopeInput, clock: WireClock): BaseFields {
     title: input.title,
     ...(input.body !== undefined ? { body: input.body } : {}),
     ...(input.priority !== undefined ? { priority: input.priority } : {}),
-    ...(input.tags !== undefined && input.tags.length > 0 ? { tags: input.tags } : {}),
-    ...(input.context !== undefined ? { context: input.context } : {}),
-    ...(input.state !== undefined ? { state: input.state } : {}),
+    ...(input.tags !== undefined && input.tags.length > 0 ? { tags: [...input.tags] } : {}),
+    ...(input.context !== undefined ? { context: structuredClone(input.context) } : {}),
+    ...(input.state !== undefined ? { state: structuredClone(input.state) } : {}),
     ...(input.client_ref !== undefined ? { client_ref: input.client_ref } : {}),
     ...(input.expires_at !== undefined ? { expires_at: input.expires_at } : {}),
     ...(input.sensitive !== undefined ? { sensitive: input.sensitive } : {}),
   };
+}
+
+/**
+ * Rebuild an ask's `request` from its known key set (spec §5.2) — as the agent descriptor is —
+ * so a structurally-widened caller object cannot leak extra keys onto the wire, with every
+ * container-valued member defensively copied so post-build caller mutation cannot change an
+ * envelope under an already-minted idempotency_key.
+ */
+function rebuildRequest(request: AskRequest): AskRequest {
+  return {
+    mode: request.mode,
+    ...(request.options !== undefined ? { options: structuredClone(request.options) } : {}),
+    ...(request.schema !== undefined ? { schema: structuredClone(request.schema) } : {}),
+    ...(request.permissions !== undefined ? { permissions: structuredClone(request.permissions) } : {}),
+    ...(request.default_on_expire !== undefined
+      ? { default_on_expire: structuredClone(request.default_on_expire) }
+      : {}),
+    ...(request.allowed_resolvers !== undefined ? { allowed_resolvers: [...request.allowed_resolvers] } : {}),
+    ...(request.callback !== undefined ? { callback: structuredClone(request.callback) } : {}),
+  };
+}
+
+/** Rebuild a task's `action` from its known key set (spec §5.3) — see `rebuildRequest`. */
+function rebuildAction(action: TaskAction): TaskAction {
+  return {
+    instructions: action.instructions,
+    ...(action.checklist !== undefined ? { checklist: structuredClone(action.checklist) } : {}),
+    ...(action.verification !== undefined ? { verification: action.verification } : {}),
+    ...(action.allowed_resolvers !== undefined ? { allowed_resolvers: [...action.allowed_resolvers] } : {}),
+    ...(action.callback !== undefined ? { callback: structuredClone(action.callback) } : {}),
+  };
+}
+
+/**
+ * The builder self-validation net: validate a freshly-built envelope against the registry its
+ * STAMPED version selects (the v0.4 registry for a pre-0.5 stamp — no v0.3 registry is published —
+ * and the v0.5 registry from minor 5 up), throwing a descriptive `Error` on failure so a
+ * misconstruction surfaces at BUILD time, not at submit time. Not a `HubError`: this is the
+ * builder's own construction check, not a Hub verdict.
+ */
+function assertBuiltEnvelope(message: A2hMessage): void {
+  const v05 = minorOf(message.ma2h_version) >= 5;
+  const result = v05 ? validateV05("message.schema.json", message) : validateMessage(message);
+  if (!result.valid) {
+    throw new Error(
+      `built ${message.type} envelope failed ${v05 ? "v0.5" : "v0.4"} schema validation (builder self-check, stamped ${message.ma2h_version}): ${result.errors.join("; ")}`,
+    );
+  }
 }
 
 /**
@@ -247,7 +328,9 @@ function baseFields(input: WireEnvelopeInput, clock: WireClock): BaseFields {
  * `NotifyInput`.
  */
 export function buildNotify(input: NotifyInput, clock: WireClock = systemClock): NotifyMessage {
-  return { ...baseFields(input, clock), type: "notify" };
+  const message: NotifyMessage = { ...baseFields(input, clock), type: "notify" };
+  assertBuiltEnvelope(message);
+  return message;
 }
 
 /**
@@ -255,12 +338,14 @@ export function buildNotify(input: NotifyInput, clock: WireClock = systemClock):
  * (KTD1b, mint-once-reuse — `newIdempotencyKey`) and round-trips verbatim onto the wire.
  */
 export function buildAsk(input: AskInput, clock: WireClock = systemClock): AskMessage {
-  return {
+  const message: AskMessage = {
     ...baseFields(input, clock),
     type: "ask",
     idempotency_key: input.idempotency_key,
-    request: input.request,
+    request: rebuildRequest(input.request),
   };
+  assertBuiltEnvelope(message);
+  return message;
 }
 
 /**
@@ -268,12 +353,14 @@ export function buildAsk(input: AskInput, clock: WireClock = systemClock): AskMe
  * (KTD1b, mint-once-reuse — `newIdempotencyKey`) and round-trips verbatim onto the wire.
  */
 export function buildTask(input: TaskInput, clock: WireClock = systemClock): TaskMessage {
-  return {
+  const message: TaskMessage = {
     ...baseFields(input, clock),
     type: "task",
     idempotency_key: input.idempotency_key,
-    action: input.action,
+    action: rebuildAction(input.action),
   };
+  assertBuiltEnvelope(message);
+  return message;
 }
 
 /** Is this parsed JSON value a plain object (the only shape a wire body/row/field may take)? */
@@ -306,22 +393,30 @@ export type SubmitAckValidation =
  * addressed the message").
  */
 export interface SubmitContext {
-  /** True iff the submitted envelope carried `to` (spec §4) — i.e. the v0.5 addressed path. */
+  /**
+   * True iff the submitted envelope carried `to` (spec §4) — i.e. the v0.5 addressed path.
+   * §8.1 sense — keyed strictly on `to`; do NOT derive from the version-rule predicates
+   * (`usesInterAgentAddressing`/`usesSessionQualifiedResolvers`), which are broader.
+   */
   addressed: boolean;
 }
 
 /**
  * Validate a parsed §8.1 submit-ack body — pure, transport-free (issue #45, R6).
  *
- * Required-field checks (`id`/`status`/`poll_url` non-empty strings; `review_url` a string when
- * present) are performed directly for precise reasons; every SCHEMA-ENCODED rule — the `status`
- * vocabulary, the closed property set, the snapshot's 3-state enum and its `last_seen` pairing,
- * the `msg_` id rule for destination-carrying acks — is DELEGATED to the published
+ * The four field checks performed directly (`id`/`status`/`poll_url` non-empty strings;
+ * `review_url` a string when present) are type NARROWING for extraction, not duplicate rule
+ * enforcement — they let the misroute failure carry a typed `acceptedId` even when the schema
+ * rejects the body elsewhere (e.g. a bad snapshot). Every schema-encoded BUSINESS rule — the
+ * `status` vocabulary, the closed property set, the snapshot's 3-state enum and its `last_seen`
+ * pairing, the `msg_` id rule for destination-carrying acks — is DELEGATED to the published
  * `submit-ack.schema.json` via `validateV05`, never re-derived here (so e.g. a 4-state `idle`
  * snapshot dies in the schema, not in hand-rolled client logic). The only NEW logic is the
- * addressed-context reading: on an addressed submit, an absent `destination` — or one the schema
- * rejects — is the structured misroute failure carrying the accepted id (see
- * `SubmitAckValidation`).
+ * context reading, in both directions: on an addressed submit, an absent `destination` — or one
+ * the schema rejects — is the structured misroute failure carrying the accepted id (see
+ * `SubmitAckValidation`); on a NON-addressed submit, a `destination` snapshot or an
+ * addressed-only status (`queued`/`bounced`/`acknowledged`) is the reverse contradiction and
+ * fails structurally too.
  */
 export function validateSubmitAck(body: unknown, context: SubmitContext): SubmitAckValidation {
   if (!isJsonObjectLike(body)) {
@@ -366,6 +461,27 @@ export function validateSubmitAck(body: unknown, context: SubmitContext): Submit
     if (destinationErrors.length > 0) {
       return { valid: false, misroute: true, acceptedId, errors: destinationErrors };
     }
+  } else {
+    // The REVERSE misroute (§8.1): a NON-addressed submit acked with the addressed-path surface —
+    // a `destination` snapshot, or an addressed-only mailbox status — means the Hub routed a
+    // human-inbox submit onto the inter-agent leg (or the caller misdeclared its context). Either
+    // way the ack contradicts what the sender knows it submitted: a structured failure, never a
+    // silent pass. (`misroute: true` stays reserved for the addressed-path failure — see
+    // `SubmitAckValidation`.)
+    const reverseErrors: string[] = [];
+    if (destination !== undefined) {
+      reverseErrors.push(
+        "non-addressed submit was acked with a destination snapshot — the ack contradicts the submit context (§8.1)",
+      );
+    }
+    if (status === "queued" || status === "bounced" || status === "acknowledged") {
+      reverseErrors.push(
+        `non-addressed submit was acked with addressed-only status ${String(status)} — the ack contradicts the submit context (§8.1/§14.2)`,
+      );
+    }
+    if (reverseErrors.length > 0) {
+      return { valid: false, misroute: false, errors: [...reverseErrors, ...schemaErrors] };
+    }
   }
   if (schemaErrors.length > 0) {
     return { valid: false, misroute: false, errors: schemaErrors };
@@ -394,36 +510,38 @@ export function validateSubmitAck(body: unknown, context: SubmitContext): Submit
  * An ask's top-level `status` values (spec §7/§8.2): ALWAYS its §7 resolution track, addressed or
  * not — mailbox states never appear here (a bounce surfaces as its `cancelled` auto-resolution).
  */
-export const ASK_STATUSES = [
+export const ASK_STATUSES = Object.freeze([
   "open",
   "answered",
   "declined",
   "cancelled",
   "expired",
-] as const satisfies ReadonlyArray<Status>;
+] as const satisfies ReadonlyArray<Status>);
 
 /**
  * A task's top-level `status` values (spec §7/§8.2): ALWAYS its §7 resolution track, addressed or
  * not — verb-true, no ask terminals (a bounce surfaces as its `dismissed` auto-resolution).
  */
-export const TASK_STATUSES = [
+export const TASK_STATUSES = Object.freeze([
   "open",
   "completed",
   "dismissed",
   "expired",
-] as const satisfies ReadonlyArray<Status>;
+] as const satisfies ReadonlyArray<Status>);
 
 /** A human-inbox (non-addressed) notify is delivered-on-acceptance and has no other state (spec §5.1). */
-export const HUMAN_INBOX_NOTIFY_STATUSES = ["delivered"] as const satisfies ReadonlyArray<Status>;
+export const HUMAN_INBOX_NOTIFY_STATUSES = Object.freeze(
+  ["delivered"] as const satisfies ReadonlyArray<Status>,
+);
 
 /** An ADDRESSED notify's lifecycle IS the §14.2 delivery track (spec §5.1). */
-export const ADDRESSED_NOTIFY_STATUSES = [
+export const ADDRESSED_NOTIFY_STATUSES = Object.freeze([
   "queued",
   "delivered",
   "acknowledged",
   "bounced",
   "expired",
-] as const satisfies ReadonlyArray<Status>;
+] as const satisfies ReadonlyArray<Status>);
 
 /**
  * The six terminal ask/task statuses — every non-`open` value of the two resolution tracks,
@@ -431,9 +549,9 @@ export const ADDRESSED_NOTIFY_STATUSES = [
  * MUST embed the full Response envelope (spec §8.2; the schema's conditional covers exactly this
  * six-value set, and the derivation-guard test pins the equality).
  */
-export const TERMINAL_ASK_TASK_STATUSES: readonly Resolution[] = [
+export const TERMINAL_ASK_TASK_STATUSES: readonly Resolution[] = Object.freeze([
   ...new Set([...ASK_STATUSES, ...TASK_STATUSES].filter((s): s is Resolution => s !== "open")),
-];
+]);
 
 /**
  * The status table a poll of this message must draw from (spec §7/§8.2/§14.2). Ask/task use their
@@ -453,7 +571,11 @@ export interface PollExpectation {
   id: string;
   /** The submitted verb — selects the status table. */
   type: MessageType;
-  /** True iff the submitted envelope carried `to` (spec §4) — selects the notify table. */
+  /**
+   * True iff the submitted envelope carried `to` (spec §4) — selects the notify table.
+   * §8.1 sense — keyed strictly on `to`; do NOT derive from the version-rule predicates
+   * (`usesInterAgentAddressing`/`usesSessionQualifiedResolvers`), which are broader.
+   */
   addressed: boolean;
 }
 
@@ -484,7 +606,8 @@ export function validatePollStatus(body: unknown, expected: PollExpectation): Va
   } else if (
     expected.type !== "notify" &&
     (TERMINAL_ASK_TASK_STATUSES as readonly string[]).includes(status) &&
-    body["response"] === undefined
+    // JSON `null` is as missing as absent: a pull-only caller can extract no resolution from it.
+    (body["response"] === undefined || body["response"] === null)
   ) {
     errors.push(`terminal ${expected.type} status ${status} requires the embedded response (§8.2)`);
   }
@@ -498,7 +621,7 @@ export function validatePollStatus(body: unknown, expected: PollExpectation): Va
  * arrives, exported as data so consumers dispatch over THE list instead of re-declaring it. The
  * per-kind ack keys are `ackKeyOf` (client.ts).
  */
-export const ENTRY_KINDS = ["directive", "message", "response", "receipt"] as const;
+export const ENTRY_KINDS = Object.freeze(["directive", "message", "response", "receipt"] as const);
 
 /** One §8.7.1 entry kind — a member of `ENTRY_KINDS`. */
 export type EntryKind = (typeof ENTRY_KINDS)[number];
@@ -561,6 +684,9 @@ export function validateDrainBatch(body: unknown): DrainBatchValidation {
 // These are the KEEP-lists, NOT the signed content-field lists (signing.ts): a keep-list also
 // carries the delivered-but-UNSIGNED advisory fields (`created_at`, `agent`, `expires_at`,
 // `idempotency_key`) and is deliberately not derivable from any signed-field list.
+//
+// Every exported table in this module is Object.frozen: `as const` is compile-only, and an
+// additively-MUTATED keep-list would launder unsigned fields through the sanitizers (fails open).
 
 /**
  * Every field a delivered §13.1 directive may carry (inbound-message.schema.json's directive
@@ -568,7 +694,7 @@ export function validateDrainBatch(body: unknown): DrainBatchValidation {
  * refuses over. List order mirrors the sanitizer's historical output order (presentation-stable);
  * the SET is the contract.
  */
-export const DIRECTIVE_KEEP_FIELDS = [
+export const DIRECTIVE_KEEP_FIELDS = Object.freeze([
   "ma2h_version",
   "type",
   "id",
@@ -582,7 +708,7 @@ export const DIRECTIVE_KEEP_FIELDS = [
   "context",
   "expires_at",
   "sensitive",
-] as const satisfies ReadonlyArray<keyof InboundDirective & string>;
+] as const satisfies ReadonlyArray<keyof InboundDirective & string>);
 
 /**
  * Every field a delivered §8.7.1 `message` entry may carry, per kind (inbound-message.schema.json's
@@ -592,8 +718,8 @@ export const DIRECTIVE_KEEP_FIELDS = [
  * unknown fields HERE even though the §4 submit envelope carries them. List order mirrors the
  * sanitizer's historical output order (presentation-stable); the SET is the contract.
  */
-export const MESSAGE_ENTRY_KEEP_FIELDS = {
-  notify: [
+export const MESSAGE_ENTRY_KEEP_FIELDS = Object.freeze({
+  notify: Object.freeze([
     "ma2h_version",
     "id",
     "from",
@@ -609,8 +735,8 @@ export const MESSAGE_ENTRY_KEEP_FIELDS = {
     "sensitive",
     "type",
     "idempotency_key",
-  ],
-  ask: [
+  ] as const),
+  ask: Object.freeze([
     "ma2h_version",
     "id",
     "from",
@@ -627,8 +753,8 @@ export const MESSAGE_ENTRY_KEEP_FIELDS = {
     "type",
     "idempotency_key",
     "request",
-  ],
-  task: [
+  ] as const),
+  task: Object.freeze([
     "ma2h_version",
     "id",
     "from",
@@ -645,8 +771,8 @@ export const MESSAGE_ENTRY_KEEP_FIELDS = {
     "type",
     "idempotency_key",
     "action",
-  ],
-} as const satisfies {
+  ] as const),
+}) satisfies {
   notify: ReadonlyArray<keyof Extract<InterAgentMessage, { type: "notify" }> & string>;
   ask: ReadonlyArray<keyof Extract<InterAgentMessage, { type: "ask" }> & string>;
   task: ReadonlyArray<keyof Extract<InterAgentMessage, { type: "task" }> & string>;
@@ -673,6 +799,16 @@ function keepFieldsFor(kind: FieldRuleKind): readonly string[] {
  */
 export function validateKnownFields(entry: unknown, kind: FieldRuleKind): ValidationResult {
   if (!isJsonObjectLike(entry)) return { valid: false, errors: ["entry must be a JSON object"] };
+  // Cross-check: an entry that DECLARES its message kind must not be checked against another
+  // kind's keep-list (an ask validated as "notify" would refuse on `request` as if it were an
+  // unknown field — misleading — or, worse, a subset kind could pass under the wrong contract).
+  const declaredType = entry["type"];
+  if (kind !== "directive" && typeof declaredType === "string" && declaredType !== kind) {
+    return {
+      valid: false,
+      errors: [`entry declares type "${declaredType}" but was checked as ${kind} (§10/§13.4)`],
+    };
+  }
   const keep = keepFieldsFor(kind);
   const unknown = Object.keys(entry).filter((field) => !keep.includes(field));
   if (unknown.length > 0) {
@@ -698,7 +834,9 @@ export function validateKnownFields(entry: unknown, kind: FieldRuleKind): Valida
  * never gives it. Only genuinely unrecognized codes fall back.
  */
 export function effectiveCode(e: unknown, touchpoint: HubTouchpoint): KnownHubErrorCode | undefined {
-  const code = (e as { code?: unknown }).code;
+  // Guard non-object inputs exactly as `classifyHubError` does: a null/undefined/primitive error
+  // takes the no-code path (`undefined`), never a TypeError out of the reader itself.
+  const code = typeof e === "object" && e !== null ? (e as { code?: unknown }).code : undefined;
   // §8.5's envelope REQUIRES `code`. A MISSING one is a malformed response or a broken adapter, not
   // an unrecognized refinement — the fallback does not apply, and the failure must stay loud. Fall
   // back on a code-less 410 and a supervisor re-registers against a broken transport forever;
