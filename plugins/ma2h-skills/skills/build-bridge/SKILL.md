@@ -58,12 +58,15 @@ for what's missing:
   only if advertised, with auto-reconnect (reconnect **is** the lease renewal, §16.2).
 
 ### 2. Generate the skill (+ the loop helper)
-The loop's crypto and ordering are exact — **do not hand-roll them in shell**. Emit a helper in the
-app's language that **ports the reference bridge**: `runBridgeLoop` + `Agent.receiveEntry` in
-`reference/src/agent.ts` (which carry the §13.4 order, the session-qualified addressee check, the
-policy gate, dedup reserve/commit, and the loud-failure classification), over the §9.8 verify
-primitives in `reference/src/signing.ts` (`verifyMessageEntry` / `verifyResponseEntry` /
-`verifyReceipt` + their digest and context builders). Write
+The loop's crypto and ordering are exact — **do not hand-roll them in shell**. For a TypeScript app,
+**import the vendored client layer instead of porting**: `reference/src/client.ts` (the `Agent`
+class carries the §13.4 order, the session-qualified addressee check, the policy gate, dedup
+reserve/commit; `classifyEntryResult` is the loud-failure classification) and `reference/src/wire.ts`
+(builders, drain-shape guard, `classifyHubError`). For other languages, emit a helper that **ports
+the reference bridge**: `runBridgeLoop` in `reference/src/agent.ts` + `Agent.receiveEntry` in
+`reference/src/client.ts`, over the §9.8 verify primitives in `reference/src/signing.ts`
+(`verifyMessageEntry` / `verifyResponseEntry` / `verifyReceipt` + their digest and context
+builders). Write
 `<skills-dir>/<app>-bridge/SKILL.md` (default `.claude/skills/`) from the template below, calling the
 helper.
 

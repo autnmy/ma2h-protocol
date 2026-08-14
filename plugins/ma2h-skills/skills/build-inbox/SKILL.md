@@ -53,9 +53,12 @@ what's missing:
 
 ### 2. Generate the skill (+ a verify helper)
 Verifying the §9.7 signature (RFC 8785 JCS + detached HMAC/ed25519) is exact and easy to get subtly wrong,
-so **do not hand-roll it in shell**. Emit a small helper in the app's language that **ports the reference
-agent** (`reference/src/signing.ts` `computeDirectivePayloadSha256` / `buildInboundSignedContext` /
-`verifyInbound`, and `reference/src/agent.ts` `receiveDirective`) and have the generated skill call it.
+so **do not hand-roll it in shell**. For a TypeScript app, **import the vendored client layer instead
+of porting** (`reference/src/client.ts` `Agent.receiveDirective` — the §13.4 duties in their
+implemented order — plus `reference/src/wire.ts`'s drain-shape guard). For other languages, emit a
+small helper that **ports the reference agent** (`reference/src/signing.ts`
+`computeDirectivePayloadSha256` / `buildInboundSignedContext` / `verifyInbound`, and
+`reference/src/client.ts` `receiveDirective`) and have the generated skill call it.
 Write `<skills-dir>/<app>-inbox/SKILL.md` (default `.claude/skills/`) from the template below.
 
 ### 3. Verify
