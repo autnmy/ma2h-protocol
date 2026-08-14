@@ -11,7 +11,8 @@
 #   3. asserts the frozen wire identifiers still exist verbatim on EVERY live version (a rename breaks
 #      interop + vectors);
 #   4. asserts neither retired identity (`a2h` or `ahcp`) has crept back onto the wire surface (schemas /
-#      reference src / examples / vectors / plugin skills).
+#      reference src / examples / vectors / plugin skills);
+#   5. asserts the plugin skills' hand-pinned ma2h.org URLs still name the current version.
 #
 # Adjust CANON_DOMAIN / the token lists here when an intentional, versioned change lands.
 
@@ -30,6 +31,9 @@ CANON_DOMAIN="ma2h.org"
 #     unchecked (#44).
 # Add a version once its spec + schema are live; remove one only when nothing validates against it.
 LIVE_VERSIONS=("v0.4" "v0.5")
+# Newest live version — what the plugin skills must pin their ma2h.org URLs to (assertion 5). Derived
+# from the list above so the two cannot drift apart.
+CURRENT_VERSION="${LIVE_VERSIONS[${#LIVE_VERSIONS[@]}-1]}"
 # Wire identifiers that MUST remain present in every live spec + schema (a rename breaks interop).
 FROZEN_WIRE_TOKENS=("ma2h_version" "MA2H-Signature" "MA2H_CALLBACK_SECRET" "x-ma2h-sensitive" ".well-known/ma2h")
 # Retired identities (a2h, then ahcp) that must never reappear on the wire surface.
@@ -101,8 +105,26 @@ for tok in "${FORBIDDEN_TOKENS[@]}"; do
   fi
 done
 
+# 5) The skills pin ma2h.org spec/schema URLs by hand, so a version bump that updates the spec but
+#    forgets them ships stale copy-paste text to implementers. This matches URL-SHAPED references ONLY.
+#    That restriction is load-bearing, not incidental: bare prose mentions of superseded versions are
+#    legitimate and common here ("the v0.4 inbound leg", and plugin.json's own description), so a check
+#    keyed on the bare version string would fail on a correct tree and get deleted rather than fixed.
+#    Nothing is stale today — this guard is preventative, and is expected to stay silent until the next
+#    version bump.
+stale_pins=$(grep -rInoE "ma2h\.org/(spec|schema)/v[0-9]+\.[0-9]+" plugins/ 2>/dev/null || true)
+if [ -n "$stale_pins" ]; then
+  while IFS= read -r hit; do
+    # hit is file:line:match — the pinned version is the trailing path segment. Compared as a string
+    # rather than folded into a regex, so the `.` in `v0.5` cannot match `v0x5`.
+    [ "${hit##*/}" = "$CURRENT_VERSION" ] && continue
+    printf "  pinned %s in: %s\n" "${hit##*/}" "${hit%:*}"
+    err "plugins/ pins a ma2h.org URL for ${hit##*/}, but the current version is $CURRENT_VERSION"
+  done <<< "$stale_pins"
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "frozen-identifier check FAILED"
   exit 1
 fi
-echo "frozen-identifier check passed (schema \$id on $CANON_DOMAIN; ma2h wire identifiers intact; no a2h/ahcp on the wire surface)"
+echo "frozen-identifier check passed (schema \$id on $CANON_DOMAIN; ma2h wire identifiers intact across ${LIVE_VERSIONS[*]}; no a2h/ahcp on the wire surface; plugins/ URLs pinned to $CURRENT_VERSION)"
