@@ -18,6 +18,7 @@ import {
   runBridgeLoop,
   type BridgeHub,
 } from "../src/agent.js";
+import type { HubErrorStatus } from "../src/errors.js";
 import type { AskMessage, InboxEntryDelivery } from "../src/types.js";
 
 const KEY = "hub-bridge-key-0123456789abcdef0123456789abcdef";
@@ -205,6 +206,158 @@ test("the four exit codes are pairwise distinct and nonzero — a supervisor can
   const codes = [EXIT_AUTH_FAILURE, EXIT_SESSION_TERMINAL, EXIT_SIGNATURE_FAILURE, EXIT_SESSION_CLOSED_BY_OPERATOR];
   assert.equal(new Set(codes).size, 4);
   for (const c of codes) assert.ok(c > 0);
+});
+
+// ---- §8.5's unknown-code fallback at the presentation touchpoints (§16.3) ----
+
+/**
+ * An error from a peer Hub that refined a class with a code this implementation has never heard of
+ * — the case §8.5's fallback exists for. The `status` cast is the point of the fixture: it lets a
+ * test model a class OUTSIDE §8.5's eight, which `HubErrorStatus` deliberately cannot express.
+ */
+function peerError(code: string, status?: number): HubError {
+  return new HubError(code, `peer Hub said ${code}`, undefined, status as HubErrorStatus | undefined);
+}
+
+/** Run the loop against a surface whose one named touchpoint throws, and return what escaped. */
+function loopThrowing(touchpoint: keyof BridgeHub, thrown: unknown): unknown {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const failing: BridgeHub = {
+    ...bridgeSurface(hub),
+    [touchpoint]: () => {
+      throw thrown;
+    },
+  };
+  try {
+    runBridgeLoop(failing, { principal: WORKER, agent: newWorkerAgent(), maxDrains: 1, now: () => now.t });
+    return undefined;
+  } catch (e) {
+    return e;
+  }
+}
+
+test("§8.5 fallback: an UNRECOGNIZED 410 reads as `gone` at every presentation touchpoint (§16.3)", () => {
+  // The §16.3 presentation row — drain, ack, resolve-`?session=`, and the register/close that
+  // bracket them. A refining Hub's own 410 code must land on the re-register class, not escape
+  // unread; getting this wrong at ONE touchpoint is the failure a single-site test would miss.
+  for (const touchpoint of ["registerSession", "drainInbox", "closeSession"] as const) {
+    const e = loopThrowing(touchpoint, peerError("session_lease_revoked", 410));
+    assert.ok(e instanceof BridgeExitError, `${touchpoint} should exit loudly`);
+    assert.equal(e.exitCode, EXIT_SESSION_TERMINAL, `${touchpoint} reads an unrecognized 410 as gone`);
+  }
+
+  // `ackInbox` needs mail to ack, so it cannot use the empty-inbox harness above.
+  const now = { t: T0 };
+  const hub = newHub(now);
+  hub.submit(askTo(`agent:${WORKER}`));
+  const ackFailing: BridgeHub = {
+    ...bridgeSurface(hub),
+    ackInbox: () => {
+      throw peerError("session_lease_revoked", 410);
+    },
+  };
+  try {
+    runBridgeLoop(ackFailing, {
+      principal: WORKER,
+      agent: newWorkerAgent([SENDER]),
+      maxDrains: 1,
+      now: () => now.t,
+    });
+    assert.fail("expected BridgeExitError");
+  } catch (e) {
+    assert.ok(e instanceof BridgeExitError);
+    assert.equal(e.exitCode, EXIT_SESSION_TERMINAL);
+  }
+});
+
+test("§8.5 fallback: an UNRECOGNIZED 401 or 403 reads as the auth class", () => {
+  for (const status of [401, 403]) {
+    const e = loopThrowing("registerSession", peerError("credential_needs_rotation", status));
+    assert.ok(e instanceof BridgeExitError, `status ${status} should exit loudly`);
+    assert.equal(e.exitCode, EXIT_AUTH_FAILURE);
+  }
+});
+
+test("the fallback is gated on UNRECOGNIZED, not on unmapped — a known code still propagates as itself", () => {
+  // `not_found` (404) and `rate_limited` (429) are vocabulary the loop deliberately does not map.
+  // Reading them through the base-code table would hand them exit semantics §8.5 never gives them,
+  // so they must escape as the HubError they are.
+  for (const code of ["not_found", "rate_limited"] as const) {
+    const e = loopThrowing("drainInbox", new HubError(code, "known but unmapped"));
+    assert.ok(e instanceof HubError, `${code} should propagate as a HubError`);
+    assert.ok(!(e instanceof BridgeExitError), `${code} must not be mapped to an exit code`);
+    assert.equal(e.code, code);
+  }
+});
+
+test("an unclassable error stays loud — the honest boundary survives the fallback", () => {
+  // No status at all: nothing to fall back WITHIN.
+  const noStatus = loopThrowing("drainInbox", peerError("hub_specific_refinement"));
+  assert.ok(noStatus instanceof HubError);
+  assert.ok(!(noStatus instanceof BridgeExitError));
+
+  // A class outside §8.5's eight: the spec defines no base code for it, so inventing a reading
+  // would be worse than rethrowing.
+  const oddClass = loopThrowing("drainInbox", peerError("hub_specific_refinement", 500));
+  assert.ok(oddClass instanceof HubError);
+  assert.ok(!(oddClass instanceof BridgeExitError));
+});
+
+test("the fallback never diverts a RECOGNIZED marker: the kill-switch still outranks the 410 class (§16.4)", () => {
+  // Both are 410s. If `session_closed_by_operator` were resolved through the base-code table it
+  // would become `gone` and exit 3 — telling a killed bridge to re-register straight through the
+  // kill it was just dealt. The known-code path must win.
+  const e = loopThrowing("drainInbox", new HubError("session_closed_by_operator", "killed"));
+  assert.ok(e instanceof BridgeExitError);
+  assert.equal(e.exitCode, EXIT_SESSION_CLOSED_BY_OPERATOR);
+});
+
+test("§8.5 at the resolve touchpoint: an unrecognized 409 is a lost CAS race, an unrecognized 410 is terminal", () => {
+  // Losing the §7 race is normal — the loop acks and carries on. A refining Hub's own 409 code
+  // must read the same way, or a conformant peer would crash a bridge the base code would not.
+  const now = { t: T0 };
+  const hub = newHub(now);
+  hub.submit(askTo(`agent:${WORKER}`));
+  const racing: BridgeHub = {
+    ...bridgeSurface(hub),
+    resolveAsAgent: () => {
+      throw peerError("resolution_superseded", 409);
+    },
+  };
+  const report = runBridgeLoop(racing, {
+    principal: WORKER,
+    agent: newWorkerAgent([SENDER]),
+    decide: () => ({ resolution: "answered", value: "approve" }),
+    maxDrains: 1,
+    now: () => now.t,
+  });
+  assert.equal(report.closed, true, "a lost race resolves normally — no BridgeExitError");
+  assert.equal(report.processed.messages, 1);
+
+  // A 410 at the same touchpoint is the session going terminal underneath the resolve: still loud.
+  const now2 = { t: T0 };
+  const hub2 = newHub(now2);
+  hub2.submit(askTo(`agent:${WORKER}`));
+  const terminal: BridgeHub = {
+    ...bridgeSurface(hub2),
+    resolveAsAgent: () => {
+      throw peerError("session_lease_revoked", 410);
+    },
+  };
+  try {
+    runBridgeLoop(terminal, {
+      principal: WORKER,
+      agent: newWorkerAgent([SENDER]),
+      decide: () => ({ resolution: "answered", value: "approve" }),
+      maxDrains: 1,
+      now: () => now2.t,
+    });
+    assert.fail("expected BridgeExitError");
+  } catch (e) {
+    assert.ok(e instanceof BridgeExitError);
+    assert.equal(e.exitCode, EXIT_SESSION_TERMINAL);
+  }
 });
 
 test("no declared sender policy: the ask is refused (never acted on, never acked) and left to redelivery (§13.4)", () => {

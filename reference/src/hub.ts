@@ -31,6 +31,7 @@ import {
   signResponseEntry,
 } from "./signing.js";
 import { validateAgainstSchema, validateMessage, validateV05, validateV05Def } from "./envelope.js";
+import { statusOfHubErrorCode, type HubErrorCode, type HubErrorStatus } from "./errors.js";
 import { MA2H_VERSION } from "./version.js";
 import type {
   Ack,
@@ -74,8 +75,17 @@ import type {
 const PAYLOAD_BOUND_SINCE_MINOR = 3;
 
 export class HubError extends Error {
+  /**
+   * The §8.5 status class this code is returned under — DERIVED from `code` via the one table in
+   * `errors.ts`, never hand-passed per throw site (that would be the very drift issue #43 fixes).
+   * `undefined` means the code is outside this implementation's vocabulary and carries no class,
+   * which is what keeps §8.5's unknown-code fallback honest: a consumer that cannot recognize the
+   * code AND cannot recognize the class must stay loud rather than guess a reading.
+   */
+  public readonly status: HubErrorStatus | undefined;
+
   constructor(
-    public readonly code: string,
+    public readonly code: HubErrorCode,
     message: string,
     /**
      * Structured body a transport wrapper serialises alongside the status code. For an
@@ -84,9 +94,16 @@ export class HubError extends Error {
      * lookup.
      */
     public readonly details?: JsonObject,
+    /**
+     * Explicit class override — for a DOWNSTREAM Hub raising a code this implementation's table
+     * cannot class (§8.5 sanctions such refinements). Omit it for every code in the vocabulary:
+     * the table already knows, and passing one by hand is how the two definitions drift apart.
+     */
+    status?: HubErrorStatus,
   ) {
     super(message);
     this.name = "HubError";
+    this.status = status ?? statusOfHubErrorCode(code);
   }
 }
 

@@ -28,6 +28,12 @@ import {
 } from "./signing.js";
 import { openState } from "./state-seal.js";
 import { validateInboundMessage, validateV05 } from "./envelope.js";
+import {
+  baseCodeForStatus,
+  isKnownHubErrorCode,
+  type HubTouchpoint,
+  type KnownHubErrorCode,
+} from "./errors.js";
 import type {
   A2hResponse,
   AgentAddress,
@@ -630,10 +636,12 @@ export class Agent {
 // boundary, by design: the loop never inspects the session returned by its final step-4 close, so
 // an operator kill landing AFTER the last drain is indistinguishable from an orderly exit — the
 // mail is already drained and acked, and there is nothing left for the kill to stop.
-// A second boundary: this in-memory Hub speaks HubError codes with no HTTP status classes, so the
-// loop surfaces unknown codes loudly (rethrow) rather than implementing §8.5's unknown-code
-// fallback. An HTTP bridge MUST implement that fallback — an unrecognized 410 code at these
-// touchpoints reads as `gone` (§8.5).
+// §8.5's unknown-code fallback (MUST) is implemented, not merely documented: every touchpoint here
+// is an own-session PRESENTATION touchpoint (§16.3's third row), so an UNRECOGNIZED code carrying a
+// 410 class reads as `gone` and exits EXIT_SESSION_TERMINAL, and an unrecognized 401/403 reads as
+// the auth class. Only genuinely unrecognized codes fall back: a recognized code the loop does not
+// map (`not_found`, `rate_limited`) still propagates as itself, as does a code whose class is
+// unrecognizable too — the honest loud boundary, now narrowed to the cases that actually warrant it.
 
 /** Auth failure: the credential was rejected or is not authorized (§9.1). */
 export const EXIT_AUTH_FAILURE = 2;
@@ -720,9 +728,31 @@ export interface BridgeReport {
   closed: boolean;
 }
 
-/** Map a Hub error to the pinned exit codes; anything unmapped rethrows as itself (still loud). */
-function mapHubError(e: unknown): never {
+/**
+ * The code to READ this error as, applying §8.5's unknown-code fallback (MUST): a code this
+ * implementation recognizes reads as itself; an UNRECOGNIZED code reads as the base code its
+ * touchpoint would have returned absent the refinement. `undefined` when neither the code nor its
+ * class is recognizable — the caller must then stay loud rather than invent a reading.
+ *
+ * The `isKnownHubErrorCode` gate is load-bearing and is NOT "is this code mapped below". A
+ * recognized code the bridge deliberately does not map — `not_found`, `rate_limited` — must keep
+ * propagating as itself; routing it through the base-code table would hand it exit semantics §8.5
+ * never gives it. Only genuinely unrecognized codes fall back.
+ */
+function effectiveCode(e: unknown, touchpoint: HubTouchpoint): KnownHubErrorCode | undefined {
   const code = (e as { code?: string }).code;
+  if (isKnownHubErrorCode(code)) return code;
+  return baseCodeForStatus((e as { status?: number }).status, touchpoint);
+}
+
+/**
+ * Map a Hub error to the pinned exit codes; anything unmapped rethrows as itself (still loud).
+ *
+ * Every `runBridgeLoop` call site is an own-session PRESENTATION touchpoint — register, drain, ack,
+ * resolve-`?session=`, close (§16.3's third row) — so one touchpoint answers for them all.
+ */
+function mapHubError(e: unknown): never {
+  const code = effectiveCode(e, "presentation");
   if (code === "unauthenticated" || code === "not_authorized" || code === "agent_id_mismatch") {
     throw new BridgeExitError(EXIT_AUTH_FAILURE, `auth failure: ${(e as Error).message}`);
   }
@@ -805,8 +835,10 @@ export function runBridgeLoop(hub: BridgeHub, opts: BridgeOptions): BridgeReport
               hub.resolveAsAgent(m.id, opts.principal, decision, { session: sessionId, now: now() });
             } catch (e) {
               // Losing the §7 CAS race is a normal outcome (the 409 carries the real terminal);
-              // everything else maps to the loud exits.
-              if ((e as { code?: string }).code !== "already_terminal") mapHubError(e);
+              // everything else maps to the loud exits. Read through §8.5's fallback so a refining
+              // Hub's own 409 code reads as that same lost race — resolve with `?session=` is a
+              // presentation touchpoint (§16.3), the row mapHubError resolves against too.
+              if (effectiveCode(e, "presentation") !== "already_terminal") mapHubError(e);
             }
           }
         }
