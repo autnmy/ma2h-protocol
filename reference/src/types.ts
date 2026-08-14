@@ -2,6 +2,9 @@
 // The discriminated unions mirror the JSON Schema `oneOf` branches exactly, so
 // the type system enforces the same shape rules the schemas do.
 
+// The one error-code vocabulary (§8.5). `errors.ts` imports nothing, so this stays acyclic.
+import type { HubErrorCode } from "./errors.js";
+
 /** Protocol version string, e.g. "0.3". */
 export type A2hVersion = `0.${number}`;
 
@@ -584,6 +587,11 @@ export interface ReceiptSignedContext {
   to: AgentAddress;
 }
 
+/**
+ * The §8.5 error envelope, exactly as it appears on the wire: `code` and `message`, nothing else.
+ * The status class lives on the HTTP response, not in this body — see `HubError.status` and
+ * `errors.ts` for the class and §8.5's unknown-code fallback.
+ */
 export interface A2hError {
-  error: { code: string; message: string };
+  error: { code: HubErrorCode; message: string };
 }
