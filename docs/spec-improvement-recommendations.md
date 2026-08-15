@@ -1,5 +1,9 @@
 # Spec Improvement Recommendations (Advisory)
 
+> **Archived (2026-08-15).** This review targets `spec/v0.3.md`, two versions behind the current
+> v0.5; several of its items have since been addressed in the v0.4/v0.5 revisions. Retained for
+> history — do not work from it. A fresh advisory pass, if wanted, should target the current spec.
+
 **Date:** 2026-06-20 · **Target:** `spec/v0.3.md` · **Status:** advisory — **none of these are applied
 here.** This document reviews the specification for ambiguities, inconsistencies, terminology drift, and
 clarity opportunities. Per the rebrand's constraints, **no protocol semantics, message shapes, or

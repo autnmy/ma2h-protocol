@@ -2,12 +2,12 @@
 
 ## Preamble
 - **Author(s):** Autonomy (dev-team)
-- **Status:** Draft
+- **Status:** Implemented — shipped as spec v0.4 (2026-06-30)
 - **Type:** Standards Track (normative)
 - **Created:** 2026-06-30
 - **Tracking issue:** [#18](https://github.com/autnmy/ma2h-protocol/issues/18)
 - **SCP issue:** [#19](https://github.com/autnmy/ma2h-protocol/issues/19)
-- **Linked PR:** _(added when the implementation PR opens)_
+- **Linked PR:** [#20](https://github.com/autnmy/ma2h-protocol/pull/20) — feat(v0.4): human→agent inbound directive leg
 - **Version bump:** **MINOR (0.3 → 0.4)** — additive, non-breaking. No schema `$id` retightening; a new
   `schema/v0.4/` version path is minted as a full snapshot (repo convention), the agent→human schemas
   unchanged in shape.
