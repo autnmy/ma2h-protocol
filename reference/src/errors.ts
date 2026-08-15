@@ -18,9 +18,9 @@ export type HubErrorStatus = 400 | 401 | 403 | 404 | 409 | 410 | 422 | 429;
  * exactly the drift issue #43 is about).
  *
  * Three rows earn a note:
- * - `not_acknowledgeable` is emitted by the reference Hub but is absent from §8.5's table. §14.3
- *   supplies the class directly — "acking an `open` message is `409`" — the same "state does not
- *   permit this action" reading as `already_terminal`.
+ * - `not_acknowledgeable` now sits in §8.5's 409 row (added once this module surfaced the gap);
+ *   §14.3 supplies the same reading directly — "acking an `open` message is `409`" — the same
+ *   "state does not permit this action" class as `already_terminal`.
  * - `agent_id_mismatch` and `idempotency_conflict` are §8.5 vocabulary this Hub does not currently
  *   emit (`mapHubError` already matches the former). The table documents the PROTOCOL's vocabulary,
  *   not one Hub's emissions, so a consumer classing a peer Hub's error still finds them here.
@@ -83,10 +83,9 @@ export type HubTouchpoint =
    * "ack" here is the §8.7.1 **mailbox consume** (`POST /v1/inbox/ack`), NOT the §14.3 response-leg
    * ack (`POST /v1/messages/{id}/ack`) that the submitting principal calls. They are different
    * endpoints with different 409s, and this row covers only the former. The response-leg ack's 409
-   * is `not_acknowledgeable`, which §8.5's status table does not list among the 409 class's base
-   * codes (`idempotency_conflict` / `already_terminal`) — so §8.5 gives no sanctioned fallback
-   * target there, and inventing one would be writing spec rather than implementing it. That gap is
-   * a spec-side follow-up; see the `not_acknowledgeable` note on `HUB_ERROR_STATUS`.
+   * is `not_acknowledgeable`, which §8.5's 409 row now lists alongside `idempotency_conflict` /
+   * `already_terminal` (it was a spec-side gap this module originally documented; see the
+   * `not_acknowledgeable` note on `HUB_ERROR_STATUS`).
    */
   | "presentation"
   /**

@@ -2,7 +2,21 @@
 
 All notable changes to the MA2H (Multi-agent to Human Protocol) specification.
 
-## Unreleased
+## 0.5 (2026-08-10) — Draft
+
+### Fixed (spec hygiene — the §8.5 table and §10 roadmap catch up with their own cross-references) — #48
+
+- **§8.5's 409 row now lists `not_acknowledgeable`** (§14.3's response-leg-ack refusal: acking a
+  non-terminal message, or a response not yet `delivered-to-agent`, §14.2). The reference Hub has
+  emitted the code all along; `reference/src/errors.ts` documented the omission as a spec-side
+  follow-up, which this closes. (#48)
+- **§10's roadmap list now carries the two items other sections already deferred to it**: the
+  durable operator-close **hard stop** (§16.4 defers to "roadmap (§10)") and explicit inter-agent
+  hop-limits (§8.6 same) — both pointers previously dangled at a list that omitted them.
+- `reference/package.json` version tracks the implemented protocol minor again (**0.5.0**; it had
+  stayed at 0.4.0 through the v0.5 implementation — the same drift class #41 exists to prevent).
+- `spec/v0.2.md` / `v0.3.md` / `v0.4.md` gain the **superseded-by** banner v0.1 already had, so a
+  reader landing on an old version link gets an in-file signal it is stale.
 
 ### Added (v0.5 — the shared conformant-client layer: reference/src/client.ts + wire.ts) — #45
 
@@ -211,6 +225,8 @@ See [MIGRATION.md](MIGRATION.md#v04--v05-the-inter-agent-leg).
   ack-after-durable-processing → close — with supervision guidance (restart-on-exit, backoff+jitter,
   never-silent) and the distinct fatal exit codes (2 auth / 3 session-terminal / 4 verification), the
   Hub's delivery honesty framed as the backstop when the client dies anyway.
+
+## 0.4 (2026-06-30) — Draft
 
 ### Added (v0.4 — cross-cutting acknowledgment + presence primitives, §14/§15) — SCP #21
 Two primitives that enrich **both** directions (the shipped v0.3 response leg *and* the new inbound leg),
