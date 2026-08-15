@@ -7,10 +7,10 @@
 
 ## Preamble
 - **Author(s):** Tim Layton (drafted with Claude)
-- **Status:** Draft r2 (review-hardened) — sponsored by steward delegation, 2026-08-10
+- **Status:** Implemented (r2, review-hardened) — sponsored by steward delegation 2026-08-10; shipped as spec v0.5 (2026-08-10)
 - **Type:** Standards Track (normative)
 - **Created:** 2026-08-10
-- **Linked PR:** _(added once an implementation PR is opened)_
+- **Linked PRs:** [#29](https://github.com/autnmy/ma2h-protocol/pull/29) (spec + schemas), [#33](https://github.com/autnmy/ma2h-protocol/pull/33) (reference), [#31](https://github.com/autnmy/ma2h-protocol/pull/31) (vectors), [#35](https://github.com/autnmy/ma2h-protocol/pull/35) (skills) — via issues #25–#28
 
 > r2: revised after a six-persona adversarial design review (coherence, feasibility, product,
 > security, scope, adversarial). 17 actionable findings applied; the review record is in the issue
