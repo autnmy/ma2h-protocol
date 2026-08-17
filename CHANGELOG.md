@@ -4,6 +4,29 @@ All notable changes to the MA2H (Multi-agent to Human Protocol) specification.
 
 ## 0.5 (2026-08-10) — Draft
 
+### Added (§16.4.1 — the durable operator stop) — SCP #57
+
+- **§16.4.1 makes the operator kill-switch able to hold.** §16.4's marker is cooperative by design,
+  and implementation experience (autnmy/oh-hai#776, #780) found two ways a stop that *every party
+  honors* still fails: the marker is purged with the terminal session row, after which a killed
+  session is indistinguishable from a lapsed one whose self-heal §16.3 requires; and nothing gates
+  re-registration, so a restart, redeploy, or autoscale cycle re-registers with no human involved.
+  Neither is fixable client-side.
+- A Hub MAY now implement a **hard stop**: a stop record keyed on the stopped **principal**,
+  independent of the terminal session resource and not purged with it; session registration refused
+  `403 session_closed_by_operator` while stopped (same `code` as the §16.3 410 — the client's action
+  is identical — with the different status because no session resource is gone); and a resume
+  boundary that **only the account's authenticated human** may cross. An agent-invokable reset is
+  normatively forbidden: it is reachable by exactly the runaway being stopped, making it the
+  kill-switch's own bypass. Partial implementation is non-conformant.
+- **`sessions.operator_hard_stop`** (§8.0, `capability.schema.json`) advertises it. OPTIONAL and
+  default-false: a client MUST NOT infer a hard stop from its absence, because against a
+  cooperative-only Hub a blanket-restarting supervisor still re-registers through the kill.
+- Sender-visible behavior is unchanged — §14.2 bounces still cannot distinguish a stopped principal
+  from a crashed one (§16.4 attribution boundary, §16.5 oracle stance).
+- §10's roadmap drops the "durable operator-close hard stop" entry, which this section delivers.
+- Worked example: [examples/operator-hard-stop-v0.5.md](examples/operator-hard-stop-v0.5.md).
+
 ### Fixed (spec hygiene — the §8.5 table and §10 roadmap catch up with their own cross-references) — #48
 
 - **§8.5's 409 row now lists `not_acknowledgeable`** (§14.3's response-leg-ack refusal: acking a
