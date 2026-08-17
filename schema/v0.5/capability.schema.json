@@ -52,7 +52,8 @@
         "max_ttl_seconds": { "type": "integer", "minimum": 1, "description": "Upper bound the Hub clamps a requested ttl_seconds to (spec §16)." },
         "max_live_per_agent": { "type": "integer", "minimum": 1, "description": "Cap on live sessions per agent.id; over-cap registration -> 429 (spec §16)." },
         "agent_list_visibility": { "type": "boolean", "description": "True iff same-account agents may list/read account sessions (spec §16). Own-session visibility is unconditional regardless of this policy; the account's human always may list/read. Cross-account: never." },
-        "terminal_retention_seconds": { "type": "integer", "minimum": 0, "description": "How long a terminal (closed/expired) session remains readable before it is purged (spec §16)." }
+        "terminal_retention_seconds": { "type": "integer", "minimum": 0, "description": "How long a terminal (closed/expired) session remains readable before it is purged (spec §16)." },
+        "operator_hard_stop": { "type": "boolean", "description": "True iff the Hub implements the §16.4.1 DURABLE operator stop: the close is recorded against the stopped PRINCIPAL independently of the terminal session resource, survives the terminal_retention_seconds purge, gates registration (403 session_closed_by_operator), and is liftable ONLY by the account's authenticated human. Absent or false means the §16.4 kill-switch is cooperative — a client MUST NOT infer a hard stop from its absence." }
       }
     },
     "inter_agent": {
