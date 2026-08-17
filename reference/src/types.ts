@@ -445,6 +445,16 @@ export interface Capability {
     max_live_per_agent?: number;
     agent_list_visibility?: boolean;
     terminal_retention_seconds?: number;
+    /**
+     * True iff the Hub implements the §16.4.1 DURABLE operator stop: the close is recorded against
+     * the stopped PRINCIPAL independently of the terminal session resource, survives the
+     * `terminal_retention_seconds` purge, gates registration (403 `session_closed_by_operator`), and
+     * is liftable ONLY by the account's authenticated human.
+     *
+     * OPTIONAL and default-false. A client MUST NOT infer a hard stop from its absence: against a
+     * cooperative-only Hub a blanket-restarting supervisor still re-registers through the kill.
+     */
+    operator_hard_stop?: boolean;
   };
   /** Inter-agent leg (v0.5, spec §8.0). Account-opt-in: `enabled` defaults false. */
   inter_agent?: {
