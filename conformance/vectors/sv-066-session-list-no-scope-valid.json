@@ -1,0 +1,9 @@
+{
+  "id": "sv-066-session-list-no-scope-valid",
+  "class": "schema-validation",
+  "description": "`scope` is OPTIONAL: a Hub that omits it makes no claim, and the body a pre-SCP-#62 Hub already emits stays valid. The client-side consequence is normative, not schematic — an omitted scope MUST be read as unknown, never as `account` (§16.4).",
+  "ref": "spec §16.4 (v0.5)",
+  "target": "v0.5/session.schema.json#/$defs/sessionList",
+  "expect": "valid",
+  "input": { "sessions": [] }
+}

@@ -443,6 +443,13 @@ export interface Capability {
     min_ttl_seconds?: number;
     max_ttl_seconds?: number;
     max_live_per_agent?: number;
+    /**
+     * The DEPLOYMENT CEILING on same-account AGENT listing/reading of account sessions (spec §16.4).
+     * A Hub MAY narrow it per account beneath the advertised value and MUST NOT widen beyond it, so
+     * `false` denies every account while `true` advertises only that an account MAY hold the grant —
+     * never that the caller reading the document does. This document is public and unauthenticated,
+     * so it cannot carry a per-caller answer; `GET /v1/sessions` carries `scope` for that.
+     */
     agent_list_visibility?: boolean;
     terminal_retention_seconds?: number;
     /**

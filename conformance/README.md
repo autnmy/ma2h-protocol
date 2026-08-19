@@ -129,8 +129,9 @@ are reported as *skipped* with a pointer to the reference behavior suites that d
     consumers reject an out-of-window `t` and a replayed `jti` (cache TTL ≥ window).
 18. **Sessions** (`dp-019`) — lease CAS (close/expiry first-terminal-wins, immutable), renewal by
     client-originated activity only, the account-human kill-switch, registration bounds (`#`-id
-    rejection, TTL clamps, live-session cap), unconditional own-session visibility, and
-    foreign-session indistinguishability (§16).
+    rejection, TTL clamps, live-session cap), unconditional own-session visibility, the advertised
+    account-listing **ceiling** with per-account narrowing beneath it and the per-caller `scope` that
+    narrowing makes necessary, and foreign-session indistinguishability (§16).
 19. **Session-scoped drain + claim** (`dp-020`) — drain/ack/resolve session ownership (foreign/unknown
     → `404`, own-terminal → `410`), session-less drains isolated to the v0.4 shape (and the webhook
     directives-only), first-claim-wins for principal-addressed entries with crashed-claimant rescue,
@@ -195,6 +196,7 @@ parentheses are the numbered sub-obligations inside a `dp` vector's `obligation`
 | `v1` MAC well-formedness (base64url alphabet; structural RFC 4648 padding; ≥ 32-byte floor; hex-shaped accept; `+`/`/` reject) | dp-025 |
 | Session lease CAS (first terminal wins; renewal races; human kill-switch close) | dp-019 (4)–(7) |
 | Operator kill-switch marker (`closed_by_operator: true` const/true-only; ⇒ state `closed`; `session_closed_by_operator` on own-session 410s — stop, not restart) | sv-058, sv-059, sv-060; dp-019 (7); pa-002 (§16) |
+| Account-listing ceiling + per-caller `scope` (the advertised `agent_list_visibility` BOUNDS the grant and MAY be narrowed per account; the reported scope is the one APPLIED, never the ceiling; the field is optional and an omitted scope is unknown, never `account`) | sv-064, sv-065, sv-066; dp-019 (9) |
 | First-claim-wins under concurrent session-presenting drains + crashed-claimant rescue | dp-020 (6), (7) |
 | Stream-liveness truthfulness (zombie socket offline + lease lapse; reconnect-at-bound stays online) | dp-021 (1)–(3) |
 | `stream_max_hold_seconds` ≤ `presence.freshness_seconds` (schema-inexpressible cross-field) | dp-021 (4); pa-002 (§8.0/§8.7.2) |

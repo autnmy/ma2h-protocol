@@ -137,6 +137,12 @@ export interface HubOptions {
    * session/presence detail. When false, the §4 terminal-vs-unknown error split collapses to
    * `422 unknown_destination` and the §8.1 `destination` snapshot is `{ state: "unknown" }` for
    * agent senders — the submit path must not become a session-state oracle. Default true.
+   *
+   * It is the deployment CEILING (SCP #62): a Hub MAY narrow it per account beneath the advertised
+   * value and MUST NOT widen beyond it. This reference Hub resolves it deployment-wide, which the
+   * ceiling permits, so here the ceiling and the effective grant coincide. A Hub that narrows per
+   * account reports the per-caller answer on the list response instead (`scope`, §16.4) — the
+   * capability document is public and unauthenticated, so it has no caller to answer for.
    */
   sessionVisibility?: boolean;
   /** Advertised §8.7.2 stream hold bound (`inbound.stream_max_hold_seconds`). Default 30s. */
@@ -516,15 +522,23 @@ export class Hub {
    * List the caller's OWN sessions (live and recent-terminal) — unconditional, independent of any
    * visibility policy (spec §16.4): a restarted or crash-looping agent MUST be able to find, close,
    * or let-lapse its stale leases before hitting the live-session cap.
+   *
+   * `scope` reports the §16.4 scope APPLIED to this response, which this Hub can only ever answer
+   * `"own"`: it implements no account-wide listing grant at all. That is a complete and honest
+   * answer rather than a degraded one — and stating it is the point, because a client cannot infer
+   * it from the rows (a list carrying only the caller's sessions is equally consistent with a
+   * narrowed grant and with the caller being the account's only live agent). It is deliberately NOT
+   * derived from `sessionVisibility`, which is the deployment CEILING and says nothing about what
+   * any given caller got.
    */
-  listSessions(principal: string, nowMs?: number): { sessions: Session[] } {
+  listSessions(principal: string, nowMs?: number): { sessions: Session[]; scope: "own" } {
     const t = nowMs ?? this.now();
     this.settleSessions(t);
     const out: Session[] = [];
     for (const rec of this.sessions.values()) {
       if (rec.session.agent_id === principal) out.push(structuredClone(rec.session));
     }
-    return { sessions: out };
+    return { sessions: out, scope: "own" };
   }
 
   /** The §8.7.2 stream hold bound for a session: the LESSER of the advertised hold and a point a

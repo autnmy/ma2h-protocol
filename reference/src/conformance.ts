@@ -15,6 +15,7 @@ import {
   validatePresence,
   validateResponse,
   validateV05,
+  validateV05Def,
   type ValidationResult,
 } from "./envelope.js";
 import {
@@ -81,6 +82,21 @@ function validateAgainst(target: string, data: unknown): ValidationResult {
   // v0.5-targeted vectors name their schema as "v0.5/<file>" (schema/v0.5/,
   // spec/v0.5.md); everything else keeps validating against the v0.4 snapshot.
   if (target.startsWith("v0.5/")) {
+    // A target MAY name a `$def` inside the schema — "v0.5/session.schema.json#/$defs/sessionList"
+    // (spec §16.1: the collection body is a wrapper, not the session resource). Without this the
+    // wrapper shapes are unreachable from a vector, so `sessionList.scope` would carry an `enum`
+    // nothing ever exercised. Only the `#/$defs/` form is accepted: an arbitrary JSON pointer would
+    // hand a vector author a way to validate against a subschema the spec never names.
+    const hash = target.indexOf("#");
+    if (hash !== -1) {
+      const file = target.slice("v0.5/".length, hash);
+      const frag = target.slice(hash);
+      const prefix = "#/$defs/";
+      if (!frag.startsWith(prefix) || frag.indexOf("/", prefix.length) !== -1) {
+        throw new Error(`vector target fragment not runnable (expected #/$defs/<name>): ${target}`);
+      }
+      return validateV05Def(file, frag.slice(prefix.length), data);
+    }
     return validateV05(target.slice("v0.5/".length), data);
   }
   switch (target) {
