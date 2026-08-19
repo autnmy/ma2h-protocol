@@ -1,0 +1,12 @@
+{
+  "id": "sv-065-session-list-bad-scope-invalid",
+  "class": "schema-validation",
+  "description": "`scope` is a closed two-value enum (§16.4). A third value — here the advertised-ceiling reading a Hub might be tempted to echo — is rejected, so a client can never receive a scope token it has no rule for.",
+  "ref": "spec §16.4 (v0.5)",
+  "target": "v0.5/session.schema.json#/$defs/sessionList",
+  "expect": "invalid",
+  "input": {
+    "sessions": [],
+    "scope": "agent_list_visibility"
+  }
+}

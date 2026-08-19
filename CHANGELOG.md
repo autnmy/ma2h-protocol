@@ -4,6 +4,47 @@ All notable changes to the MA2H (Multi-agent to Human Protocol) specification.
 
 ## 0.5 (2026-08-10) — Draft
 
+### Added (§16.4 — per-account listing: a deployment ceiling, and a per-caller `scope`) — SCP #62
+
+- **`sessions.agent_list_visibility` is a deployment CEILING, not the effective grant.** A Hub MAY
+  narrow it **per account** beneath the advertised value and MUST NOT widen beyond it, so `false`
+  denies every account while `true` advertises only that an account MAY hold the grant. The old
+  "true iff" was a biconditional about the effective grant, and it assumed one answer for the whole
+  Hub — under a per-account grant no boolean value was honest: `true` overstated for an account that
+  had not opted in, `false` understated for one that had, and omitting the field granted a read the
+  document never advertised (which dp-019 (9) forbids under any reading). All three shapes were
+  reviewed and rejected in turn on a conformant Hub before the conclusion landed that the spec, not
+  the implementation, was what had to move (autnmy/oh-hai#860, #866).
+- **The asymmetry this closes.** `inter_agent.enabled` is already an account opt-in whose schema says
+  so, so an owner can authorize their agents to *message* each other; there was no matching way to
+  authorize them to *see* each other, leaving that decision stranded at deployment scope. An owner
+  who enables agent-to-agent messaging cannot usefully address a peer they are forbidden to discover.
+- **`GET /v1/sessions` gains an OPTIONAL `scope`** (`"account"` | `"own"`,
+  `session.schema.json#/$defs/sessionList`): the §16.4 scope the Hub **applied to this response**,
+  never the advertised ceiling. A grant that varies per caller needs a per-caller channel, and
+  `/.well-known/ma2h-capability` is public and unauthenticated — it structurally has no caller to
+  answer for. A Hub that omits `scope` makes no claim, and a client that does not receive it MUST
+  treat the scope as unknown and **MUST NOT assume `account`**: that fail-closed clause is the
+  load-bearing half, because inferring scope from the rows is unsound in exactly the direction that
+  matters — a response carrying only the caller's own sessions is equally consistent with a narrowed
+  grant and with the caller being the account's only live agent, so a narrowed list captioned as the
+  whole fleet is the failure the field exists to prevent.
+- Both changes are **additive**. `sessionList` carries no `additionalProperties: false`, so a Hub
+  emitting nothing and a client ignoring the field both stay valid; a Hub resolving visibility
+  deployment-wide is unaffected and stays conformant. A client reading the advertised field as the
+  effective grant is not made *wrong* by the ceiling alone — it is made *imprecise* against a
+  narrowing Hub, which is what `scope` resolves. `sv-023` is unchanged.
+- Conformance: **dp-019 (9)** restates account-wide listing as a ceiling with per-account narrowing
+  permitted beneath it, and adds the honesty obligation on `scope` (report the scope applied, never
+  the ceiling). New vectors **sv-064**/**sv-065**/**sv-066** pin the field's acceptance, its closed
+  enum, and its optionality. The vector runner learned to route a `#/$defs/<name>` target, without
+  which the collection wrapper was unreachable from a vector and the new `enum` would have been
+  exercised by nothing.
+- Reference: `listSessions` now reports `scope: "own"` — the only honest answer for a Hub that
+  implements no account-wide grant, and a **complete** one rather than a degraded reading, since
+  own-session visibility is unconditional. It is deliberately not derived from the `sessionVisibility`
+  ceiling; a test pins that flipping the ceiling cannot move the per-caller answer.
+
 ### Added (§16.4.1 — the durable operator stop) — SCP #57
 
 - **§16.4.1 makes the operator kill-switch able to hold.** §16.4's marker is cooperative by design,

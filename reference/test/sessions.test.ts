@@ -6,6 +6,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { Hub, HubError } from "../src/hub.js";
+import { validateV05Def } from "../src/envelope.js";
 import type { AskMessage, InboxEntryDelivery } from "../src/types.js";
 
 const KEY = "hub-session-key-0123456789abcdef0123456789abcdef";
@@ -14,7 +15,10 @@ const AGENT = "deploybot/dev-team";
 const OTHER = "overseer/fleet";
 const OWNER = "human:you";
 
-function newHub(now: { t: number }, opts?: { maxLive?: number; terminalRetentionSeconds?: number }): Hub {
+function newHub(
+  now: { t: number },
+  opts?: { maxLive?: number; terminalRetentionSeconds?: number; sessionVisibility?: boolean },
+): Hub {
   const hub = new Hub({
     signingKey: KEY,
     now: () => now.t,
@@ -25,6 +29,7 @@ function newHub(now: { t: number }, opts?: { maxLive?: number; terminalRetention
     ...(opts?.terminalRetentionSeconds !== undefined
       ? { sessionTerminalRetentionSeconds: opts.terminalRetentionSeconds }
       : {}),
+    ...(opts?.sessionVisibility !== undefined ? { sessionVisibility: opts.sessionVisibility } : {}),
   });
   hub.setAgentOwner(AGENT, OWNER);
   hub.setAgentOwner(OTHER, OWNER);
@@ -108,6 +113,38 @@ test("another principal's session is indistinguishable from unknown, and never l
   assert.equal(hub.listSessions(OTHER).sessions.length, 0);
   // Own-session visibility is unconditional (§16.4).
   assert.equal(hub.listSessions(AGENT).sessions[0]?.id, session.id);
+});
+
+test("the list body reports the APPLIED §16.4 scope, independent of the advertised ceiling (SCP #62)", () => {
+  const now = { t: T0 };
+  const hub = newHub(now);
+  const { session } = hub.registerSession(AGENT, {});
+
+  const listed = hub.listSessions(AGENT);
+  assert.equal(listed.sessions[0]?.id, session.id);
+  // This Hub implements no account-wide grant, so `own` is the only honest answer — and it is a
+  // COMPLETE one, not a degraded reading: own-session visibility is unconditional (§16.4).
+  assert.equal(listed.scope, "own");
+
+  // The scope is NOT the ceiling. `sessionVisibility` models `sessions.agent_list_visibility`,
+  // which SCP #62 makes a DEPLOYMENT CEILING — it bounds what an account MAY be granted and says
+  // nothing about what this caller got. Deriving `scope` from it is precisely the conflation the
+  // field exists to end, so flipping the ceiling must not move the per-caller answer.
+  for (const ceiling of [true, false]) {
+    const other = newHub({ t: T0 }, { sessionVisibility: ceiling });
+    other.registerSession(AGENT, {});
+    assert.equal(other.listSessions(AGENT).scope, "own", `ceiling ${ceiling} must not change the applied scope`);
+  }
+
+  // And the emitted body is the wrapper §16.1 names for it — the `scope` the Hub adds has to
+  // validate, not merely be tolerated by a validator that never saw the collection shape.
+  assert.equal(validateV05Def("session.schema.json", "sessionList", listed).valid, true);
+  // Fail-closed check on the assertion above: a bogus scope must NOT validate, or the line above
+  // would pass against a schema that had stopped constraining the field at all.
+  assert.equal(
+    validateV05Def("session.schema.json", "sessionList", { ...listed, scope: "everything" }).valid,
+    false,
+  );
 });
 
 test("a ?session= drain renews the lease and stamps last_seen; a session-less ack renews nothing (§16.2)", () => {

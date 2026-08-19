@@ -51,7 +51,8 @@
       "type": "object",
       "required": ["sessions"],
       "properties": {
-        "sessions": { "type": "array", "items": { "$ref": "https://ma2h.org/schema/v0.5/session.schema.json" } }
+        "sessions": { "type": "array", "items": { "$ref": "https://ma2h.org/schema/v0.5/session.schema.json" } },
+        "scope": { "enum": ["account", "own"], "description": "OPTIONAL (spec §16.4): the visibility scope the Hub APPLIED to this response — `account` (the whole account was in scope) or `own` (narrowed to the caller). Never the advertised ceiling: `sessions.agent_list_visibility` (capability.schema.json) is a deployment ceiling a Hub MAY narrow per account, and that public, unauthenticated document has no caller to answer for. A Hub that omits this field makes no claim; a client that does not receive it MUST treat the scope as unknown and MUST NOT assume `account`. Inferring it from the rows is unsound — a response carrying only the caller's own sessions is equally consistent with a narrowed grant and with the caller being the account's only live agent. Own-session visibility being unconditional, `own` is always a complete and honest answer, never an error state." }
       }
     }
   }
