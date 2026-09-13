@@ -211,12 +211,14 @@ test("dp-029: the envelope is stored VERBATIM — the gate must not rewrite what
   const envelope = ask({ mode: "select", options: SHIP_HOLD, permissions: { allow_edit: true } }, "0.5");
   const { id } = hub.submit(envelope);
 
-  const stored = hub.get(id, "deploybot/dev-team");
-  const request = (stored?.request ?? (stored as { message?: { request?: unknown } } | null)?.message?.request) as
-    | { permissions?: { allow_edit?: unknown } }
-    | undefined;
+  // Read through `unknown`: `get` returns the discriminated envelope union, and `request` lives only
+  // on the ask branch. The point of the assertion is the STORED BYTES, so reaching them structurally
+  // is honest here in a way a type-level narrow would obscure.
+  const stored = hub.get(id, "deploybot/dev-team") as unknown as
+    | { request?: { permissions?: { allow_edit?: unknown } } }
+    | null;
   assert.equal(
-    request?.permissions?.allow_edit,
+    stored?.request?.permissions?.allow_edit,
     true,
     "the field survives storage untouched — only its EFFECT is gated",
   );
