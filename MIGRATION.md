@@ -145,8 +145,9 @@ mode, not a capability.
   the same `value` twice, fix it — a Hub now rejects the submit `422`. You almost certainly already
   satisfy this: an agent offering two genuinely different choices already has two different values in
   mind. `label` and `description` may still duplicate freely.
-- **`request.schema` (mode=input) must describe the answer object.** It needs `type: "object"` if
-  `type` is present, and **at least one entry under `properties`**. A scalar schema
+- **`request.schema` (mode=input) must describe the answer object.** It needs **at least one entry
+  under `properties`**, and any `type` it declares must **admit an object** — the string `"object"`,
+  or a well-formed `type` array containing it (`["object","null"]` is fine). A scalar schema
   (`{"type":"string"}`) or a bare `{"type":"object"}` is now rejected `422` at submit. If you have
   been sending either, your asks were never answerable — §6 fixes the `input` answer as an object,
   so no answer could ever validate — and the failure was silent to you and terminal for the human.

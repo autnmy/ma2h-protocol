@@ -52,7 +52,7 @@ test("dp-026: a duplicate options[].value is REJECTED at submit, and no message 
       { value: "approve", label: "Approve but hold" },
     ],
   });
-  assert.throws(() => hub.submit(dupe), isCode("validation_error"));
+  assert.throws(() => hub.submit(dupe), isCode("invalid_field"));
   // The negative half: refusing must not leave a half-created message behind. A refused submit
   // never returns an id, so the check is that a REPLAY of the same idempotency_key is treated as a
   // first submit rather than a duplicate — i.e. nothing was recorded under it.
@@ -82,13 +82,13 @@ test("dp-027: a SCALAR input schema is refused at submit, not deferred to resolv
   const hub = newHub();
   assert.throws(
     () => hub.submit(ask({ mode: "input", schema: { type: "string", minLength: 1 } })),
-    isCode("validation_error"),
+    isCode("invalid_field"),
   );
 });
 
 test("dp-027: an input schema with no `properties` is refused too", () => {
   const hub = newHub();
-  assert.throws(() => hub.submit(ask({ mode: "input", schema: { type: "object" } })), isCode("validation_error"));
+  assert.throws(() => hub.submit(ask({ mode: "input", schema: { type: "object" } })), isCode("invalid_field"));
 });
 
 test("dp-027: an answer-object schema is accepted, including a `type` ARRAY that admits an object", () => {
@@ -116,7 +116,7 @@ for (const version of ["0.3", "0.4", "0.5", "0.6"]) {
     const hub = newHub();
     assert.throws(
       () => hub.submit(ask({ mode: "input", schema: { type: "string" } }, version)),
-      isCode("validation_error"),
+      isCode("invalid_field"),
       `scalar input schema must be refused at ${version}`,
     );
     assert.throws(
@@ -124,7 +124,7 @@ for (const version of ["0.3", "0.4", "0.5", "0.6"]) {
         hub.submit(
           ask({ mode: "select", options: [{ value: "a", label: "A" }, { value: "a", label: "B" }] }, version),
         ),
-      isCode("validation_error"),
+      isCode("invalid_field"),
       `duplicate option value must be refused at ${version}`,
     );
   });
@@ -213,6 +213,6 @@ test("dp-028: allow_edit does NOT relax default_on_expire — that is the agent'
           default_on_expire: "not a listed value",
         }),
       ),
-    isCode("validation_error"),
+    isCode("invalid_field"),
   );
 });

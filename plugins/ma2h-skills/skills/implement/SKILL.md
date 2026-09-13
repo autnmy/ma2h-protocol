@@ -88,8 +88,10 @@ implementation is done when each MUST below holds **and** the vectors pass.
   (a) **`options[].value` unique** — `uniqueItems` compares whole array items and cannot see two
   options sharing a `value` with different `label`s. A duplicate makes the Response ambiguous: §6
   returns the `value` and nothing identifying which entry produced it.
-  (b) **A `mode=input` `request.schema` must describe the answer object** — `type: "object"` if
-  `type` is present, and ≥1 entry under `properties`. A scalar schema admits no object and so no
+  (b) **A `mode=input` `request.schema` must describe the answer object** — ≥1 entry under
+  `properties`, and any declared `type` must ADMIT an object (the string `"object"`, or a well-formed
+  `type` array containing it; `["object","null"]` is valid and answerable, and rejecting it would
+  break a correct sender). A scalar schema admits no object and so no
   §6-valid answer; a property-less one gives the human nothing to fill in. **Do not defer either to
   resolve time** — that strands the ask permanently open and reports the defect only to the human,
   who cannot fix the agent's schema.

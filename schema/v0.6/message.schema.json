@@ -479,6 +479,19 @@
                       },
                       {
                         "type": "array",
+                        "items": {
+                          "enum": [
+                            "null",
+                            "boolean",
+                            "object",
+                            "array",
+                            "number",
+                            "string",
+                            "integer"
+                          ]
+                        },
+                        "uniqueItems": true,
+                        "minItems": 1,
                         "contains": {
                           "const": "object"
                         }
@@ -490,7 +503,7 @@
                     "minProperties": 1
                   }
                 },
-                "$comment": "v0.6: the answer to an input ask is an OBJECT (\u00a76), so `schema` must describe one. `type` may be the string \"object\" or an ARRAY containing it \u2014 `[\"object\",\"null\"]` is legitimate JSON Schema and answerable, and an earlier draft that tested for the literal string rejected it, breaking a sender that was never broken. Absent `type` is fine: `properties` is the load-bearing requirement."
+                "$comment": "v0.6: the answer to an input ask is an OBJECT (\u00a76), so `schema` must describe one. `type` may be the string \"object\" or a WELL-FORMED array containing it \u2014 `[\"object\",\"null\"]` is legitimate JSON Schema and answerable, and an earlier draft that tested for the literal string rejected it, breaking a sender that was never broken. The array arm is constrained to the seven JSON Schema type names with uniqueItems: `[\"object\", 42]` and `[\"object\",\"object\"]` are not valid `type` keywords, ajv refuses to compile them, and the ask is then unanswerable exactly as a scalar schema would be. Absent `type` is fine: `properties` is the load-bearing requirement."
               }
             }
           }

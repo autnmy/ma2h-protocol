@@ -42,8 +42,7 @@ and makes it loud.
   was **unanswerable the instant it was accepted**, and every resolve attempt failed for the rest of
   its life. **Observed in production**, not hypothetical — found only by auditing stored messages by
   hand, because nothing anywhere reported it.
-- `schema` MUST now declare `type: "object"` if `type` is present, and MUST define at least one entry
-  under `properties`. A property-less schema is satisfiable (`{}` validates) but presents the human
+- `schema` MUST now define at least one entry under `properties`, and any `type` it declares MUST **admit an object** (the string `"object"`, or a well-formed `type` array containing it). A property-less schema is satisfiable (`{}` validates) but presents the human
   with an input ask containing nothing to fill in. Both are rejected `422` at submit.
 - **The rule the whole release follows:** reject at submit, where the **agent** can see and fix it,
   rather than at resolve, where only the **human** sees it — and the human can neither change the
@@ -137,8 +136,15 @@ and makes it loud.
   vector runner's version routing generalized to a snapshot table rather than a hard-coded `v0.5/`
   branch; and three exported helpers for the rules a schema cannot express —
   `duplicateOptionValue`, `unanswerableInputSchema`, `isEditedAnswer` — so implementations discharge
-  dp-026/027/028 against the reference's reading rather than a re-derived one. `wireVersionFor` is
-  deliberately untouched: nothing in v0.6 raises the minor an envelope *requires*.
+  dp-026/027/028/029 against the reference's reading rather than a re-derived one. The reference Hub
+  ENFORCES all of it (submit-time corrections at every minor, the `allow_edit` strip below 6, the
+  membership exemption and the `edited` stamp on both resolve paths) rather than merely advertising
+  0.6 — proven by `test/ask-contract-hub.test.ts`, not asserted. `wireVersionFor` gains exactly ONE
+  row: `allow_edit: true` lifts the stamp to `0.6`, since a Hub ignores the field below that minor
+  and a builder must not emit a request whose own feature a conformant Hub is required to discard.
+  The two CORRECTIONS add no row — they are shapes a Hub refuses, not features an envelope opts
+  into, so they raise no envelope's required minor. The builder self-check and `ma2h validate` both
+  route a 0.6 document to the v0.6 snapshot.
 
 ## 0.5 (2026-08-10) — Draft
 

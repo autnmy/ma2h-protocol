@@ -68,8 +68,9 @@ and the release notes in [CHANGELOG.md](../../CHANGELOG.md).
 
 1. **`options[].value` MUST be unique** within `options`. Hub-enforced (`422`), because JSON Schema
    has no uniqueness-by-sub-property keyword. `label`/`description` stay unconstrained.
-2. **`request.schema` (mode=input) MUST describe the answer object** — `type: "object"` if present,
-   ≥1 `properties` entry. Rejected `422` at submit.
+2. **`request.schema` (mode=input) MUST describe the answer object** — ≥1 `properties` entry, and
+   any declared `type` must ADMIT an object (the string, or a well-formed array containing it).
+   Rejected `422 invalid_field` at submit.
 3. **`allow_edit` defined**: permits an off-menu `value` on `select`/`confirm`. Default `false`.
    **`edited` defined**: `true` iff `value` ∉ `options[].value`, Hub-computed from the answer.
 4. **`allow_accept` removed** from the spec surface; behaviorally inert under §10 robustness.

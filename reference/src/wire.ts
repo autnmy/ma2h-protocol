@@ -22,7 +22,7 @@ import {
   type HubTouchpoint,
   type KnownHubErrorCode,
 } from "./errors.js";
-import { validateMessage, validateV05, type ValidationResult } from "./envelope.js";
+import { validateMessage, validateV05, type ValidationResult, validateV06 } from "./envelope.js";
 import type {
   A2hMessage,
   A2hVersion,
@@ -367,16 +367,26 @@ function rebuildAction(action: TaskAction): TaskAction {
 /**
  * The builder self-validation net: validate a freshly-built envelope against the registry its
  * STAMPED version selects (the v0.4 registry for a pre-0.5 stamp — no v0.3 registry is published —
- * and the v0.5 registry from minor 5 up), throwing a descriptive `Error` on failure so a
+ * the v0.5 registry from minor 5, and the v0.6 registry from minor 6), throwing a descriptive `Error` on failure so a
  * misconstruction surfaces at BUILD time, not at submit time. Not a `HubError`: this is the
  * builder's own construction check, not a Hub verdict.
  */
 function assertBuiltEnvelope(message: A2hMessage): void {
-  const v05 = minorOf(message.ma2h_version) >= 5;
-  const result = v05 ? validateV05("message.schema.json", message) : validateMessage(message);
+  // Validate against the snapshot matching the minor the builder just STAMPED. Routing every
+  // minor >= 5 through v0.5 (the shape before v0.6) let `buildAsk` emit a 0.6 envelope that the
+  // v0.6 schema rejects — the self-check passing on a schema the envelope does not claim, which is
+  // the one thing this function exists to prevent (codex, PR #65 round 2).
+  const minor = minorOf(message.ma2h_version);
+  const snapshot = minor >= 6 ? "v0.6" : minor >= 5 ? "v0.5" : "v0.4";
+  const result =
+    minor >= 6
+      ? validateV06("message.schema.json", message)
+      : minor >= 5
+        ? validateV05("message.schema.json", message)
+        : validateMessage(message);
   if (!result.valid) {
     throw new Error(
-      `built ${message.type} envelope failed ${v05 ? "v0.5" : "v0.4"} schema validation (builder self-check, stamped ${message.ma2h_version}): ${result.errors.join("; ")}`,
+      `built ${message.type} envelope failed ${snapshot} schema validation (builder self-check, stamped ${message.ma2h_version}): ${result.errors.join("; ")}`,
     );
   }
 }

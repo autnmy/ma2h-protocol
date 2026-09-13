@@ -656,33 +656,50 @@ export class Hub {
 
     // Version-aware validation (§10): a >= 0.5 envelope validates against the v0.5 schema snapshot
     // (which knows `to`/`agent.session`); anything else keeps the v0.4 registry byte-identically.
+    // The declared minor, read once: both the v0.6 gate below and the schema routing after it need
+    // it, and `minorOf` is a pure parse of an already-checked string.
     const minor = Hub.minorOf(message);
-    const v =
-      minor !== null && minor >= 6
-        ? validateV06("message.schema.json", message)
-        : minor !== null && minor >= 5
-          ? validateV05("message.schema.json", message)
-          : validateMessage(message);
-    if (!v.valid) throw new HubError("validation_error", `invalid message: ${v.errors.join("; ")}`);
 
     // The v0.6 `ask` corrections (§5.2), applied at EVERY declared minor — 0.3 and 0.4 included.
+    //
+    // RUN BEFORE the version-routed schema validation below, and that ordering is load-bearing.
+    // These are SEMANTIC field rejections (`invalid_field`, 422), but the v0.6 schema also encodes
+    // them — deliberately, so an implementer who only validates still gets the protection. If the
+    // schema ran first, a 0.6 envelope would fail it as `validation_error` (400) while the identical
+    // 0.5 envelope fell through to this code and got 422: the status would depend on the sender's
+    // DECLARED VERSION rather than on what is actually wrong (codex, PR #65 round 2). Checking here
+    // makes the answer 422 at every minor, which is what §5.2 and dp-026/027/029 say.
+    //
+    // Safe to run pre-validation: both helpers take `unknown` and handle non-objects, non-arrays and
+    // absent fields without throwing — the same defensive discipline `callbackOf` already applies
+    // ahead of validation.
     // Deliberate, and the load-bearing half of the release (dp-029): §6 has fixed the `input` answer
     // as an object and returned a bare `value` since v0.1, so neither shape was ever answerable or
     // ever unambiguous. Gating them on the declared minor would make the fix unreachable, since a
     // deployed sender has no reason to raise its version for a correction it does not know about.
     // Neither rule is expressible in JSON Schema (no uniqueness-by-sub-property keyword; cross-field
     // answerability), which is why they are code here rather than schema above.
-    if (message.type === "ask") {
+    // `message` itself is still unvalidated here (a null body reaches this point), so the guard
+    // starts from the envelope, not from `.type`.
+    if (
+      typeof message === "object" &&
+      message !== null &&
+      message.type === "ask" &&
+      typeof message.request === "object" &&
+      message.request !== null
+    ) {
       const dupe = duplicateOptionValue(message.request.options);
       if (dupe !== null) {
+        // `invalid_field` (422), not `validation_error` (400): §5.2/§8.5 and dp-026 all say 422, and
+        // this IS a field-level rejection — the envelope is schema-valid and one named field is wrong.
         throw new HubError(
-          "validation_error",
+          "invalid_field",
           `options[].value must be unique: "${dupe}" appears more than once — §6 returns the chosen value and nothing identifying which option produced it (§5.2)`,
         );
       }
       if (message.request.mode === "input") {
         const why = unanswerableInputSchema(message.request.schema);
-        if (why !== null) throw new HubError("validation_error", `${why} (§5.2)`);
+        if (why !== null) throw new HubError("invalid_field", `${why} (§5.2)`);
       }
       // §7/§8.5: `default_on_expire` MUST validate against the request AT SUBMIT — "never defer the
       // error to expiry". The reference was not checking it at all, so an unusable default was
@@ -693,12 +710,12 @@ export class Hub {
       if (dflt !== undefined && dflt !== null) {
         if (message.request.mode === "input") {
           if (typeof dflt !== "object" || Array.isArray(dflt)) {
-            throw new HubError("validation_error", "default_on_expire must be an object matching the input schema (§7)");
+            throw new HubError("invalid_field", "default_on_expire must be an object matching the input schema (§7)");
           }
           if (message.request.schema !== undefined) {
             const dv = validateAgainstSchema(message.request.schema, dflt);
             if (!dv.valid) {
-              throw new HubError("validation_error", `default_on_expire does not validate against request.schema: ${dv.errors.join("; ")} (§7)`);
+              throw new HubError("invalid_field", `default_on_expire does not validate against request.schema: ${dv.errors.join("; ")} (§7)`);
             }
           }
         } else {
@@ -707,7 +724,7 @@ export class Hub {
           // present at expiry to have typed anything (§5.2).
           const opts = (effectiveOptions(message.request) ?? []).map((o) => o.value);
           if (typeof dflt !== "string" || !opts.includes(dflt)) {
-            throw new HubError("validation_error", `default_on_expire must be one of [${opts.join(", ")}] (§7)`);
+            throw new HubError("invalid_field", `default_on_expire must be one of [${opts.join(", ")}] (§7)`);
           }
         }
       }
@@ -721,6 +738,14 @@ export class Hub {
         delete (message.request.permissions as Record<string, unknown>).allow_edit;
       }
     }
+
+    const v =
+      minor !== null && minor >= 6
+        ? validateV06("message.schema.json", message)
+        : minor !== null && minor >= 5
+          ? validateV05("message.schema.json", message)
+          : validateMessage(message);
+    if (!v.valid) throw new HubError("validation_error", `invalid message: ${v.errors.join("; ")}`);
 
     // v0.5 field discipline: `to`/`agent.session` are v0.5 semantics. This Hub KNOWS the fields, so
     // silently misrouting a pre-0.5 envelope that carries them to the human inbox (what a genuinely

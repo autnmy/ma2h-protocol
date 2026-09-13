@@ -195,10 +195,30 @@ export function validateV06Def(schemaFile: string, def: string, data: unknown): 
  * of over-reach a CORRECTIVE release must not commit (codex, PR #65). Anything that is neither a
  * string nor an array of strings is not a valid `type` keyword at all, so it cannot admit anything.
  */
+const JSON_SCHEMA_TYPES = new Set([
+  "null",
+  "boolean",
+  "object",
+  "array",
+  "number",
+  "string",
+  "integer",
+]);
+
 function admitsObject(type: unknown): boolean {
   if (typeof type === "string") return type === "object";
-  if (Array.isArray(type)) return type.includes("object");
-  return false;
+  if (!Array.isArray(type)) return false;
+  // A `type` ARRAY must itself be well-formed, not merely contain "object". JSON Schema requires
+  // every entry to be one of the seven primitive type names and the array to have unique items, so
+  // `["object", 42]`, `["object", "bogus"]` and `["object", "object"]` are all invalid — and ajv
+  // REFUSES TO COMPILE them, which means the ask is unanswerable exactly as a scalar schema is.
+  // An earlier draft only tested `.includes("object")` and let all three through: the submit
+  // succeeded and every answer then failed to validate, which is the defect this rule exists to
+  // stop, reintroduced by the fix for its own over-reach (codex, PR #65 round 2).
+  if (type.length === 0) return false;
+  if (new Set(type).size !== type.length) return false;
+  if (!type.every((t) => typeof t === "string" && JSON_SCHEMA_TYPES.has(t))) return false;
+  return type.includes("object");
 }
 
 /**
