@@ -97,12 +97,24 @@ party that can fix a bad schema or a duplicate option. A resolve-time failure re
 **human**, who can do neither and has no channel to say what is wrong — and leaves the ask stranded
 `open` forever. That asymmetry is what made all four defects silent.
 
-### KTD3 — `allow_edit` gets no version gate
+### KTD3 — two version questions with different answers
 
-Unlike the v0.5 `to` field, ignoring `allow_edit` is a **correct outcome**: a pre-0.6 Hub treats it as
-an unknown field (§10), enforces membership, and returns a listed value with `edited` absent — which
-is true. The agent is not lied to, merely un-helped. `to` is gated because acting on it and ignoring
-it produce materially different deliveries; this does not.
+An earlier revision of this record said "`allow_edit` gets no version gate", which conflated two
+questions that must be answered separately.
+
+**What must a sender DECLARE to use it?** `"ma2h_version": "0.6"`. `allow_edit` is v0.6 vocabulary, a
+Hub honors it only at minor ≥ 6, and `wireVersionFor` therefore lifts an ask that sets it. An ask
+declaring 0.5 while setting the field has contradicted itself and is resolved against its declared
+version.
+
+**What happens when the HUB is older than the sender?** Nothing breaks, and no feature detection is
+needed: a pre-0.6 Hub treats it as an unknown field (§10), enforces membership, and returns a listed
+value with `edited` absent — which is *true*. The agent is not lied to, merely un-helped.
+
+Contrast `to` (§4), where both answers coincide because acting on the field and ignoring it produce
+materially different **deliveries**, so a sender there must feature-detect. Here the un-helped
+outcome is still a correct outcome, which is why the second answer is safe even though the first is
+a hard requirement.
 
 ### KTD4 — `allow_edit` is finished, `allow_accept` is removed
 

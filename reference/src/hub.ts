@@ -701,34 +701,6 @@ export class Hub {
         const why = unanswerableInputSchema(message.request.schema);
         if (why !== null) throw new HubError("invalid_field", `${why} (§5.2)`);
       }
-      // §7/§8.5: `default_on_expire` MUST validate against the request AT SUBMIT — "never defer the
-      // error to expiry". The reference was not checking it at all, so an unusable default was
-      // accepted and only surfaced (silently, as a skipped default) when the ask expired, long after
-      // the agent could act on it. Same principle as the two corrections above: a defect the Hub can
-      // see at submit belongs to the agent, not to the human who finds it later.
-      const dflt = message.request.default_on_expire;
-      if (dflt !== undefined && dflt !== null) {
-        if (message.request.mode === "input") {
-          if (typeof dflt !== "object" || Array.isArray(dflt)) {
-            throw new HubError("invalid_field", "default_on_expire must be an object matching the input schema (§7)");
-          }
-          if (message.request.schema !== undefined) {
-            const dv = validateAgainstSchema(message.request.schema, dflt);
-            if (!dv.valid) {
-              throw new HubError("invalid_field", `default_on_expire does not validate against request.schema: ${dv.errors.join("; ")} (§7)`);
-            }
-          }
-        } else {
-          // select/confirm: a member of the EFFECTIVE option set. `allow_edit` deliberately does NOT
-          // relax this — the expiry default is the AGENT's fallback choice, and there is no human
-          // present at expiry to have typed anything (§5.2).
-          const opts = (effectiveOptions(message.request) ?? []).map((o) => o.value);
-          if (typeof dflt !== "string" || !opts.includes(dflt)) {
-            throw new HubError("invalid_field", `default_on_expire must be one of [${opts.join(", ")}] (§7)`);
-          }
-        }
-      }
-
       // `allow_edit` is the one v0.6 field that IS gated (§5.2). Below minor 6 it is STRIPPED rather
       // than rejected, so §10 robustness holds and the ask behaves exactly as a pre-0.6 one.
       // Stripping rather than ignoring-in-place matters: `validateAnswerValue` reads `allow_edit`
@@ -746,6 +718,48 @@ export class Hub {
           ? validateV05("message.schema.json", message)
           : validateMessage(message);
     if (!v.valid) throw new HubError("validation_error", `invalid message: ${v.errors.join("; ")}`);
+
+    if (message.type === "ask") {
+    // §7/§8.5: `default_on_expire` MUST validate against the request AT SUBMIT — "never defer the
+    // error to expiry". The reference was not checking it at all, so an unusable default was
+    // accepted and only surfaced (silently, as a skipped default) when the ask expired, long after
+    // the agent could act on it. Same principle as the v0.6 corrections above: a defect the Hub can
+    // see at submit belongs to the agent, not to the human who finds it later.
+    //
+    // Unlike those corrections this runs AFTER schema validation, deliberately. It has no
+    // version-dependent message to keep consistent, and reading `options` on an unvalidated request
+    // meant `options: [null]` threw a TypeError where the schema would have rejected it cleanly
+    // (codex, PR #65 round 3). Validating first costs nothing here and yields the better error.
+    const dflt = message.request.default_on_expire;
+    if (dflt !== undefined && dflt !== null) {
+      if (message.request.mode === "input") {
+        if (typeof dflt !== "object" || Array.isArray(dflt)) {
+          throw new HubError("invalid_field", "default_on_expire must be an object matching the input schema (§7)");
+        }
+        if (message.request.schema !== undefined) {
+          const dv = validateAgainstSchema(message.request.schema, dflt);
+          if (!dv.valid) {
+            throw new HubError("invalid_field", `default_on_expire does not validate against request.schema: ${dv.errors.join("; ")} (§7)`);
+          }
+        }
+      } else {
+        // select/confirm: a member of the EFFECTIVE option set. `allow_edit` deliberately does NOT
+        // relax this — the expiry default is the AGENT's fallback choice, and there is no human
+        // present at expiry to have typed anything (§5.2).
+        // Defensive read, because this runs BEFORE schema validation: `options: [null]` is a
+        // shape the schema would reject cleanly, and mapping `.value` over it raw threw a
+        // TypeError instead (codex, PR #65 round 3). Malformed entries are skipped rather than
+        // rejected here — their rejection is the schema's job, moments later, with a better error.
+        const opts = (effectiveOptions(message.request) ?? [])
+          .filter((o): o is { value: string; label: string } => typeof o === "object" && o !== null)
+          .map((o) => o.value);
+        if (typeof dflt !== "string" || !opts.includes(dflt)) {
+          throw new HubError("invalid_field", `default_on_expire must be one of [${opts.join(", ")}] (§7)`);
+        }
+      }
+    }
+    }
+
 
     // v0.5 field discipline: `to`/`agent.session` are v0.5 semantics. This Hub KNOWS the fields, so
     // silently misrouting a pre-0.5 envelope that carries them to the human inbox (what a genuinely

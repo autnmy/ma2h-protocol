@@ -18,9 +18,11 @@
  * carry. Lowest-minor-required is a static property of an envelope's features, so coupling the
  * builders' rule to this constant would stamp `0.6` on v0.5-feature envelopes — which is no longer
  * hypothetical, since the v0.6 bump is exactly the event that comment anticipated. `wireVersionFor`
- * is deliberately unchanged by it: v0.6 narrows the `ask` contract and defines `allow_edit`, and
- * none of that raises the minor an envelope REQUIRES (an `allow_edit` request degrades safely on a
- * pre-0.6 Hub — see spec §5.2), so the lowest-minor-required rule still bottoms out at "0.3"/"0.5".
- * The #712 drift class, recreated inside its own fix, is what coupling them would have cost.
+ * stays decoupled and gained ONE row of its own instead: `permissions.allow_edit: true` lifts an
+ * envelope to `"0.6"`, because that field is v0.6 vocabulary a Hub ignores below minor 6 (spec
+ * §5.2) — a builder must not emit a request whose own feature a conformant Hub is required to
+ * discard. The v0.6 CORRECTIONS add no row: they are shapes a Hub refuses, not features an envelope
+ * opts into, so they raise no envelope's required minor. That is the distinction coupling the two
+ * rules would have erased — the #712 drift class, recreated inside its own fix.
  */
 export const MA2H_VERSION = "0.6";
