@@ -8,6 +8,7 @@ import {
   duplicateOptionValue,
   unanswerableInputSchema,
   isEditedAnswer,
+  effectiveOptions,
   validateV06,
 } from "../src/envelope.js";
 
@@ -78,6 +79,31 @@ test("unanswerableInputSchema accepts an answer-object schema, with or without a
   assert.equal(unanswerableInputSchema({ properties: { reason: { type: "string" } } }), null);
 });
 
+// codex, PR #65: the first draft tested for the literal string "object" and so rejected
+// `{"type": ["object"], ...}` — valid JSON Schema, answerable, and a sender that was never broken.
+// A corrective release must not break correct senders, so the rule asks whether `type` ADMITS an
+// object, not whether it is spelled a particular way.
+test("unanswerableInputSchema accepts a type ARRAY that admits an object", () => {
+  const props = { properties: { reason: { type: "string" } } };
+  assert.equal(unanswerableInputSchema({ type: ["object"], ...props }), null);
+  assert.equal(unanswerableInputSchema({ type: ["object", "null"], ...props }), null);
+});
+
+test("unanswerableInputSchema rejects a type array that admits NO object", () => {
+  const props = { properties: { reason: { type: "string" } } };
+  assert.ok(unanswerableInputSchema({ type: ["string"], ...props }));
+  assert.ok(unanswerableInputSchema({ type: ["string", "number"], ...props }));
+});
+
+test("unanswerableInputSchema rejects a malformed `type` keyword — it admits nothing", () => {
+  // Neither a string nor an array of strings is a valid `type`, so the schema is not merely
+  // unanswerable, it is uncompilable. Silently passing it would defer the failure to resolve time.
+  const props = { properties: { reason: { type: "string" } } };
+  assert.ok(unanswerableInputSchema({ type: 42, ...props }));
+  assert.ok(unanswerableInputSchema({ type: null, ...props }));
+  assert.ok(unanswerableInputSchema({ type: {}, ...props }));
+});
+
 test("unanswerableInputSchema rejects non-object schemas without throwing", () => {
   assert.ok(unanswerableInputSchema(null));
   assert.ok(unanswerableInputSchema([]));
@@ -86,14 +112,17 @@ test("unanswerableInputSchema rejects non-object schemas without throwing", () =
 
 // ---- response.edited (§6) ----
 
-const OPTIONS = [
-  { value: "ship", label: "Ship" },
-  { value: "hold", label: "Hold" },
-];
+const SELECT = {
+  mode: "select",
+  options: [
+    { value: "ship", label: "Ship" },
+    { value: "hold", label: "Hold" },
+  ],
+};
 
 test("edited is FALSE for a listed value and TRUE for an off-menu one", () => {
-  assert.equal(isEditedAnswer(OPTIONS, "hold"), false);
-  assert.equal(isEditedAnswer(OPTIONS, "hold, until the backfill lands"), true);
+  assert.equal(isEditedAnswer(SELECT, "hold"), false);
+  assert.equal(isEditedAnswer(SELECT, "hold, until the backfill lands"), true);
 });
 
 test("edited is derived from SET MEMBERSHIP, not from which affordance the human used", () => {
@@ -101,18 +130,48 @@ test("edited is derived from SET MEMBERSHIP, not from which affordance the human
   // always agree, so the agent can recompute `edited` from request.options + value and verify the
   // Hub rather than trust it. A Hub tracking UI state could not offer that guarantee — a human who
   // typed "hold" by hand into a free-form box still chose a listed option, and says so.
-  assert.equal(isEditedAnswer(OPTIONS, "ship"), isEditedAnswer(OPTIONS, "ship"));
-  assert.equal(isEditedAnswer(OPTIONS, "ship"), false);
+  assert.equal(isEditedAnswer(SELECT, "ship"), isEditedAnswer(SELECT, "ship"));
+  assert.equal(isEditedAnswer(SELECT, "ship"), false);
 });
 
 test("edited is FALSE for an input-mode object answer — there are no options to be outside of", () => {
-  assert.equal(isEditedAnswer(undefined, { reason: "because" }), false);
-  assert.equal(isEditedAnswer(OPTIONS, { reason: "because" }), false);
+  assert.equal(isEditedAnswer({ mode: "input" }, { reason: "because" }), false);
+  assert.equal(isEditedAnswer(SELECT, { reason: "because" }), false);
+});
+
+// codex, PR #65: the case the first draft got WRONG. §5.2 makes `confirm` sugar — with `options`
+// omitted the Hub synthesizes `approve`/`deny` — so membership has to be tested against the
+// EFFECTIVE set. Reading `request.options` alone returned false for a genuinely off-menu answer,
+// i.e. the flag lying in exactly the direction it exists to prevent.
+test("edited respects a confirm's SYNTHESIZED approve/deny when options are omitted", () => {
+  const confirm = { mode: "confirm" };
+  assert.equal(isEditedAnswer(confirm, "approve"), false);
+  assert.equal(isEditedAnswer(confirm, "deny"), false);
+  assert.equal(isEditedAnswer(confirm, "later"), true); // off-menu, and must say so
+});
+
+test("a confirm that SUPPLIES its two options is measured against those, not the synthesized pair", () => {
+  const confirm = { mode: "confirm", options: [{ value: "yes" }, { value: "no" }] };
+  assert.equal(isEditedAnswer(confirm, "yes"), false);
+  // `approve` is the synthesized default's value, but this ask never offered it.
+  assert.equal(isEditedAnswer(confirm, "approve"), true);
+});
+
+test("effectiveOptions synthesizes only for confirm, and only when options are absent", () => {
+  assert.deepEqual(
+    effectiveOptions({ mode: "confirm" })?.map((o) => o.value),
+    ["approve", "deny"],
+  );
+  assert.equal(effectiveOptions({ mode: "select" }), null);
+  assert.equal(effectiveOptions({ mode: "input" }), null);
+  assert.equal(effectiveOptions(undefined), null);
+  // An explicitly EMPTY array is a set, not an absent one — never silently replaced.
+  assert.deepEqual(effectiveOptions({ mode: "confirm", options: [] }), []);
 });
 
 test("edited is case- and whitespace-sensitive: membership is exact string equality", () => {
   // Deliberate. A near-miss is NOT the listed option, and silently coercing it to one would
   // fabricate a choice the human did not make — the exact failure the flag exists to surface.
-  assert.equal(isEditedAnswer(OPTIONS, "Ship"), true);
-  assert.equal(isEditedAnswer(OPTIONS, "ship "), true);
+  assert.equal(isEditedAnswer(SELECT, "Ship"), true);
+  assert.equal(isEditedAnswer(SELECT, "ship "), true);
 });

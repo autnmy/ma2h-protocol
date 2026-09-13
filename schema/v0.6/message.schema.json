@@ -393,19 +393,7 @@
         },
         "schema": {
           "type": "object",
-          "description": "REQUIRED for mode=input: a flat JSON Schema describing the ANSWER OBJECT (spec \u00a76 fixes the input answer as an object validating against it). MUST declare `type: \"object\"` if `type` is present, and MUST define at least one entry under `properties` \u2014 a scalar schema admits no valid answer and a property-less one presents nothing to fill in; both make the ask unanswerable the moment it is accepted (v0.6, spec \u00a75.2). Property types: string/number/boolean/enum. Properties MAY carry `x-ma2h-sensitive: true`.",
-          "properties": {
-            "type": {
-              "const": "object"
-            },
-            "properties": {
-              "type": "object",
-              "minProperties": 1
-            }
-          },
-          "required": [
-            "properties"
-          ]
+          "description": "REQUIRED for mode=input: a flat JSON Schema describing the ANSWER OBJECT (spec \u00a76 fixes the input answer as an object validating against it). Under mode=input it MUST define at least one entry under `properties`, and any `type` it declares MUST admit an object \u2014 a scalar schema admits no valid answer and a property-less one presents nothing to fill in, so both make the ask unanswerable the moment it is accepted (v0.6, spec \u00a75.2). Those constraints are applied by the mode=input conditional below, NOT here: `schema` is meaningless on a select/confirm ask, and a stray one there must not make an otherwise answerable ask invalid. Property types: string/number/boolean/enum. Properties MAY carry `x-ma2h-sensitive: true`."
         },
         "permissions": {
           "type": "object",
@@ -477,7 +465,34 @@
           "then": {
             "required": [
               "schema"
-            ]
+            ],
+            "properties": {
+              "schema": {
+                "required": [
+                  "properties"
+                ],
+                "properties": {
+                  "type": {
+                    "anyOf": [
+                      {
+                        "const": "object"
+                      },
+                      {
+                        "type": "array",
+                        "contains": {
+                          "const": "object"
+                        }
+                      }
+                    ]
+                  },
+                  "properties": {
+                    "type": "object",
+                    "minProperties": 1
+                  }
+                },
+                "$comment": "v0.6: the answer to an input ask is an OBJECT (\u00a76), so `schema` must describe one. `type` may be the string \"object\" or an ARRAY containing it \u2014 `[\"object\",\"null\"]` is legitimate JSON Schema and answerable, and an earlier draft that tested for the literal string rejected it, breaking a sender that was never broken. Absent `type` is fine: `properties` is the load-bearing requirement."
+              }
+            }
           }
         },
         {

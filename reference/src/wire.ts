@@ -70,8 +70,9 @@ export const newIdempotencyKey = (): string => `idem_${randomUUID()}`;
 export interface VersionFeatureProbe {
   to?: AgentAddress;
   agent: Pick<AgentDescriptor, "session">;
-  /** The ask surface, when present — read for session-qualified `allowed_resolvers` entries. */
-  request?: Pick<AskRequest, "allowed_resolvers">;
+  /** The ask surface, when present — read for session-qualified `allowed_resolvers` entries and
+   * for the v0.6 `permissions.allow_edit` opt-in. */
+  request?: Pick<AskRequest, "allowed_resolvers" | "permissions">;
   /** The task surface, when present — read for session-qualified `allowed_resolvers` entries. */
   action?: Pick<TaskAction, "allowed_resolvers">;
 }
@@ -88,6 +89,31 @@ export interface VersionFeatureProbe {
  */
 export function usesInterAgentAddressing(envelope: VersionFeatureProbe): boolean {
   return envelope.to !== undefined || envelope.agent.session !== undefined;
+}
+
+/**
+ * Does this envelope opt into the v0.6 FREE-FORM ANSWER (`permissions.allow_edit`, spec §5.2)?
+ *
+ * `allow_edit` is version-gated vocabulary: a Hub honors it only on an envelope declaring minor
+ * >= 6 and ignores it below (§10 robustness). So a builder that stamped the base `0.3` on an
+ * `allow_edit` ask would emit an envelope whose own feature a conformant Hub is REQUIRED to
+ * discard — the request would look accepted and silently behave as an ordinary strict-membership
+ * ask (codex, PR #65).
+ *
+ * Only `=== true` lifts. `false` is the default and asks for nothing, so stamping 0.6 on it would
+ * raise the floor of an envelope that uses no v0.6 feature at all.
+ *
+ * Deliberately MODE-AGNOSTIC. §5.2 makes `allow_edit` meaningless for `mode=input`, so an input ask
+ * carrying it gains nothing from the lift — but the field is still v0.6 vocabulary the sender chose
+ * to write, and declaring the version that defines it is honest. Reading `mode` here would also
+ * make `mode` a required member of the probe surface for the sake of a case that cannot matter.
+ *
+ * Note the asymmetry with the two v0.6 CORRECTIONS (options uniqueness, schema answerability):
+ * those bind at every declared minor and therefore have no row here — they are not features an
+ * envelope can opt into, they are shapes a Hub refuses. Only vocabulary lifts a version.
+ */
+export function usesAllowEdit(envelope: VersionFeatureProbe): boolean {
+  return envelope.request?.permissions?.allow_edit === true;
 }
 
 /**
@@ -157,6 +183,9 @@ export const WIRE_FEATURES = Object.freeze({
     minimum: "0.5",
     present: usesSessionQualifiedResolvers,
   } as const),
+  /** `permissions.allow_edit: true` — the v0.6 free-form answer (spec §5.2). Gated vocabulary: a
+   * Hub ignores it below minor 6, so an envelope that asks for it must declare 6. */
+  allowEdit: Object.freeze({ minimum: "0.6", present: usesAllowEdit } as const),
 }) satisfies Record<
   string,
   { minimum: A2hVersion; present: (envelope: VersionFeatureProbe) => boolean }
@@ -171,7 +200,8 @@ const minorOf = (version: A2hVersion): number => Number(version.slice("0.".lengt
 /**
  * The canonical version-stamp rule (spec §10): the LOWEST minor the envelope's features require —
  * `WIRE_BASE_VERSION` lifted to each present feature's `WIRE_FEATURES` minimum. Today that means
- * `"0.3"` for a plain envelope and `"0.5"` for one carrying any inter-agent-leg feature.
+ * `"0.3"` for a plain envelope, `"0.5"` for one carrying any inter-agent-leg feature, and `"0.6"`
+ * for an ask opting into the free-form answer.
  *
  * `MA2H_VERSION` is deliberately NOT an input. Lowest-minor-required is a STATIC property of the
  * features an envelope carries, not of the version this implementation currently speaks: coupling

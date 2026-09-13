@@ -30,7 +30,17 @@ import {
   signResponse,
   signResponseEntry,
 } from "./signing.js";
-import { validateAgainstSchema, validateMessage, validateV05, validateV05Def } from "./envelope.js";
+import {
+  validateAgainstSchema,
+  validateMessage,
+  validateV05,
+  validateV05Def,
+  validateV06,
+  duplicateOptionValue,
+  unanswerableInputSchema,
+  isEditedAnswer,
+  effectiveOptions,
+} from "./envelope.js";
 import { statusOfHubErrorCode, type HubErrorCode, type HubErrorStatus } from "./errors.js";
 import { MA2H_VERSION } from "./version.js";
 import type {
@@ -648,8 +658,69 @@ export class Hub {
     // (which knows `to`/`agent.session`); anything else keeps the v0.4 registry byte-identically.
     const minor = Hub.minorOf(message);
     const v =
-      minor !== null && minor >= 5 ? validateV05("message.schema.json", message) : validateMessage(message);
+      minor !== null && minor >= 6
+        ? validateV06("message.schema.json", message)
+        : minor !== null && minor >= 5
+          ? validateV05("message.schema.json", message)
+          : validateMessage(message);
     if (!v.valid) throw new HubError("validation_error", `invalid message: ${v.errors.join("; ")}`);
+
+    // The v0.6 `ask` corrections (§5.2), applied at EVERY declared minor — 0.3 and 0.4 included.
+    // Deliberate, and the load-bearing half of the release (dp-029): §6 has fixed the `input` answer
+    // as an object and returned a bare `value` since v0.1, so neither shape was ever answerable or
+    // ever unambiguous. Gating them on the declared minor would make the fix unreachable, since a
+    // deployed sender has no reason to raise its version for a correction it does not know about.
+    // Neither rule is expressible in JSON Schema (no uniqueness-by-sub-property keyword; cross-field
+    // answerability), which is why they are code here rather than schema above.
+    if (message.type === "ask") {
+      const dupe = duplicateOptionValue(message.request.options);
+      if (dupe !== null) {
+        throw new HubError(
+          "validation_error",
+          `options[].value must be unique: "${dupe}" appears more than once — §6 returns the chosen value and nothing identifying which option produced it (§5.2)`,
+        );
+      }
+      if (message.request.mode === "input") {
+        const why = unanswerableInputSchema(message.request.schema);
+        if (why !== null) throw new HubError("validation_error", `${why} (§5.2)`);
+      }
+      // §7/§8.5: `default_on_expire` MUST validate against the request AT SUBMIT — "never defer the
+      // error to expiry". The reference was not checking it at all, so an unusable default was
+      // accepted and only surfaced (silently, as a skipped default) when the ask expired, long after
+      // the agent could act on it. Same principle as the two corrections above: a defect the Hub can
+      // see at submit belongs to the agent, not to the human who finds it later.
+      const dflt = message.request.default_on_expire;
+      if (dflt !== undefined && dflt !== null) {
+        if (message.request.mode === "input") {
+          if (typeof dflt !== "object" || Array.isArray(dflt)) {
+            throw new HubError("validation_error", "default_on_expire must be an object matching the input schema (§7)");
+          }
+          if (message.request.schema !== undefined) {
+            const dv = validateAgainstSchema(message.request.schema, dflt);
+            if (!dv.valid) {
+              throw new HubError("validation_error", `default_on_expire does not validate against request.schema: ${dv.errors.join("; ")} (§7)`);
+            }
+          }
+        } else {
+          // select/confirm: a member of the EFFECTIVE option set. `allow_edit` deliberately does NOT
+          // relax this — the expiry default is the AGENT's fallback choice, and there is no human
+          // present at expiry to have typed anything (§5.2).
+          const opts = (effectiveOptions(message.request) ?? []).map((o) => o.value);
+          if (typeof dflt !== "string" || !opts.includes(dflt)) {
+            throw new HubError("validation_error", `default_on_expire must be one of [${opts.join(", ")}] (§7)`);
+          }
+        }
+      }
+
+      // `allow_edit` is the one v0.6 field that IS gated (§5.2). Below minor 6 it is STRIPPED rather
+      // than rejected, so §10 robustness holds and the ask behaves exactly as a pre-0.6 one.
+      // Stripping rather than ignoring-in-place matters: `validateAnswerValue` reads `allow_edit`
+      // off the STORED message at resolve time, and a `true` left in place would quietly grant the
+      // exemption on a version that never declared it.
+      if ((minor === null || minor < 6) && message.request.permissions?.allow_edit !== undefined) {
+        delete (message.request.permissions as Record<string, unknown>).allow_edit;
+      }
+    }
 
     // v0.5 field discipline: `to`/`agent.session` are v0.5 semantics. This Hub KNOWS the fields, so
     // silently misrouting a pre-0.5 envelope that carries them to the human inbox (what a genuinely
@@ -1010,12 +1081,30 @@ export class Hub {
       return this.applyDefaultExpiry(record, t);
     }
 
+    // §5.2/§8.8: validate the answer against the request. This path — the human-facing resolve —
+    // previously skipped the check entirely while the §8.8 wire binding performed it, so the SAME
+    // off-menu value was refused over the wire and accepted here. That asymmetry is not defensible
+    // in either direction, and v0.6 makes it consequential: `allow_edit` is the exemption to a rule
+    // this path was not enforcing (codex, PR #65).
+    if (record.message.type === "ask" && input.resolution === "answered") {
+      this.validateAnswerValue(record.message as AskMessage, input.value);
+    }
+
+    // §6 (v0.6): `edited` is TRUE iff the answer is outside the EFFECTIVE option set — the
+    // synthesized approve/deny pair for an options-less confirm, not an absent array. Hub-computed
+    // from the answer, never from the caller's input, so an agent can recompute and verify it.
+    const edited =
+      record.message.type === "ask" && input.resolution === "answered"
+        ? isEditedAnswer(record.message.request, input.value)
+        : false;
+
     const res = applyResolution(record, {
       resolution: input.resolution,
       actor: input.actor,
       resolved_at: new Date(t).toISOString(),
       resolution_id: newResolutionId(),
       ...(input.value !== undefined ? { value: input.value } : {}),
+      ...(edited ? { edited: true } : {}),
       ...(input.comment !== undefined ? { comment: input.comment } : {}),
       // Checklists are TASK-only (§6): the v0.5 response schema forbids one on an ask Response, and
       // a mailbox consumer rejects a Hub-signed response that carries it — so gate on the verb
@@ -1166,12 +1255,23 @@ export class Hub {
         resolution: "expired",
       });
     }
+    // §6 (v0.6): `edited` is TRUE iff the answer is outside the ask's EFFECTIVE option set — which
+    // for a `confirm` with `options` omitted is the synthesized approve/deny pair, not an absent
+    // array. Derived from the answer, never from the request body: a resolver-supplied `edited` is
+    // ignored, which is what lets an agent recompute and VERIFY the flag rather than trust it.
+    // Emitted only when true — the schema default is false, so stamping it on every ordinary answer
+    // would put a field on every Response to say "nothing unusual".
+    const edited =
+      record.message.type === "ask" && body.resolution === "answered"
+        ? isEditedAnswer(record.message.request, body.value)
+        : false;
     applyResolution(record, {
       resolution: body.resolution,
       actor,
       resolved_at: new Date(t).toISOString(),
       resolution_id: newResolutionId(),
       ...(body.value !== undefined ? { value: body.value } : {}),
+      ...(edited ? { edited: true } : {}),
       ...(body.comment !== undefined ? { comment: body.comment } : {}),
       ...(body.checklist !== undefined ? { checklist: body.checklist } : {}),
       ...(record.message.state !== undefined ? { state: record.message.state } : {}),
@@ -1224,7 +1324,13 @@ export class Hub {
         : mode === "confirm"
           ? ["approve", "deny"]
           : [];
-    if (typeof value !== "string" || !options.includes(value)) {
+    if (typeof value !== "string") {
+      throw new HubError("invalid_field", `value must be one of [${options.join(", ")}] (§5.2/§8.8)`);
+    }
+    // §5.2 (v0.6): membership is the rule, `allow_edit` is the exemption. The flag reaches this
+    // point only on a message that declared minor >= 6 — submit strips it below that — so a 0.5
+    // sender cannot obtain the exemption by setting a field its version does not have.
+    if (!options.includes(value) && message.request.permissions?.allow_edit !== true) {
       throw new HubError("invalid_field", `value must be one of [${options.join(", ")}] (§5.2/§8.8)`);
     }
   }

@@ -3,6 +3,7 @@
 // vectors agree by construction.
 
 import { readFileSync } from "node:fs";
+import type { ResponseOption } from "./types.js";
 import { createRequire } from "node:module";
 
 // Minimal local typing of the ajv surface we use — avoids ajv's awkward
@@ -184,6 +185,48 @@ export function validateV06Def(schemaFile: string, def: string, data: unknown): 
  * a duplicate makes the Response ambiguous at the protocol level — unrecoverable at either end,
  * because the distinguishing information was never on the wire.
  */
+/**
+ * Does a JSON Schema `type` keyword ADMIT an object? The question the v0.6 answerability rule
+ * actually asks (spec §5.2) — not "is it the literal string `object`".
+ *
+ * JSON Schema allows `type` to be a string OR an array of strings, so `{"type": ["object", "null"]}`
+ * is a legitimate, answerable schema. An earlier draft of this rule tested for the literal
+ * `"object"` and rejected it: that broke a sender whose schema was fine, which is exactly the class
+ * of over-reach a CORRECTIVE release must not commit (codex, PR #65). Anything that is neither a
+ * string nor an array of strings is not a valid `type` keyword at all, so it cannot admit anything.
+ */
+function admitsObject(type: unknown): boolean {
+  if (typeof type === "string") return type === "object";
+  if (Array.isArray(type)) return type.includes("object");
+  return false;
+}
+
+/**
+ * The EFFECTIVE options of an ask — what a resolver may choose from, which is not always
+ * `request.options` (spec §5.2).
+ *
+ * `mode=confirm` is sugar: when `options` is omitted the Hub MUST synthesize exactly two, `approve`
+ * and `deny`. Membership must therefore be tested against the synthesized pair, or an answer that
+ * is genuinely off-menu on such an ask reads as on-menu and `edited` comes back `false` — the flag
+ * silently lying in precisely the direction it exists to prevent (codex, PR #65).
+ *
+ * Returns null when there is no option set to speak of (`mode=input`), which is distinct from an
+ * empty one.
+ */
+export function effectiveOptions(
+  request: { mode?: unknown; options?: unknown } | null | undefined,
+): ResponseOption[] | null {
+  if (!request) return null;
+  if (Array.isArray(request.options)) return request.options as ResponseOption[];
+  if (request.mode === "confirm") {
+    return [
+      { value: "approve", label: "Approve" },
+      { value: "deny", label: "Deny" },
+    ];
+  }
+  return null;
+}
+
 export function duplicateOptionValue(options: unknown): string | null {
   if (!Array.isArray(options)) return null;
   const seen = new Set<string>();
@@ -212,8 +255,8 @@ export function unanswerableInputSchema(schema: unknown): string | null {
     return "request.schema must be a JSON object";
   }
   const s = schema as { type?: unknown; properties?: unknown };
-  if (typeof s.type === "string" && s.type !== "object") {
-    return `request.schema must describe an object (got type "${s.type}"): the answer to an input ask is an object (spec §6)`;
+  if (s.type !== undefined && !admitsObject(s.type)) {
+    return `request.schema must describe an object (got type ${JSON.stringify(s.type)}): the answer to an input ask is an object (spec §6)`;
   }
   const props = s.properties;
   if (typeof props !== "object" || props === null || Array.isArray(props) || Object.keys(props).length === 0) {
@@ -223,14 +266,26 @@ export function unanswerableInputSchema(schema: unknown): string | null {
 }
 
 /**
- * `response.edited` (spec §6, v0.6): true IFF `value` is not a member of `options[].value`. Computed
- * from the answer itself — never from which affordance the human used — so it is a property of the
- * answer that the agent can independently recompute, and two resolutions carrying the same value
- * against the same options always agree. Always false for a non-string value (mode=input).
+ * `response.edited` (spec §6, v0.6): true IFF `value` is not a member of the ask's EFFECTIVE
+ * `options[].value`. Computed from the answer itself — never from which affordance the human used —
+ * so it is a property of the answer that the agent can independently recompute, and two resolutions
+ * carrying the same value against the same options always agree.
+ *
+ * Takes the whole `request`, not a bare options array, because the effective set is not always
+ * `request.options`: a `confirm` with `options` omitted has the Hub-synthesized `approve`/`deny`
+ * pair (§5.2). Passing the raw array there would mark an answer of `"later"` as NOT edited, since
+ * there is no array to be outside of — the flag lying in exactly the direction it exists to prevent.
+ *
+ * False for a non-string value (`mode=input` answers are objects, and there are no options for them
+ * to be outside of), and false when the ask has no effective option set at all.
  */
-export function isEditedAnswer(options: unknown, value: unknown): boolean {
+export function isEditedAnswer(
+  request: { mode?: unknown; options?: unknown } | null | undefined,
+  value: unknown,
+): boolean {
   if (typeof value !== "string") return false;
-  if (!Array.isArray(options)) return false;
+  const options = effectiveOptions(request);
+  if (options === null) return false;
   return !options.some(
     (o) => typeof o === "object" && o !== null && (o as { value?: unknown }).value === value,
   );

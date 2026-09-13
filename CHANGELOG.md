@@ -73,10 +73,13 @@ and makes it loud.
   elsewhere. Before v0.6 a human whose real answer was unlisted had to pick a wrong option (silently
   corrupting the agent's input) or `decline` (discarding the decision entirely). Both failures were
   silent on both sides.
-- **No version gate, deliberately.** Unlike the v0.5 `to` field, `allow_edit` needs no declared minor
-  and no feature detection, because *ignoring it is a correct outcome*: a pre-0.6 Hub treats it as an
-  unknown field (§10 robustness), enforces membership, and returns a listed value with `edited`
-  absent — which is true. The agent is not lied to, merely un-helped.
+- **Version discipline, stated as two questions with different answers.** To USE `allow_edit` an
+  agent MUST declare `"ma2h_version": "0.6"` — it is v0.6 vocabulary and a Hub honors it only at
+  minor ≥ 6. But if the HUB is older than the agent, nothing breaks and no feature detection is
+  required: a pre-0.6 Hub treats it as an unknown field (§10 robustness), enforces membership, and
+  returns a listed value with `edited` absent — which is true. The agent is not lied to, merely
+  un-helped. The reference's `wireVersionFor` stamps `0.6` on an ask that sets it, so the builders
+  cannot emit a request whose own feature a conformant Hub is required to discard.
 - **Security (§9.6).** An off-menu `value` is human free text, where every `value` before it was a
   string the agent itself authored — a change in kind, not degree. An agent setting `allow_edit` MUST
   treat it as untrusted, as it would `body` or `comment`. `edited` is signature-bound, so the signal
@@ -102,7 +105,12 @@ and makes it loud.
 - **The two corrections apply at EVERY declared minor, 0.1–0.6.** They are not new vocabulary. §6 has
   fixed the `input` answer as an object, and returned the chosen `value` with nothing identifying its
   option, **since v0.1** — so a scalar schema was never answerable and a duplicate value was never
-  unambiguous *under any version*. v0.6 writes down rules that were always implied.
+  unambiguous *under any version*.
+- **Precisely, because the loose claim is false.** What was always implied is that these asks could
+  not be ANSWERED; what v0.6 adds is a mechanical REPRESENTATION rule, and a rule drawn anywhere
+  forbids some shapes that would have worked — e.g. duplicate options that genuinely meant the same
+  thing. The narrowing is deliberate and small; it is not zero, and §5.2 names it rather than
+  claiming otherwise.
 - **Applying them only to 0.6-declaring envelopes would make the release useless in practice**, since
   a sender has no reason to raise its declared minor for a correction it does not know about — the
   broken asks would keep arriving unchanged.
