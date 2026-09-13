@@ -171,6 +171,9 @@ mode, not a capability.
   - `edited` is **`true` iff `value` ∉ `options[].value`**, computed by the Hub from the answer, so
     you can **recompute it yourself** from your own `options` and verify rather than trust. It is
     inside the §9.2 signature.
+  - **Hub implementers:** gate the field where you ACT on it (read the stored envelope's minor at
+    resolve), never by deleting it at submit. Stripping misses every ask stored before you upgraded,
+    and rewriting the payload breaks §8.1 replay for a pre-upgrade retry. §5.2 makes this normative.
   - **No feature detection needed, but you MUST declare `"ma2h_version": "0.6"` to use it.** Unlike
     the two corrections above, `allow_edit` is new vocabulary, so a Hub honors it only at minor ≥ 6
     and ignores it below. A pre-0.6 Hub likewise ignores it (§10 robustness), enforces membership,
