@@ -1,0 +1,7 @@
+{
+  "id": "dp-026-option-value-uniqueness",
+  "class": "downstream-proof",
+  "description": "`options[].value` uniqueness (\u00a75.2, v0.6): a rule JSON Schema cannot express, because there is no uniqueness-by-sub-property keyword \u2014 `uniqueItems` compares whole array items and so cannot see two options that share a `value` but differ in `label` (sv-071 pins that boundary). Proven against a conformant Hub.",
+  "ref": "spec \u00a75.2, \u00a78.1 (v0.6)",
+  "obligation": "Submit a `mode=select` ask whose `options` contain two entries with the SAME `value` and different `label`s \u2014 e.g. `[{\"value\":\"approve\",\"label\":\"Approve and deploy\"},{\"value\":\"approve\",\"label\":\"Approve but hold\"}]`. The Hub MUST reject it `422` at submit and MUST NOT create the message. The same rule applies to `confirm` when `options` is supplied. A `select` whose values are all distinct MUST be accepted unchanged, and `label`/`description` duplication MUST NOT be rejected \u2014 two choices MAY read alike to a human while meaning different things to the agent; it is `value` alone that must discriminate. Rationale the vector exists to protect: \u00a76 returns the chosen `value` and NOTHING identifying which entry produced it, so a duplicate makes the Response ambiguous at the protocol level \u2014 an agent receiving `\"approve\"` cannot recover which choice the human made, and no care at either end reconstructs it, because the distinguishing information was never on the wire."
+}

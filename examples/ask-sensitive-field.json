@@ -10,21 +10,36 @@
   },
   "title": "Provide the rotated payment-provider API key (kept out of the agent's context)",
   "priority": "high",
-  "tags": ["input", "secret"],
+  "tags": [
+    "input",
+    "secret"
+  ],
   "idempotency_key": "payments-key-input",
   "sensitive": true,
-  "body": "Paste the new payment-provider API key. The field is marked `x-ma2h-sensitive`, so the Hub excludes its value from export/telemetry; the agent receives it as a `secret_ref`, never as plaintext in its LLM context (spec §9.6).",
+  "body": "Paste the new payment-provider API key. The field is marked `x-ma2h-sensitive`, so the Hub excludes its value from export/telemetry; the agent receives it as a `secret_ref`, never as plaintext in its LLM context (spec \u00a79.6).",
   "request": {
     "mode": "input",
     "schema": {
       "type": "object",
       "properties": {
-        "payment_api_key": { "type": "string", "x-ma2h-sensitive": true }
+        "payment_api_key": {
+          "type": "string",
+          "x-ma2h-sensitive": true
+        }
       },
-      "required": ["payment_api_key"]
+      "required": [
+        "payment_api_key"
+      ]
     },
-    "permissions": { "allow_accept": true, "allow_edit": false, "allow_respond": true, "allow_ignore": false },
-    "allowed_resolvers": ["human:alice"],
-    "callback": { "mode": "pull" }
+    "permissions": {
+      "allow_respond": true,
+      "allow_ignore": false
+    },
+    "allowed_resolvers": [
+      "human:alice"
+    ],
+    "callback": {
+      "mode": "pull"
+    }
   }
 }

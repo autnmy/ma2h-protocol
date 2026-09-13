@@ -108,7 +108,7 @@ test("a leading-zero MINOR (0.03) is a validation_error, not silently treated as
 });
 
 test("MA2H_VERSION is the canonical emitted version and matches the §10 0.x shape", () => {
-  assert.equal(MA2H_VERSION, "0.5");
+  assert.equal(MA2H_VERSION, "0.6");
   assert.match(MA2H_VERSION, /^0\.(0|[1-9]\d*)$/);
 });
 

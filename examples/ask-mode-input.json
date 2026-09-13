@@ -10,20 +10,36 @@
   },
   "title": "What release note should accompany the #142 deploy?",
   "priority": "normal",
-  "tags": ["input", "release"],
+  "tags": [
+    "input",
+    "release"
+  ],
   "idempotency_key": "release-142-note",
   "request": {
     "mode": "input",
     "schema": {
       "type": "object",
       "properties": {
-        "release_note": { "type": "string" },
-        "notify_users": { "type": "boolean" }
+        "release_note": {
+          "type": "string"
+        },
+        "notify_users": {
+          "type": "boolean"
+        }
       },
-      "required": ["release_note"]
+      "required": [
+        "release_note"
+      ]
     },
-    "permissions": { "allow_accept": true, "allow_edit": true, "allow_respond": true, "allow_ignore": true },
-    "allowed_resolvers": ["human:alice"],
-    "callback": { "mode": "pull" }
+    "permissions": {
+      "allow_respond": true,
+      "allow_ignore": true
+    },
+    "allowed_resolvers": [
+      "human:alice"
+    ],
+    "callback": {
+      "mode": "pull"
+    }
   }
 }

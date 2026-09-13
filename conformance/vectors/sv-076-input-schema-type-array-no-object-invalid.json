@@ -1,0 +1,34 @@
+{
+  "id": "sv-076-input-schema-type-array-no-object-invalid",
+  "class": "schema-validation",
+  "description": "The other half of sv-075: an array `type` that admits no object is still unanswerable. Widening the rule to accept arrays must not widen it into accepting scalars spelled as arrays.",
+  "ref": "spec \u00a75.2 (v0.6)",
+  "target": "v0.6/message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.6",
+    "type": "ask",
+    "created_at": "2026-09-13T10:00:00Z",
+    "agent": {
+      "id": "deploybot/dev-team",
+      "run_id": "run_01H",
+      "runtime": "cli"
+    },
+    "title": "t",
+    "idempotency_key": "k",
+    "request": {
+      "mode": "input",
+      "schema": {
+        "type": [
+          "string",
+          "number"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

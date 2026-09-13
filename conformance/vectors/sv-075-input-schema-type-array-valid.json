@@ -1,0 +1,37 @@
+{
+  "id": "sv-075-input-schema-type-array-valid",
+  "class": "schema-validation",
+  "description": "`type` may be an ARRAY that admits an object. `[\"object\",\"null\"]` is legitimate JSON Schema and fully answerable; an earlier draft of the v0.6 rule tested for the literal string \"object\" and rejected it, breaking a sender that was never broken. A corrective release must not do that, so the rule asks whether `type` ADMITS an object rather than how it is spelled.",
+  "ref": "spec \u00a75.2 (v0.6)",
+  "target": "v0.6/message.schema.json",
+  "expect": "valid",
+  "input": {
+    "ma2h_version": "0.6",
+    "type": "ask",
+    "created_at": "2026-09-13T10:00:00Z",
+    "agent": {
+      "id": "deploybot/dev-team",
+      "run_id": "run_01H",
+      "runtime": "cli"
+    },
+    "title": "t",
+    "idempotency_key": "k",
+    "request": {
+      "mode": "input",
+      "schema": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      }
+    }
+  }
+}

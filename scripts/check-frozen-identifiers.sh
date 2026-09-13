@@ -24,13 +24,13 @@ CANON_DOMAIN="ma2h.org"
 # load-bearing:
 #   - Listing versions, rather than grepping all of spec/ + schema/, stops a historical v0.1/v0.2/v0.3
 #     file from satisfying a token after a live contract has been renamed.
-#   - v0.5 does NOT replace v0.4 here. v0.5 is additive — "alongside the unchanged v0.4 legs"
-#     (spec/v0.5.md) — and reference/src/conformance.ts still validates every non-`v0.5/` vector against
-#     the v0.4 snapshot, so both are live and both need guarding. Dropping v0.4 would not tighten this
-#     check, only move its blind spot: a single stale pin is what let the entire v0.5 surface go
-#     unchecked (#44).
+#   - A newer version does NOT replace an older one here. reference/src/conformance.ts routes vectors
+#     per snapshot — bare targets still validate against v0.4, `v0.5/`-prefixed against v0.5, `v0.6/`
+#     against v0.6 — so every listed version is live and each needs guarding. Dropping an older one
+#     would not tighten this check, only move its blind spot: a single stale pin is what let the
+#     entire v0.5 surface go unchecked (#44).
 # Add a version once its spec + schema are live; remove one only when nothing validates against it.
-LIVE_VERSIONS=("v0.4" "v0.5")
+LIVE_VERSIONS=("v0.4" "v0.5" "v0.6")
 # Newest live version — what the plugin skills must pin their ma2h.org URLs to (assertion 5). Derived
 # from the list above so the two cannot drift apart.
 CURRENT_VERSION="${LIVE_VERSIONS[${#LIVE_VERSIONS[@]}-1]}"

@@ -1,6 +1,6 @@
 # MA2H — Multi-agent to Human Protocol
 
-> **Status:** Draft · **Version:** 0.5 · **Steward:** Autonomy · **License:** Apache-2.0
+> **Status:** Draft · **Version:** 0.6 · **Steward:** Autonomy · **License:** Apache-2.0
 > A vendor- and runtime-neutral protocol that standardizes how autonomous agents coordinate with a human.
 
 ## Overview
@@ -18,14 +18,14 @@ back to the originating agent — even one that has already exited.
 As of **v0.4**, the hub is bidirectional: a human can also send a **directive** — an instruction or FYI —
 addressed to one specific agent, which the agent drains from a durable per-agent mailbox (signed, verified,
 at-least-once) using the same pull-first / webhook-optional mechanism as the return leg. This is additive
-and backward-compatible — every v0.3 leg is unchanged. See [`spec/v0.5.md` §13](spec/v0.5.md).
+and backward-compatible — every v0.3 leg is unchanged. See [`spec/v0.6.md` §13](spec/v0.6.md).
 
 As of **v0.5**, the hub also carries an **inter-agent leg**: agents of the same account message *each
 other* — the same three verbs, routed through the same mailbox — with **sessions** making one live
 invocation addressable (`agent:<id>#<session>`), the addressee answering as an attested `agent:` actor,
 and **delivery honesty** end-to-end: a reachability snapshot at send, and terminal `bounced`/`expired`
 states so "seen" and "never seen" can never be confused. Account-opt-in, additive, and
-backward-compatible — every v0.4 leg is unchanged. See [`spec/v0.5.md` §16, §8.7](spec/v0.5.md).
+backward-compatible — every v0.4 leg is unchanged. See [`spec/v0.6.md` §16, §8.7](spec/v0.6.md).
 
 ```
    agent ┐
@@ -133,7 +133,7 @@ vocabulary:
 - **LangGraph** — `HumanInterruptConfig` permission flags.
 - **CHEQ** (IETF draft) — keeping human-entered secrets out of the agent's LLM context.
 
-See [`spec/v0.5.md` §11](spec/v0.5.md) for full provenance.
+See [`spec/v0.6.md` §11](spec/v0.6.md) for full provenance.
 
 ## Repository layout
 
@@ -141,12 +141,13 @@ See [`spec/v0.5.md` §11](spec/v0.5.md) for full provenance.
 README.md                          ← you are here
 MIGRATION.md                       ← the rename to MA2H (A2H → AHCP → MA2H) + the version upgrades
 CHANGELOG.md                       ← version history and migration notes
-spec/v0.5.md                       ← the normative specification (current draft; adds the inter-agent leg)
+spec/v0.6.md                       ← the normative specification (current draft; repairs the `ask` contract)
+spec/v0.5.md                       ← superseded draft (kept for history; added the inter-agent leg)
 spec/v0.4.md                       ← superseded draft (kept for history)
 spec/v0.3.md                       ← superseded draft (kept for history)
 spec/v0.2.md                       ← superseded draft (kept for history)
 spec/v0.1.md                       ← superseded draft (kept for history)
-schema/v0.5/
+schema/v0.6/
   message.schema.json              ← request leg (agent → Hub; + the v0.5 `to` / `agent.session`)
   response.schema.json             ← return leg (Hub → agent)
   inbound-message.schema.json      ← delivered mailbox entries: directive | message | response | receipt
@@ -163,13 +164,14 @@ plugins/ma2h-skills/                ← installable plugin: implement a Hub + bu
 
 ## Conformance
 
-An implementation is conformant if it satisfies the normative requirements in `spec/v0.5.md` and the
+An implementation is conformant if it satisfies the normative requirements in `spec/v0.6.md` and the
 proof obligations in `conformance/`. The `reference/` TypeScript implementation and the vectors in
 `conformance/vectors/` define the interoperability baseline. The conformance harness
-(`npm run vectors`) validates both snapshots — bare targets against `schema/v0.4/`, `v0.5/`-prefixed
-targets against `schema/v0.5/`. The reference implementation covers the v0.5 leg (sessions, addressed
+(`npm run vectors`) validates every snapshot — bare targets against `schema/v0.4/`, and a
+`v0.5/`/`v0.6/`-prefixed target against that version's schemas. The reference implementation covers
+the v0.5 leg (sessions, addressed
 routing, entry signatures, bounce/expiry honesty, and the `runBridgeLoop` bridge example), and the
-interactive `ma2h` CLI's `validate` command is version-aware across v0.4 and v0.5 — including the
+interactive `ma2h` CLI's `validate` command is version-aware across v0.4, v0.5 and v0.6 — including the
 `session`, `resolve`, `submit-ack` and entry shapes. Its `sign`/`verify` commands still build the §9.2
 response context only; to sign or verify a v0.5 entry context, use the `src/signing.ts` builders
 directly (the worked values are in [`examples/entry-signatures-v0.5.md`](examples/entry-signatures-v0.5.md)).

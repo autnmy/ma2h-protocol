@@ -12,6 +12,7 @@ import {
   validateResponse,
   validateV05,
   validateV05Def,
+  validateV06,
   type ValidationResult,
 } from "../src/envelope.js";
 import { buildSignedContext, signResponse, verifyResponse } from "../src/signing.js";
@@ -94,6 +95,8 @@ const V05_ONLY_KINDS: ReadonlySet<ValidateKind> = new Set([
   "entry",
 ]);
 
+/** Schema filename per kind. Shared by the v0.5 and v0.6 snapshots — same ten documents,
+ * re-`$id`'d — so one map serves both; a future snapshot that renames a file needs its own. */
 const V05_SCHEMA_BY_KIND: Record<ValidateKind, string> = {
   message: "message.schema.json",
   response: "response.schema.json",
@@ -108,13 +111,25 @@ const V05_SCHEMA_BY_KIND: Record<ValidateKind, string> = {
   "submit-ack": "submit-ack.schema.json",
 };
 
+/** The declared minor of a document's canonical `0.x` `ma2h_version`, or null. */
+function declaredMinor(doc: unknown): number | null {
+  if (!doc || typeof doc !== "object") return null;
+  const raw = (doc as Record<string, unknown>)["ma2h_version"];
+  if (typeof raw !== "string") return null;
+  const m = /^0\.(0|[1-9]\d*)$/.exec(raw);
+  return m === null ? null : Number(m[1]);
+}
+
 /** True when the document declares a >= 0.5 `ma2h_version` (canonical `0.x` form). */
 function declaresV05(doc: unknown): boolean {
-  if (!doc || typeof doc !== "object") return false;
-  const raw = (doc as Record<string, unknown>)["ma2h_version"];
-  if (typeof raw !== "string") return false;
-  const m = /^0\.(0|[1-9]\d*)$/.exec(raw);
-  return m !== null && Number(m[1]) >= 5;
+  const minor = declaredMinor(doc);
+  return minor !== null && minor >= 5;
+}
+
+/** True when the document declares a >= 0.6 `ma2h_version` — the v0.6 `ask`-contract snapshot. */
+function declaresV06(doc: unknown): boolean {
+  const minor = declaredMinor(doc);
+  return minor !== null && minor >= 6;
 }
 
 function cmdValidate(positionals: string[], flags: Map<string, string>): void {
@@ -125,7 +140,12 @@ function cmdValidate(positionals: string[], flags: Map<string, string>): void {
   const kind = (flags.get("as") ?? inferKind(doc)) as ValidateKind;
   // Version-aware registry selection (§10): a >= 0.5 document — or a v0.5-only shape — validates
   // against the v0.5 snapshot; everything else keeps the v0.4 registry byte-identically.
-  const useV05 = V05_ONLY_KINDS.has(kind) || declaresV05(doc);
+  // A 0.6 document validates against the v0.6 snapshot. Routing it to v0.5 — as this did before —
+  // would silently skip the v0.6 `ask` constraints, so `ma2h validate` would pass an envelope the
+  // Hub rejects (codex, PR #65 round 2). The v0.5-ONLY kinds stay on v0.5 unless the document itself
+  // declares higher: those shapes exist in both snapshots.
+  const useV06 = declaresV06(doc);
+  const useV05 = !useV06 && (V05_ONLY_KINDS.has(kind) || declaresV05(doc));
   // The session collection envelope `{ "sessions": [...] }` validates against the sessionList $def
   // (spec §16.1) — the root schema is the single-session RESOURCE, which would reject the wrapper.
   if (kind === "session-list") {
@@ -142,7 +162,9 @@ function cmdValidate(positionals: string[], flags: Map<string, string>): void {
     kind === "session" && doc && typeof doc === "object" && "session" in (doc as Record<string, unknown>)
       ? (doc as { session: unknown }).session
       : doc;
-  const res: ValidationResult = useV05
+  const res: ValidationResult = useV06
+    ? validateV06(V05_SCHEMA_BY_KIND[kind], target)
+    : useV05
     ? validateV05(V05_SCHEMA_BY_KIND[kind], target)
     : kind === "response"
       ? validateResponse(doc)
@@ -156,10 +178,10 @@ function cmdValidate(positionals: string[], flags: Map<string, string>): void {
               ? validatePresence(doc)
               : validateMessage(doc);
   if (res.valid) {
-    console.log(`✓ valid ${kind} (${useV05 ? "v0.5" : "v0.4"} schema): ${file}`);
+    console.log(`✓ valid ${kind} (${useV06 ? "v0.6" : useV05 ? "v0.5" : "v0.4"} schema): ${file}`);
     return;
   }
-  console.error(`✗ invalid ${kind} (${useV05 ? "v0.5" : "v0.4"} schema): ${file}`);
+  console.error(`✗ invalid ${kind} (${useV06 ? "v0.6" : useV05 ? "v0.5" : "v0.4"} schema): ${file}`);
   for (const e of res.errors) console.error(`  - ${e}`);
   process.exit(1);
 }

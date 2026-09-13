@@ -22,7 +22,7 @@ import {
   type HubTouchpoint,
   type KnownHubErrorCode,
 } from "./errors.js";
-import { validateMessage, validateV05, type ValidationResult } from "./envelope.js";
+import { validateMessage, validateV05, type ValidationResult, validateV06 } from "./envelope.js";
 import type {
   A2hMessage,
   A2hVersion,
@@ -70,8 +70,9 @@ export const newIdempotencyKey = (): string => `idem_${randomUUID()}`;
 export interface VersionFeatureProbe {
   to?: AgentAddress;
   agent: Pick<AgentDescriptor, "session">;
-  /** The ask surface, when present — read for session-qualified `allowed_resolvers` entries. */
-  request?: Pick<AskRequest, "allowed_resolvers">;
+  /** The ask surface, when present — read for session-qualified `allowed_resolvers` entries and
+   * for the v0.6 `permissions.allow_edit` opt-in. */
+  request?: Pick<AskRequest, "allowed_resolvers" | "permissions">;
   /** The task surface, when present — read for session-qualified `allowed_resolvers` entries. */
   action?: Pick<TaskAction, "allowed_resolvers">;
 }
@@ -88,6 +89,31 @@ export interface VersionFeatureProbe {
  */
 export function usesInterAgentAddressing(envelope: VersionFeatureProbe): boolean {
   return envelope.to !== undefined || envelope.agent.session !== undefined;
+}
+
+/**
+ * Does this envelope opt into the v0.6 FREE-FORM ANSWER (`permissions.allow_edit`, spec §5.2)?
+ *
+ * `allow_edit` is version-gated vocabulary: a Hub honors it only on an envelope declaring minor
+ * >= 6 and ignores it below (§10 robustness). So a builder that stamped the base `0.3` on an
+ * `allow_edit` ask would emit an envelope whose own feature a conformant Hub is REQUIRED to
+ * discard — the request would look accepted and silently behave as an ordinary strict-membership
+ * ask (codex, PR #65).
+ *
+ * Only `=== true` lifts. `false` is the default and asks for nothing, so stamping 0.6 on it would
+ * raise the floor of an envelope that uses no v0.6 feature at all.
+ *
+ * Deliberately MODE-AGNOSTIC. §5.2 makes `allow_edit` meaningless for `mode=input`, so an input ask
+ * carrying it gains nothing from the lift — but the field is still v0.6 vocabulary the sender chose
+ * to write, and declaring the version that defines it is honest. Reading `mode` here would also
+ * make `mode` a required member of the probe surface for the sake of a case that cannot matter.
+ *
+ * Note the asymmetry with the two v0.6 CORRECTIONS (options uniqueness, schema answerability):
+ * those bind at every declared minor and therefore have no row here — they are not features an
+ * envelope can opt into, they are shapes a Hub refuses. Only vocabulary lifts a version.
+ */
+export function usesAllowEdit(envelope: VersionFeatureProbe): boolean {
+  return envelope.request?.permissions?.allow_edit === true;
 }
 
 /**
@@ -157,6 +183,9 @@ export const WIRE_FEATURES = Object.freeze({
     minimum: "0.5",
     present: usesSessionQualifiedResolvers,
   } as const),
+  /** `permissions.allow_edit: true` — the v0.6 free-form answer (spec §5.2). Gated vocabulary: a
+   * Hub ignores it below minor 6, so an envelope that asks for it must declare 6. */
+  allowEdit: Object.freeze({ minimum: "0.6", present: usesAllowEdit } as const),
 }) satisfies Record<
   string,
   { minimum: A2hVersion; present: (envelope: VersionFeatureProbe) => boolean }
@@ -171,7 +200,8 @@ const minorOf = (version: A2hVersion): number => Number(version.slice("0.".lengt
 /**
  * The canonical version-stamp rule (spec §10): the LOWEST minor the envelope's features require —
  * `WIRE_BASE_VERSION` lifted to each present feature's `WIRE_FEATURES` minimum. Today that means
- * `"0.3"` for a plain envelope and `"0.5"` for one carrying any inter-agent-leg feature.
+ * `"0.3"` for a plain envelope, `"0.5"` for one carrying any inter-agent-leg feature, and `"0.6"`
+ * for an ask opting into the free-form answer.
  *
  * `MA2H_VERSION` is deliberately NOT an input. Lowest-minor-required is a STATIC property of the
  * features an envelope carries, not of the version this implementation currently speaks: coupling
@@ -337,16 +367,26 @@ function rebuildAction(action: TaskAction): TaskAction {
 /**
  * The builder self-validation net: validate a freshly-built envelope against the registry its
  * STAMPED version selects (the v0.4 registry for a pre-0.5 stamp — no v0.3 registry is published —
- * and the v0.5 registry from minor 5 up), throwing a descriptive `Error` on failure so a
+ * the v0.5 registry from minor 5, and the v0.6 registry from minor 6), throwing a descriptive `Error` on failure so a
  * misconstruction surfaces at BUILD time, not at submit time. Not a `HubError`: this is the
  * builder's own construction check, not a Hub verdict.
  */
 function assertBuiltEnvelope(message: A2hMessage): void {
-  const v05 = minorOf(message.ma2h_version) >= 5;
-  const result = v05 ? validateV05("message.schema.json", message) : validateMessage(message);
+  // Validate against the snapshot matching the minor the builder just STAMPED. Routing every
+  // minor >= 5 through v0.5 (the shape before v0.6) let `buildAsk` emit a 0.6 envelope that the
+  // v0.6 schema rejects — the self-check passing on a schema the envelope does not claim, which is
+  // the one thing this function exists to prevent (codex, PR #65 round 2).
+  const minor = minorOf(message.ma2h_version);
+  const snapshot = minor >= 6 ? "v0.6" : minor >= 5 ? "v0.5" : "v0.4";
+  const result =
+    minor >= 6
+      ? validateV06("message.schema.json", message)
+      : minor >= 5
+        ? validateV05("message.schema.json", message)
+        : validateMessage(message);
   if (!result.valid) {
     throw new Error(
-      `built ${message.type} envelope failed ${v05 ? "v0.5" : "v0.4"} schema validation (builder self-check, stamped ${message.ma2h_version}): ${result.errors.join("; ")}`,
+      `built ${message.type} envelope failed ${snapshot} schema validation (builder self-check, stamped ${message.ma2h_version}): ${result.errors.join("; ")}`,
     );
   }
 }

@@ -72,7 +72,7 @@ Compose and POST an MA2H `notify` to <APP>'s Hub. Fire-and-forget — do not wai
 - **Auth:** the Hub's advertised scheme (capability `auth_schemes`) — `Authorization: Bearer $<AUTH_ENV>` for `bearer`, or the API-key header for `apikey`; read from the environment, never hardcode
 
 **Envelope** (`type: "notify"`):
-- `ma2h_version`: `"0.5"`
+- `ma2h_version`: `"0.6"`
 - `created_at`: ISO-8601 now
 - `agent`: `{ "id": "<AGENT_ID>", "run_id": "<RUN_ID>", "runtime": "<RUNTIME>", "project": "<PROJECT>" }`  *(every value is a JSON string — keep the quotes)*
 - `title`: short subject (≤ 200 chars)
@@ -94,7 +94,7 @@ curl -sS -X POST "<HUB_URL>/v1/messages" \
   -H "Authorization: Bearer $<AUTH_ENV>" \
   -H "Content-Type: application/json" \
   -d '{
-    "ma2h_version": "0.5",
+    "ma2h_version": "0.6",
     "type": "notify",
     "created_at": "'"$(date -u +%FT%TZ)"'",
     "agent": { "id": "<AGENT_ID>", "run_id": "'"$RUN_ID"'", "runtime": "<RUNTIME>", "project": "<PROJECT>" },
@@ -127,6 +127,6 @@ before using `to`; addressed sends require `ma2h_version` ≥ `"0.5"`.
 ````
 
 ## References
-- Spec: <https://ma2h.org/spec/v0.5.md> (§5.1 notify · §4 `to` · §8.1 addressed acks · §14.2 delivery honesty)
-- Message schema: <https://ma2h.org/schema/v0.5/message.schema.json>
+- Spec: <https://ma2h.org/spec/v0.6.md> (§5.1 notify · §4 `to` · §8.1 addressed acks · §14.2 delivery honesty)
+- Message schema: <https://ma2h.org/schema/v0.6/message.schema.json>
 - MA2H overview: <https://ma2h.org>

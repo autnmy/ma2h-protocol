@@ -195,7 +195,7 @@ curl -sS -X DELETE "<HUB_URL>/v1/sessions/<sess>" -H "Authorization: Bearer $<AU
 ````
 
 ## References
-- Spec: <https://ma2h.org/spec/v0.5.md> (§8.7 transport · §8.7.1 session-scoped drain + entry kinds · §9.7/§9.8 signatures · §13 the leg · §16 sessions)
-- Delivered-entry schema: <https://ma2h.org/schema/v0.5/inbound-message.schema.json> · sessions: <https://ma2h.org/schema/v0.5/session.schema.json>
+- Spec: <https://ma2h.org/spec/v0.6.md> (§8.7 transport · §8.7.1 session-scoped drain + entry kinds · §9.7/§9.8 signatures · §13 the leg · §16 sessions)
+- Delivered-entry schema: <https://ma2h.org/schema/v0.6/inbound-message.schema.json> · sessions: <https://ma2h.org/schema/v0.6/session.schema.json>
 - Reference agent to port: <https://github.com/autnmy/ma2h-protocol/tree/main/reference> (`src/signing.ts`, `src/agent.ts`)
 - MA2H overview: <https://ma2h.org>

@@ -84,7 +84,7 @@ description: Ask a human to perform a manual, out-of-band action via <APP>'s MA2
 - **Endpoint:** `POST <HUB_URL>/v1/messages`  ·  **Auth:** the Hub's advertised scheme (capability `auth_schemes`) — `Authorization: Bearer $<AUTH_ENV>` for `bearer`, or the API-key header for `apikey`
 
 **Envelope** (`type: "task"`):
-- `ma2h_version`: `"0.5"`, `created_at`: ISO now
+- `ma2h_version`: `"0.6"`, `created_at`: ISO now
 - `agent`: `{ "id": "<AGENT_ID>", "run_id": "<RUN_ID>", "runtime": "<RUNTIME>", "project": "<PROJECT>" }`  *(every value is a JSON string — keep the quotes)*
 - `title`, `body` (Markdown), `priority?`, `tags?`
 - **`idempotency_key`** (REQUIRED): stable per logical task.
@@ -174,6 +174,6 @@ platform's ed25519 primitive, **not** that helper (it returns `alg not implement
 ````
 
 ## References
-- Spec: <https://ma2h.org/spec/v0.5.md> (§5 verbs, §6 response, §7 lifecycle, §9 security; v0.5: §4 `to`, §8.1 addressed acks, §9.1 addressee default, §14.2 delivery honesty)
-- Schemas: <https://ma2h.org/schema/v0.5/message.schema.json> · <https://ma2h.org/schema/v0.5/response.schema.json>
+- Spec: <https://ma2h.org/spec/v0.6.md> (§5 verbs, §6 response, §7 lifecycle, §9 security; v0.5: §4 `to`, §8.1 addressed acks, §9.1 addressee default, §14.2 delivery honesty)
+- Schemas: <https://ma2h.org/schema/v0.6/message.schema.json> · <https://ma2h.org/schema/v0.6/response.schema.json>
 - Reference impl (verify/seal): <https://github.com/autnmy/ma2h-protocol/tree/main/reference>

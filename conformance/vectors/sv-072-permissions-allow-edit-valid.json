@@ -1,0 +1,37 @@
+{
+  "id": "sv-072-permissions-allow-edit-valid",
+  "class": "schema-validation",
+  "description": "`permissions.allow_edit` is a defined boolean as of v0.6 \u2014 the free-form answer to an option-based ask. Default false; present-and-true here.",
+  "ref": "spec \u00a75.2 (v0.6)",
+  "target": "v0.6/message.schema.json",
+  "expect": "valid",
+  "input": {
+    "ma2h_version": "0.6",
+    "type": "ask",
+    "created_at": "2026-09-13T10:00:00Z",
+    "agent": {
+      "id": "deploybot/dev-team",
+      "run_id": "run_01H",
+      "runtime": "cli"
+    },
+    "title": "Ship or hold?",
+    "idempotency_key": "idem-01",
+    "request": {
+      "mode": "select",
+      "options": [
+        {
+          "value": "ship",
+          "label": "Ship"
+        },
+        {
+          "value": "hold",
+          "label": "Hold"
+        }
+      ],
+      "permissions": {
+        "allow_edit": true,
+        "allow_ignore": true
+      }
+    }
+  }
+}

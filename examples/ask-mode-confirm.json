@@ -10,17 +10,29 @@
   },
   "title": "Merge PR #142 now that CI is green?",
   "priority": "normal",
-  "tags": ["confirm", "merge"],
+  "tags": [
+    "confirm",
+    "merge"
+  ],
   "idempotency_key": "confirm-merge-142",
-  "body": "All checks pass and the code review is resolved. Approve to merge, deny to hold. (mode=confirm: the Hub synthesizes approve/deny — no `options` supplied.)",
+  "body": "All checks pass and the code review is resolved. Approve to merge, deny to hold. (mode=confirm: the Hub synthesizes approve/deny \u2014 no `options` supplied.)",
   "request": {
     "mode": "confirm",
-    "permissions": { "allow_accept": true, "allow_edit": false, "allow_respond": true, "allow_ignore": true },
-    "allowed_resolvers": ["human:alice"],
+    "permissions": {
+      "allow_edit": false,
+      "allow_respond": true,
+      "allow_ignore": true
+    },
+    "allowed_resolvers": [
+      "human:alice"
+    ],
     "callback": {
       "mode": "push",
       "url": "https://deploybot.example/ma2h/resume",
-      "auth": { "scheme": "bearer", "token_ref": "env:MA2H_RESUME_TOKEN" }
+      "auth": {
+        "scheme": "bearer",
+        "token_ref": "env:MA2H_RESUME_TOKEN"
+      }
     }
   }
 }

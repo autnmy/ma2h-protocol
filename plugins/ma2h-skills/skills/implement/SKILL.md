@@ -38,8 +38,8 @@ Your definition of done is **conformance**, not a copied reference implementatio
 ## 0. Ground yourself in the spec
 
 Read these before writing code — they are the source of truth:
-- **Spec:** <https://ma2h.org/spec/v0.5.md> (§5 verbs · §6 response · §7 lifecycle · §8 transport · §9 security · **§13 inbound directives** · **§14 ack/delivery** · **§16 sessions**)
-- **Schemas:** <https://ma2h.org/schema/v0.5/message.schema.json> · `response.schema.json` · `capability.schema.json` · `submit-ack.schema.json` · `get-message.schema.json` · `inbound-message.schema.json` *(the delivered-entry union)* · `ack.schema.json` · `presence.schema.json` · `session.schema.json` + `resolve-request.schema.json` *(v0.5)*
+- **Spec:** <https://ma2h.org/spec/v0.6.md> (§5 verbs · §6 response · §7 lifecycle · §8 transport · §9 security · **§13 inbound directives** · **§14 ack/delivery** · **§16 sessions**)
+- **Schemas:** <https://ma2h.org/schema/v0.6/message.schema.json> · `response.schema.json` · `capability.schema.json` · `submit-ack.schema.json` · `get-message.schema.json` · `inbound-message.schema.json` *(the delivered-entry union)* · `ack.schema.json` · `presence.schema.json` · `session.schema.json` + `resolve-request.schema.json` *(v0.5)*
 - **Reference impl** (the crypto/lifecycle, to mirror — see §3): <https://github.com/autnmy/ma2h-protocol/tree/main/reference>
 - **Conformance vectors** (your tests): <https://github.com/autnmy/ma2h-protocol/tree/main/conformance>
 
@@ -83,6 +83,34 @@ implementation is done when each MUST below holds **and** the vectors pass.
 - [ ] **Request-leg auth** (§9.1): the agent credential is scoped to one `agent.id` — **reject an envelope whose `agent.id` ≠ the credential (`403`)**, and **bind each message's poll, callback, AND cancel access to the submitting principal** (one agent must not read — or `POST /v1/messages/{id}/cancel` to terminally withdraw — another's message by `id`); `run_id` is opaque and **MUST NOT** authorize cross-run access.
 - [ ] **Callbacks** target an **agent-owned, verified** host (push or pull) with **SSRF controls**: host-ownership verification, private-range refusal at delivery time, no redirects, credential-host binding. The Hub **MUST NOT** server-side-fetch `context.file.uri` unless that URI passes the **same host controls used for callbacks**.
 - [ ] **Lifecycle** is atomic, single-writer, **first-terminal-wins**. Resolutions: `ask` → `answered|declined|cancelled|expired`; `task` → `completed|dismissed|expired`. Statuses: `delivered` is terminal-on-acceptance for **`notify` only** (`open` → `delivered`); `ask`/`task` transition **`open` → terminal** directly (no `delivered` state).
+- [ ] **The `ask` contract, validated at SUBMIT** (§5.2, §6 — v0.6). Three rules a JSON Schema
+  **cannot** enforce for you, so your Hub must, each rejecting `422` at submit:
+  (a) **`options[].value` unique** — `uniqueItems` compares whole array items and cannot see two
+  options sharing a `value` with different `label`s. A duplicate makes the Response ambiguous: §6
+  returns the `value` and nothing identifying which entry produced it.
+  (b) **A `mode=input` `request.schema` must describe the answer object** — ≥1 entry under
+  `properties`, and any declared `type` must ADMIT an object (the string `"object"`, or a well-formed
+  `type` array containing it; `["object","null"]` is valid and answerable, and rejecting it would
+  break a correct sender). A scalar schema admits no object and so no
+  §6-valid answer; a property-less one gives the human nothing to fill in. **Do not defer either to
+  resolve time** — that strands the ask permanently open and reports the defect only to the human,
+  who cannot fix the agent's schema.
+  (c) **`permissions.allow_edit`** — when absent or false, enforce `options[].value` membership on a
+  `select`/`confirm` resolve (`422`). When **true**, accept a non-member string. Either way, stamp
+  `response.edited` yourself from the membership test (`true` iff `value` ∉ `options[].value`); it is
+  Hub-computed, and a resolver-supplied `edited` MUST be ignored. Always `false` for `mode=input`.
+  `allow_edit` does **not** relax `default_on_expire`, which stays a member of `options[].value`.
+  **Apply (a) and (b) at EVERY declared minor, including 0.3/0.4/0.5 — not only 0.6.** They are
+  corrections, not vocabulary: §6 has fixed the input answer as an object and returned a bare `value`
+  since v0.1, so those asks were never answerable or unambiguous under any version. Gating them on
+  0.6 makes the fix unreachable, since a sender has no reason to raise its minor for a correction it
+  does not know about. **(c) is the opposite — `allow_edit` IS gated**: honor it only at minor ≥ 6,
+  ignore it below (§10). A declared version scopes what a sender may ASK FOR, never what you may
+  refuse as malformed. Obligation **dp-029**.
+  The reference exports `duplicateOptionValue`, `unanswerableInputSchema` and `isEditedAnswer` —
+  discharge **dp-026**/**dp-027**/**dp-028** against those rather than re-deriving them. Note
+  `permissions.allow_accept` was removed in v0.6: ignore it if a sender still carries it (§10
+  robustness), never give it meaning.
 - [ ] **Expiry & defaults** (§7, §8.5): reject `expires_at` not in the future at submit (`422`); **validate `default_on_expire` at submit** — a member of `options[].value` for `select`, an object matching the `input` schema, or `null` — and reject a bad default with `422` **up front** (never defer the error to expiry); when `expires_at` passes with no human action, auto-resolve `expired` — for `ask`, apply `default_on_expire` as a Response with `defaulted: true` and `actor: "system:default_on_expire"`; `task` has no default (bare `expired`).
 - [ ] **Durable persistence** (§3.1): a Hub process restart **MUST NOT** lose open asks/tasks, delivered notifies, committed resolutions, or pending push-delivery obligations. **In-memory-only storage is non-conformant** — back the lifecycle with a real store and add a restart test.
 - [ ] **`body` is untrusted Markdown** — sanitize to a **no-raw-HTML** profile **and do not auto-fetch remote images** (disable or proxy `![](http…)`) before any rendering, so rendering can't leak the resolver's IP/network info (§9.6).
@@ -92,7 +120,7 @@ implementation is done when each MUST below holds **and** the vectors pass.
 
 ### 3.5 The v0.5 inter-agent MUSTs (only if you offer `sessions` + `inter_agent` — see section 7)
 
-Every `§` reference in this block is a **spec** section (<https://ma2h.org/spec/v0.5.md>); this
+Every `§` reference in this block is a **spec** section (<https://ma2h.org/spec/v0.6.md>); this
 skill's own parts are called out as "section N".
 
 Skip this block for a human-inbox-only Hub. If you offer the leg, every item is normative and the v0.5
@@ -270,6 +298,6 @@ leg (section 7), **run `build-bridge`** in the apps whose agents should hold an 
 sender builders' v0.5 addressing blocks cover the sending side).
 
 ## References
-- MA2H: <https://ma2h.org> · Spec: <https://ma2h.org/spec/v0.5.md>
-- Schemas: <https://ma2h.org/schema/v0.5/message.schema.json>
+- MA2H: <https://ma2h.org> · Spec: <https://ma2h.org/spec/v0.6.md>
+- Schemas: <https://ma2h.org/schema/v0.6/message.schema.json>
 - Reference impl + conformance: <https://github.com/autnmy/ma2h-protocol/tree/main/reference> · <https://github.com/autnmy/ma2h-protocol/tree/main/conformance>

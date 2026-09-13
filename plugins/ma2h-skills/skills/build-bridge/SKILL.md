@@ -255,7 +255,7 @@ on purpose, so re-registering it is the one move the code exists to prevent. The
 ````
 
 ## References
-- Spec: <https://ma2h.org/spec/v0.5.md> (§8.7.1 entries · §8.8 resolve · §9.8 signatures · §13.4 duties · §14.2 delivery honesty · §15 presence · §16 sessions)
-- Delivered-entry schema: <https://ma2h.org/schema/v0.5/inbound-message.schema.json> · sessions: <https://ma2h.org/schema/v0.5/session.schema.json> · resolve: <https://ma2h.org/schema/v0.5/resolve-request.schema.json>
+- Spec: <https://ma2h.org/spec/v0.6.md> (§8.7.1 entries · §8.8 resolve · §9.8 signatures · §13.4 duties · §14.2 delivery honesty · §15 presence · §16 sessions)
+- Delivered-entry schema: <https://ma2h.org/schema/v0.6/inbound-message.schema.json> · sessions: <https://ma2h.org/schema/v0.6/session.schema.json> · resolve: <https://ma2h.org/schema/v0.6/resolve-request.schema.json>
 - Reference bridge to port: <https://github.com/autnmy/ma2h-protocol/tree/main/reference> (`src/agent.ts` `runBridgeLoop`, `test/bridge.test.ts`; signing in `src/signing.ts`)
 - Worked entry signatures: <https://github.com/autnmy/ma2h-protocol/blob/main/examples/entry-signatures-v0.5.md>

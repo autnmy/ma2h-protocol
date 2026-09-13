@@ -1,0 +1,26 @@
+{
+  "id": "sv-068-input-schema-no-properties-invalid",
+  "class": "schema-validation",
+  "description": "A `mode=input` ask whose `schema` is a bare object. Satisfiable (`{}` validates) but it presents the human with an input ask containing NOTHING to fill in, and any answer carries no information. Rejected for the same reason as sv-067: an ask with nothing to answer is not an ask.",
+  "ref": "spec \u00a75.2 (v0.6)",
+  "target": "v0.6/message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.6",
+    "type": "ask",
+    "created_at": "2026-09-13T10:00:00Z",
+    "agent": {
+      "id": "deploybot/dev-team",
+      "run_id": "run_01H",
+      "runtime": "cli"
+    },
+    "title": "Ship or hold?",
+    "idempotency_key": "idem-01",
+    "request": {
+      "mode": "input",
+      "schema": {
+        "type": "object"
+      }
+    }
+  }
+}

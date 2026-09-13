@@ -16,6 +16,8 @@ import {
   validateResponse,
   validateV05,
   validateV05Def,
+  validateV06,
+  validateV06Def,
   type ValidationResult,
 } from "./envelope.js";
 import {
@@ -78,10 +80,26 @@ export interface VectorReport {
 
 const VECTORS_DIR = new URL("../../conformance/vectors/", import.meta.url);
 
+/**
+ * The version-prefixed snapshot registries a vector `target` may name. Everything WITHOUT a prefix
+ * keeps validating against the v0.4 snapshot, which is why the table is opt-in per version rather
+ * than a parsed version number: an unprefixed target must stay v0.4 forever, and a new snapshot is
+ * one row here plus its two validators.
+ */
+const SNAPSHOTS: ReadonlyArray<{
+  prefix: string;
+  file: (schemaFile: string, data: unknown) => ValidationResult;
+  def: (schemaFile: string, def: string, data: unknown) => ValidationResult;
+}> = [
+  { prefix: "v0.5/", file: validateV05, def: validateV05Def },
+  { prefix: "v0.6/", file: validateV06, def: validateV06Def },
+];
+
 function validateAgainst(target: string, data: unknown): ValidationResult {
-  // v0.5-targeted vectors name their schema as "v0.5/<file>" (schema/v0.5/,
-  // spec/v0.5.md); everything else keeps validating against the v0.4 snapshot.
-  if (target.startsWith("v0.5/")) {
+  // A version-targeted vector names its schema as "<version>/<file>" (schema/<version>/,
+  // spec/<version>.md); everything else keeps validating against the v0.4 snapshot.
+  for (const snap of SNAPSHOTS) {
+    if (!target.startsWith(snap.prefix)) continue;
     // A target MAY name a `$def` inside the schema — "v0.5/session.schema.json#/$defs/sessionList"
     // (spec §16.1: the collection body is a wrapper, not the session resource). Without this the
     // wrapper shapes are unreachable from a vector, so `sessionList.scope` would carry an `enum`
@@ -89,15 +107,15 @@ function validateAgainst(target: string, data: unknown): ValidationResult {
     // hand a vector author a way to validate against a subschema the spec never names.
     const hash = target.indexOf("#");
     if (hash !== -1) {
-      const file = target.slice("v0.5/".length, hash);
+      const file = target.slice(snap.prefix.length, hash);
       const frag = target.slice(hash);
       const prefix = "#/$defs/";
       if (!frag.startsWith(prefix) || frag.indexOf("/", prefix.length) !== -1) {
         throw new Error(`vector target fragment not runnable (expected #/$defs/<name>): ${target}`);
       }
-      return validateV05Def(file, frag.slice(prefix.length), data);
+      return snap.def(file, frag.slice(prefix.length), data);
     }
-    return validateV05(target.slice("v0.5/".length), data);
+    return snap.file(target.slice(snap.prefix.length), data);
   }
   switch (target) {
     case "message.schema.json":

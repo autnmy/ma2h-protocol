@@ -10,21 +10,34 @@
   },
   "title": "Safe ephemeral-resume callback (canonical pattern)",
   "priority": "normal",
-  "tags": ["example", "resume"],
+  "tags": [
+    "example",
+    "resume"
+  ],
   "idempotency_key": "resume-pattern-demo",
-  "body": "Demonstrates the §2.1 resume pattern: `callback.url` is an AGENT-OWNED re-invoke endpoint (not a third-party API), the credential is bound to that registered host (§9.4), and `state` is AEAD-sealed by the agent with a key the Hub never sees (§9.3). Compare with examples/callback-anti-pattern.md.",
+  "body": "Demonstrates the \u00a72.1 resume pattern: `callback.url` is an AGENT-OWNED re-invoke endpoint (not a third-party API), the credential is bound to that registered host (\u00a79.4), and `state` is AEAD-sealed by the agent with a key the Hub never sees (\u00a79.3). Compare with examples/callback-anti-pattern.md.",
   "state": {
     "sealed": "v1.aead.3a91...redacted...",
     "resume_token_hint": "node:promote-build (encrypted inside `sealed`, shown here only as a label)"
   },
   "request": {
     "mode": "confirm",
-    "permissions": { "allow_accept": true, "allow_edit": false, "allow_respond": true, "allow_ignore": true },
-    "allowed_resolvers": ["human:alice", "agent:deploybot/release-bot"],
+    "permissions": {
+      "allow_edit": false,
+      "allow_respond": true,
+      "allow_ignore": true
+    },
+    "allowed_resolvers": [
+      "human:alice",
+      "agent:deploybot/release-bot"
+    ],
     "callback": {
       "mode": "push",
       "url": "https://deploybot.example/ma2h/resume",
-      "auth": { "scheme": "hmac", "secret_ref": "env:MA2H_CALLBACK_SECRET" }
+      "auth": {
+        "scheme": "hmac",
+        "secret_ref": "env:MA2H_CALLBACK_SECRET"
+      }
     }
   }
 }

@@ -29,6 +29,10 @@ export interface ResolveInput {
   resolved_at: string;
   resolution_id: string;
   value?: string | JsonObject;
+  /** §6 (v0.6): true iff `value` is outside the ask's effective `options[].value`. HUB-COMPUTED —
+   * the caller passes what `isEditedAnswer` returned, never what a resolver claimed. Omitted when
+   * false, matching the schema default. */
+  edited?: boolean;
   comment?: string;
   /** Task resolutions only (v0.5, spec §6/§8.8): the final checklist state. */
   checklist?: { text: string; done: boolean }[];
@@ -50,6 +54,7 @@ export function applyResolution(record: MessageRecord, input: ResolveInput): Tra
     ...(input.defaulted !== undefined ? { defaulted: input.defaulted } : {}),
     response: {
       ...(input.value !== undefined ? { value: input.value } : {}),
+      ...(input.edited !== undefined ? { edited: input.edited } : {}),
       actor: input.actor,
       resolved_at: input.resolved_at,
       ...(input.comment !== undefined ? { comment: input.comment } : {}),
