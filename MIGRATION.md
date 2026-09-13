@@ -153,6 +153,11 @@ mode, not a capability.
   Wrap the value you wanted in a named property:
   `{"type":"object","properties":{"reason":{"type":"string"}},"required":["reason"]}`.
 
+> **These two apply even if you keep declaring `"ma2h_version": "0.5"`.** They are corrections, not
+> features: §6 has fixed the input answer as an object since v0.1, so a scalar schema was never
+> answerable under any version. You cannot avoid them by not upgrading your declared version — nor
+> would you want to, since the asks they reject cannot be answered.
+
 ### What you may adopt (opt-in)
 
 - **`permissions.allow_edit: true`** on a `select`/`confirm` lets the human answer with a value that
@@ -165,9 +170,11 @@ mode, not a capability.
   - `edited` is **`true` iff `value` ∉ `options[].value`**, computed by the Hub from the answer, so
     you can **recompute it yourself** from your own `options` and verify rather than trust. It is
     inside the §9.2 signature.
-  - **No feature detection needed.** A pre-0.6 Hub ignores `allow_edit` (§10 robustness) and enforces
-    membership, returning a listed value with `edited` absent — which is true. You are not lied to,
-    merely un-helped.
+  - **No feature detection needed, but you MUST declare `"ma2h_version": "0.6"` to use it.** Unlike
+    the two corrections above, `allow_edit` is new vocabulary, so a Hub honors it only at minor ≥ 6
+    and ignores it below. A pre-0.6 Hub likewise ignores it (§10 robustness), enforces membership,
+    and returns a listed value with `edited` absent — which is true. You are not lied to, merely
+    un-helped.
 
 ### What you can ignore
 

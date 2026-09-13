@@ -97,6 +97,21 @@ and makes it loud.
   never had semantics, so no sender ever meant anything by it. A Hub MUST NOT give it meaning.
   Pinned by **sv-073**.
 
+### Applicability by declared version — the split that makes this release work
+
+- **The two corrections apply at EVERY declared minor, 0.1–0.6.** They are not new vocabulary. §6 has
+  fixed the `input` answer as an object, and returned the chosen `value` with nothing identifying its
+  option, **since v0.1** — so a scalar schema was never answerable and a duplicate value was never
+  unambiguous *under any version*. v0.6 writes down rules that were always implied.
+- **Applying them only to 0.6-declaring envelopes would make the release useless in practice**, since
+  a sender has no reason to raise its declared minor for a correction it does not know about — the
+  broken asks would keep arriving unchanged.
+- **`allow_edit` is the opposite and IS gated**: new field, new meaning, honored only at minor ≥ 6 and
+  ignored below (§10). Acting on it at 0.5 would grant semantics to a sender that does not claim to
+  speak them — the defect §4 guards against for `to`.
+- The principle, now stated in §5.2: **a declared version scopes what a sender may ASK FOR, never what
+  a Hub may refuse as malformed.** Obligation **dp-029**.
+
 ### Compatibility
 
 - **Breaking, narrowly: the two `ask` fixes only.** They reject submits a 0.5 Hub accepted — and in

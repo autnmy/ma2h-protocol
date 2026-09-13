@@ -98,6 +98,13 @@ implementation is done when each MUST below holds **and** the vectors pass.
   `response.edited` yourself from the membership test (`true` iff `value` ∉ `options[].value`); it is
   Hub-computed, and a resolver-supplied `edited` MUST be ignored. Always `false` for `mode=input`.
   `allow_edit` does **not** relax `default_on_expire`, which stays a member of `options[].value`.
+  **Apply (a) and (b) at EVERY declared minor, including 0.3/0.4/0.5 — not only 0.6.** They are
+  corrections, not vocabulary: §6 has fixed the input answer as an object and returned a bare `value`
+  since v0.1, so those asks were never answerable or unambiguous under any version. Gating them on
+  0.6 makes the fix unreachable, since a sender has no reason to raise its minor for a correction it
+  does not know about. **(c) is the opposite — `allow_edit` IS gated**: honor it only at minor ≥ 6,
+  ignore it below (§10). A declared version scopes what a sender may ASK FOR, never what you may
+  refuse as malformed. Obligation **dp-029**.
   The reference exports `duplicateOptionValue`, `unanswerableInputSchema` and `isEditedAnswer` —
   discharge **dp-026**/**dp-027**/**dp-028** against those rather than re-deriving them. Note
   `permissions.allow_accept` was removed in v0.6: ignore it if a sender still carries it (§10
