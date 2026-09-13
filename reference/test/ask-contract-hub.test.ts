@@ -192,13 +192,34 @@ test("dp-028: a confirm with OMITTED options measures against the synthesized ap
   assert.notEqual(detail(hub, second.id)?.edited, true);
 });
 
-test("dp-029: allow_edit is STRIPPED below minor 6, so the exemption cannot be obtained at 0.5", () => {
+test("dp-029: allow_edit buys nothing at 0.5 — the gate reads the STORED version", () => {
   const hub = newHub();
-  const { id } = hub.submit(ask({ mode: "select", options: SHIP_HOLD, permissions: { allow_edit: true } }, "0.5"));
-  // Accepted (robustness — an unknown field is ignored, not rejected)...
+  const envelope = ask({ mode: "select", options: SHIP_HOLD, permissions: { allow_edit: true } }, "0.5");
+  const { id } = hub.submit(envelope);
+  // Accepted (robustness — a field the declared version does not have is ignored, not rejected)...
   assert.equal(hub.get(id, "deploybot/dev-team")?.status, "open");
-  // ...but it bought nothing: membership is still enforced.
+  // ...but it bought nothing: membership is still enforced at resolve.
   assert.throws(() => resolveWith(hub, id, "something else entirely"), isCode("invalid_field"));
+});
+
+test("dp-029: the envelope is stored VERBATIM — the gate must not rewrite what the sender said", () => {
+  // §5.2 forbids implementing the gate by stripping. Two reasons, and this pins the mechanism that
+  // avoids both: a stripping Hub reaches only messages accepted AFTER it upgraded (every ask already
+  // stored keeps the field), and it mutates the payload §8.1 hashes, so a byte-identical retry of a
+  // pre-upgrade ask answers 409 instead of recovering the original ack.
+  const hub = newHub();
+  const envelope = ask({ mode: "select", options: SHIP_HOLD, permissions: { allow_edit: true } }, "0.5");
+  const { id } = hub.submit(envelope);
+
+  const stored = hub.get(id, "deploybot/dev-team");
+  const request = (stored?.request ?? (stored as { message?: { request?: unknown } } | null)?.message?.request) as
+    | { permissions?: { allow_edit?: unknown } }
+    | undefined;
+  assert.equal(
+    request?.permissions?.allow_edit,
+    true,
+    "the field survives storage untouched — only its EFFECT is gated",
+  );
 });
 
 test("dp-028: allow_edit does NOT relax default_on_expire — that is the agent's fallback, not a human answer", () => {

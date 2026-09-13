@@ -701,14 +701,14 @@ export class Hub {
         const why = unanswerableInputSchema(message.request.schema);
         if (why !== null) throw new HubError("invalid_field", `${why} (§5.2)`);
       }
-      // `allow_edit` is the one v0.6 field that IS gated (§5.2). Below minor 6 it is STRIPPED rather
-      // than rejected, so §10 robustness holds and the ask behaves exactly as a pre-0.6 one.
-      // Stripping rather than ignoring-in-place matters: `validateAnswerValue` reads `allow_edit`
-      // off the STORED message at resolve time, and a `true` left in place would quietly grant the
-      // exemption on a version that never declared it.
-      if ((minor === null || minor < 6) && message.request.permissions?.allow_edit !== undefined) {
-        delete (message.request.permissions as Record<string, unknown>).allow_edit;
-      }
+      // `allow_edit` is the one v0.6 field that IS gated (§5.2) — and the gate is deliberately NOT
+      // here. Nothing is stripped: the envelope is stored exactly as submitted, and the version is
+      // read where the field is ACTED on (`allowsFreeFormAnswer`, below).
+      //
+      // §5.2 now requires that, because the stripping implementation this once had is wrong twice:
+      // it reaches only messages accepted after the change (every ask already stored keeps the
+      // field, since pre-0.6 schemas took it as a known boolean), and it mutates the payload §8.1
+      // computes the dedup key over, so a byte-identical retry of a pre-upgrade ask answers 409.
     }
 
     const v =
@@ -1338,6 +1338,22 @@ export class Hub {
    * VALIDATES against the ask's `request.schema` — otherwise a resolver could emit a value that
    * violates the sender's contract and the Hub would sign it into a terminal Response.
    */
+  /**
+   * May this ask be answered OFF-MENU (spec §5.2, v0.6)? `permissions.allow_edit` is true AND the
+   * envelope declared minor >= 6 — BOTH halves, read from the stored envelope at the moment the
+   * exemption would apply.
+   *
+   * §5.2 requires the gate live here rather than at submit: removing the field from the envelope
+   * reaches only messages accepted after the change, and mutates what §8.1 hashes. `=== true` is
+   * strict because the stored envelope is agent-authored JSON and a merely truthy value must not
+   * unlock an answer this Hub would otherwise reject.
+   */
+  private static allowsFreeFormAnswer(message: AskMessage): boolean {
+    if (message.request.permissions?.allow_edit !== true) return false;
+    const minor = Hub.minorOf(message);
+    return minor !== null && minor >= 6;
+  }
+
   private validateAnswerValue(message: AskMessage, value: string | JsonObject | undefined): void {
     if (value === undefined) {
       throw new HubError("invalid_field", "resolution `answered` requires `value` (§8.8)");
@@ -1366,10 +1382,9 @@ export class Hub {
     if (typeof value !== "string") {
       throw new HubError("invalid_field", `value must be one of [${options.join(", ")}] (§5.2/§8.8)`);
     }
-    // §5.2 (v0.6): membership is the rule, `allow_edit` is the exemption. The flag reaches this
-    // point only on a message that declared minor >= 6 — submit strips it below that — so a 0.5
-    // sender cannot obtain the exemption by setting a field its version does not have.
-    if (!options.includes(value) && message.request.permissions?.allow_edit !== true) {
+    // §5.2 (v0.6): membership is the rule, `allow_edit` is the exemption — and the version is
+    // checked HERE, on the stored envelope, rather than by having stripped the field at submit.
+    if (!options.includes(value) && !Hub.allowsFreeFormAnswer(message)) {
       throw new HubError("invalid_field", `value must be one of [${options.join(", ")}] (§5.2/§8.8)`);
     }
   }

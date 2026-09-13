@@ -72,6 +72,12 @@ and makes it loud.
   elsewhere. Before v0.6 a human whose real answer was unlisted had to pick a wrong option (silently
   corrupting the agent's input) or `decline` (discarding the decision entirely). Both failures were
   silent on both sides.
+- **The gate belongs where the field is ACTED on, and §5.2 now says so.** "A Hub MUST ignore it
+  below minor 6" admits two readings, and they are not equivalent. Removing the field from the
+  submitted envelope reaches only messages accepted after the change — every ask already stored keeps
+  it, since pre-0.6 schemas took it as a known boolean — and it mutates the payload §8.1 hashes, so a
+  byte-identical retry of a pre-upgrade ask answers `409`. Both were observed in a conformant Hub.
+  The reference now reads the stored envelope's minor at resolve and stores the payload verbatim.
 - **Version discipline, stated as two questions with different answers.** To USE `allow_edit` an
   agent MUST declare `"ma2h_version": "0.6"` — it is v0.6 vocabulary and a Hub honors it only at
   minor ≥ 6. But if the HUB is older than the agent, nothing breaks and no feature detection is

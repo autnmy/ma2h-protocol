@@ -100,6 +100,24 @@ implementation is done when each MUST below holds **and** the vectors pass.
   `response.edited` yourself from the membership test (`true` iff `value` ∉ `options[].value`); it is
   Hub-computed, and a resolver-supplied `edited` MUST be ignored. Always `false` for `mode=input`.
   `allow_edit` does **not** relax `default_on_expire`, which stays a member of `options[].value`.
+  **Where to put the (c) gate: at the point of USE, not by stripping at submit.** The obvious
+  implementation — delete `allow_edit` from the envelope when the declared minor is below 6 — fails
+  twice, and both failures were found in production code rather than by reading:
+
+  - **It only covers NEW submits.** Every ask already in the store keeps whatever it was given, and
+    pre-v0.6 schemas accepted `allow_edit` as a known boolean. So the moment you deploy, existing
+    0.5 asks carrying the field become answerable off-menu — the one outcome the gate exists to
+    prevent, on exactly the messages you cannot re-validate.
+  - **It breaks §8.1 idempotent replay.** Stripping mutates the envelope before the dedup lookup, so
+    a pre-upgrade ask's byte-identical retry hashes differently and gets `409` — unrecoverably, since
+    the stored envelope is rehashed unstripped. That is precisely the outcome the retry recipe exists
+    to prevent.
+
+  Reading the stored envelope's own declared minor at RESOLVE fixes both: every ask is judged by the
+  version it actually declared, whenever it was accepted, and the submitted payload stays byte-for-byte
+  what the agent sent. One mechanism, no mutation. The general rule: **version-gate a field where you
+  ACT on it, never by rewriting what the sender said.**
+
   **Apply (a) and (b) at EVERY declared minor, including 0.3/0.4/0.5 — not only 0.6.** They are
   corrections, not vocabulary: §6 has fixed the input answer as an object and returned a bare `value`
   since v0.1, so those asks were never answerable or unambiguous under any version. Gating them on
