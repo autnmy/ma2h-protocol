@@ -1,0 +1,27 @@
+{
+  "id": "sv-067-input-schema-scalar-invalid",
+  "class": "schema-validation",
+  "description": "A `mode=input` ask whose `schema` describes a STRING. \u00a76 fixes the input answer as an object validating against `schema`, so no valid answer exists \u2014 the ask is unanswerable the instant it is accepted. v0.5 accepted this (the field constrained only the JSON container) and one was observed in production; v0.6 rejects it at submit, where the AGENT can see and fix it.",
+  "ref": "spec \u00a75.2 (v0.6)",
+  "target": "v0.6/message.schema.json",
+  "expect": "invalid",
+  "input": {
+    "ma2h_version": "0.6",
+    "type": "ask",
+    "created_at": "2026-09-13T10:00:00Z",
+    "agent": {
+      "id": "deploybot/dev-team",
+      "run_id": "run_01H",
+      "runtime": "cli"
+    },
+    "title": "Ship or hold?",
+    "idempotency_key": "idem-01",
+    "request": {
+      "mode": "input",
+      "schema": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

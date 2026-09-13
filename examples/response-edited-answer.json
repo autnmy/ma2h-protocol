@@ -1,0 +1,18 @@
+{
+  "ma2h_version": "0.6",
+  "in_reply_to": "msg_01HZXEDIT1MIGRATION88",
+  "resolution_id": "res_01HZXEDIT1ANSWER",
+  "agent": {
+    "id": "deploybot/dev-team",
+    "run_id": "run_01HZXEDIT1"
+  },
+  "resolution": "answered",
+  "response": {
+    "value": "hold, but only until the orders-table backfill finishes tonight",
+    "edited": true,
+    "actor": "human:alice",
+    "resolved_at": "2026-09-13T17:06:42Z",
+    "comment": "Shipping is fine once the backfill lands \u2014 don't wait on a PR review."
+  },
+  "defaulted": false
+}

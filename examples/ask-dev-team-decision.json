@@ -8,30 +8,55 @@
     "runtime": "github-actions",
     "project": "web-app"
   },
-  "title": "CI is green on the candidate build — ship to production, or hold?",
+  "title": "CI is green on the candidate build \u2014 ship to production, or hold?",
   "priority": "high",
-  "tags": ["decision", "release", "web-app"],
+  "tags": [
+    "decision",
+    "release",
+    "web-app"
+  ],
   "idempotency_key": "release-142-ship-decision",
   "expires_at": "2026-06-05T15:22:08Z",
   "body": "The candidate build for #142 passed all checks. Ship it to production now, hold for a human review, or abort?",
   "state": {
     "sealed": "v1.aead.8f2c...redacted...",
-    "note": "Opaque to the Hub; AEAD-sealed by the agent with a key the Hub never sees (spec §9.3)."
+    "note": "Opaque to the Hub; AEAD-sealed by the agent with a key the Hub never sees (spec \u00a79.3)."
   },
   "request": {
     "mode": "select",
     "options": [
-      { "value": "ship", "label": "Ship to prod now", "description": "Promote the candidate build to production immediately." },
-      { "value": "hold", "label": "Hold for review", "description": "Wait for a human to review before deploying." },
-      { "value": "abort", "label": "Abort the release", "description": "Revert and close." }
+      {
+        "value": "ship",
+        "label": "Ship to prod now",
+        "description": "Promote the candidate build to production immediately."
+      },
+      {
+        "value": "hold",
+        "label": "Hold for review",
+        "description": "Wait for a human to review before deploying."
+      },
+      {
+        "value": "abort",
+        "label": "Abort the release",
+        "description": "Revert and close."
+      }
     ],
-    "permissions": { "allow_accept": true, "allow_edit": false, "allow_respond": true, "allow_ignore": false },
+    "permissions": {
+      "allow_edit": false,
+      "allow_respond": true,
+      "allow_ignore": false
+    },
     "default_on_expire": "hold",
-    "allowed_resolvers": ["human:alice"],
+    "allowed_resolvers": [
+      "human:alice"
+    ],
     "callback": {
       "mode": "push",
       "url": "https://deploybot.example/ma2h/resume",
-      "auth": { "scheme": "hmac", "secret_ref": "env:MA2H_CALLBACK_SECRET" }
+      "auth": {
+        "scheme": "hmac",
+        "secret_ref": "env:MA2H_CALLBACK_SECRET"
+      }
     }
   }
 }

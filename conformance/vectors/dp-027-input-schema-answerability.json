@@ -1,0 +1,7 @@
+{
+  "id": "dp-027-input-schema-answerability",
+  "class": "downstream-proof",
+  "description": "A `mode=input` `request.schema` must describe the ANSWER OBJECT (\u00a75.2, v0.6). The schema-validation half is pinned by sv-067/sv-068; this obligation pins the Hub's submit-time REFUSAL and, critically, that the refusal happens at submit rather than at resolve.",
+  "ref": "spec \u00a75.2, \u00a76, \u00a78.1 (v0.6)",
+  "obligation": "Submit three `mode=input` asks: (a) `schema: {\"type\":\"string\",\"minLength\":1}`; (b) `schema: {\"type\":\"object\"}` with no `properties`; (c) `schema: {\"type\":\"object\",\"properties\":{\"reason\":{\"type\":\"string\"}},\"required\":[\"reason\"]}`. The Hub MUST reject (a) and (b) `422` and MUST NOT create either message; it MUST accept (c). The error for (a) and (b) MUST name `request.schema` so the agent can fix it. A Hub MUST NOT instead accept (a)/(b) and defer the failure to `POST /v1/messages/{id}/resolve` \u2014 that is the v0.5 behavior this obligation exists to forbid: it strands the ask permanently OPEN in a human's inbox, reports the defect only to the human (who cannot change the agent's schema and has no channel to say what is wrong), and leaves the agent waiting on an answer that can never arrive. Verify the negative directly: after (a) is refused, no message with that `idempotency_key` is readable via `GET /v1/messages`."
+}

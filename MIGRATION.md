@@ -128,3 +128,68 @@ For a local experiment already on v0.4: bump `ma2h_version` to `"0.5"` when you 
 leg, point `$ref`s at `schema/v0.5/`, and re-pull `@ma2h/reference`. If you only use the
 agent→human/human→agent legs, you can stay on `"0.4"` against a 0.5 Hub — the same guarantee as every
 MINOR before it.
+
+## v0.5 → v0.6 (the `ask` contract)
+
+v0.6 is a **version bump, not a rename**, and unlike every bump before it, it is **corrective rather
+than additive**. It adds no leg. It repairs [§5.2 and §6](spec/v0.6.md) — the `ask` request block and
+its Response — and changes nothing else. Two of its four changes **narrow** what a Hub accepts, which
+is the reason for the bump: a submit v0.5 accepted may now be rejected.
+
+**In both narrowing cases, the ask v0.5 accepted was already broken.** What you lose is a failure
+mode, not a capability.
+
+### What you must change
+
+- **`options[].value` must be unique.** If you build a `select` or `confirm` whose options can carry
+  the same `value` twice, fix it — a Hub now rejects the submit `422`. You almost certainly already
+  satisfy this: an agent offering two genuinely different choices already has two different values in
+  mind. `label` and `description` may still duplicate freely.
+- **`request.schema` (mode=input) must describe the answer object.** It needs `type: "object"` if
+  `type` is present, and **at least one entry under `properties`**. A scalar schema
+  (`{"type":"string"}`) or a bare `{"type":"object"}` is now rejected `422` at submit. If you have
+  been sending either, your asks were never answerable — §6 fixes the `input` answer as an object,
+  so no answer could ever validate — and the failure was silent to you and terminal for the human.
+  Wrap the value you wanted in a named property:
+  `{"type":"object","properties":{"reason":{"type":"string"}},"required":["reason"]}`.
+
+### What you may adopt (opt-in)
+
+- **`permissions.allow_edit: true`** on a `select`/`confirm` lets the human answer with a value that
+  is **not** one of your options — the fix for "none of these fit". The Response then carries that
+  value verbatim with **`edited: true`**. Default is `false`, i.e. exactly the pre-v0.6 rule, so
+  nothing changes unless you ask for it.
+  - **If you set it, you MUST handle an off-menu `value`** — you invited one — and you MUST treat it
+    as untrusted human text (§9.6): it is the first `value` in MA2H's history that you did not author
+    yourself.
+  - `edited` is **`true` iff `value` ∉ `options[].value`**, computed by the Hub from the answer, so
+    you can **recompute it yourself** from your own `options` and verify rather than trust. It is
+    inside the §9.2 signature.
+  - **No feature detection needed.** A pre-0.6 Hub ignores `allow_edit` (§10 robustness) and enforces
+    membership, returning a listed value with `edited` absent — which is true. You are not lied to,
+    merely un-helped.
+
+### What you can ignore
+
+- **`permissions.allow_accept` is removed from the spec surface.** It never had semantics in any
+  version. If your code still sends it, **nothing breaks**: `permissions` has no
+  `additionalProperties: false` and §10 robustness has the Hub ignore unknown fields. Delete it at
+  your leisure.
+
+### Snapshot
+
+- `schema/v0.6/` is the `schema/v0.5/` schemas re-`$id`'d to the v0.6 path, with changes confined to
+  `message.schema.json`'s `request` block (`options.uniqueItems` + description, the `schema`
+  constraint, the rewritten `permissions`), `response.schema.json`'s `edited` description, and
+  `resolve-request.schema.json`'s `value` description. `spec/v0.5.md` + `schema/v0.5/` remain on disk
+  as the v0.5 snapshot.
+- Every other leg — `notify`, `task`, directives, acks, presence, sessions, the inter-agent leg — is
+  **byte-for-byte unchanged**, as is every signature context. A 0.6 Hub accepts 0.3/0.4/0.5 envelopes
+  and signs at the version carried; the push-parity threshold stays at minor 3.
+- **Hub implementers:** two of the new rules are not schema-expressible and must be enforced in code
+  — `options[].value` uniqueness (JSON Schema has no uniqueness-by-sub-property keyword) and the
+  `allow_edit` membership exemption with its `edited` stamp. The reference exports
+  `duplicateOptionValue`, `unanswerableInputSchema`, and `isEditedAnswer` so you can discharge
+  **dp-026**/**dp-027**/**dp-028** against its reading rather than a re-derived one. Note that vector
+  **sv-071** is deliberately *valid*: it pins where the schema's reach ends, so a green vector run is
+  never mistaken for proof that uniqueness is enforced.

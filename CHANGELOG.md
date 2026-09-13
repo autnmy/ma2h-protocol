@@ -2,6 +2,121 @@
 
 All notable changes to the MA2H (Multi-agent to Human Protocol) specification.
 
+## 0.6 (2026-09-13) — Draft
+
+**The `ask` contract.** v0.6 adds no leg. Every version before it extended MA2H outward; this one
+turns inward and repairs §5.2/§6 — the block where an agent hands a human a set of choices and gets an
+answer back. Four defects in one cluster, two of them mistakes and two of them fields that shipped
+with no semantics. Every other leg is byte-for-byte unchanged, as is every signature context.
+
+The through-line: all four failed **silently**, and in the same direction — toward the human, who
+cannot fix any of them, and away from the agent, who can. Every change below moves a failure earlier
+and makes it loud.
+
+### Fixed (§5.2 — `options[].value` MUST be unique)
+
+- **A duplicate `value` made the answer ambiguous at the protocol level.** §6 returns the chosen
+  `value` and *nothing* identifying which entry produced it. So an agent offering
+  `[{"value":"approve","label":"Approve and deploy"}, {"value":"approve","label":"Approve but hold"}]`
+  received `"approve"` and could not recover which the human chose — unrecoverable at either end,
+  because the distinguishing information was never on the wire.
+- A Hub MUST now reject such a submit (`422`). `label` and `description` are presentation and stay
+  unconstrained: two choices MAY read alike to a human and mean different things to the agent, but
+  then `value` must still discriminate.
+- **Hub-enforced, not schema-enforced, and the spec says so.** JSON Schema has no
+  uniqueness-by-sub-property keyword — `uniqueItems` compares whole array items and cannot see a
+  collision between two options with the same `value` and different `label`s. `message.schema.json`
+  sets `uniqueItems` (cheap, worth having, catches wholly identical entries) while the real rule
+  lives in §5.2 and **dp-026**. Vector **sv-071** is deliberately marked *valid* to pin exactly where
+  the schema's reach ends, so a green vector run is never mistaken for proof the rule is enforced.
+- Downstream cost this was already imposing: conformant clients had to track a human's selection by
+  array **index** rather than by value, with defensive comments explaining why, because the protocol
+  would not promise uniqueness.
+
+### Fixed (§5.2 — `request.schema` describes the ANSWER OBJECT)
+
+- **`request.schema` constrained the JSON container, not the contract.** It was typed
+  `{"type": "object"}`, which says only *"this field is a JSON object"* — never that the schema
+  describes one. So `{"type": "string", "minLength": 1}` was wire-valid, while §6 fixes the `input`
+  answer as *an object validating against `schema`*. No object can satisfy a scalar schema: the ask
+  was **unanswerable the instant it was accepted**, and every resolve attempt failed for the rest of
+  its life. **Observed in production**, not hypothetical — found only by auditing stored messages by
+  hand, because nothing anywhere reported it.
+- `schema` MUST now declare `type: "object"` if `type` is present, and MUST define at least one entry
+  under `properties`. A property-less schema is satisfiable (`{}` validates) but presents the human
+  with an input ask containing nothing to fill in. Both are rejected `422` at submit.
+- **The rule the whole release follows:** reject at submit, where the **agent** can see and fix it,
+  rather than at resolve, where only the **human** sees it — and the human can neither change the
+  agent's schema nor report what is wrong. Vectors **sv-067**/**sv-068**/**sv-069**, obligation
+  **dp-027**.
+
+### Added (§5.2, §6 — `permissions.allow_edit` and `response.edited` are DEFINED)
+
+- Both fields shipped in v0.1–v0.5 on the wire, in both schemas, and — for `edited` — inside the §9.2
+  detached signature, with **no normative text and no schema description** in any version, in objects
+  where every neighbouring field had both. They were a half-finished design, and the thing they
+  reached for is a real and frequent gap: **a `select` whose options do not fit.**
+- **`allow_edit: true`** (option-based modes only) permits the human to answer with a `value` that is
+  **not** a member of `options[].value` — a free-form answer offered *alongside* the listed options.
+  Default **`false`**, which is the pre-v0.6 rule exactly.
+- **`edited`** is **`true` if and only if `value` is not a member of `options[].value`** — computed by
+  the Hub from the answer itself, never resolver-supplied and never inferred from which affordance
+  the human used. Deriving it from **set membership** is what makes it trustworthy: it becomes a
+  property of the answer that the agent can **independently recompute** from `request.options` +
+  `value`, so an agent verifies it rather than taking a Hub's word for it, and two resolutions with
+  the same value against the same options always agree.
+- **An agent that opts in MUST handle an off-menu answer** — it invited one. An agent that does not
+  opt in may keep treating `value` as a member of `options[].value` without checking. That asymmetry
+  is what makes this purely additive.
+- **Why `comment` did not already solve this.** `comment` is an annotation on a *chosen option*: the
+  agent still reads `value`, still believes the human picked it, and has no signal telling it to look
+  elsewhere. Before v0.6 a human whose real answer was unlisted had to pick a wrong option (silently
+  corrupting the agent's input) or `decline` (discarding the decision entirely). Both failures were
+  silent on both sides.
+- **No version gate, deliberately.** Unlike the v0.5 `to` field, `allow_edit` needs no declared minor
+  and no feature detection, because *ignoring it is a correct outcome*: a pre-0.6 Hub treats it as an
+  unknown field (§10 robustness), enforces membership, and returns a listed value with `edited`
+  absent — which is true. The agent is not lied to, merely un-helped.
+- **Security (§9.6).** An off-menu `value` is human free text, where every `value` before it was a
+  string the agent itself authored — a change in kind, not degree. An agent setting `allow_edit` MUST
+  treat it as untrusted, as it would `body` or `comment`. `edited` is signature-bound, so the signal
+  telling the agent *which* answers need that care cannot be stripped in transit.
+- Vectors **sv-072**/**sv-074**, obligation **dp-028**, worked example
+  [`examples/ask-select-allow-edit.json`](examples/ask-select-allow-edit.json) +
+  [`examples/response-edited-answer.json`](examples/response-edited-answer.json).
+
+### Removed (§5.2 — `permissions.allow_accept`)
+
+- Undefined in every version since v0.1: no normative text, no schema description, no implementation,
+  and — unlike `allow_edit` — no Response-side anchor, so nothing can depend on it. Inventing a
+  meaning would have added core surface for a need no one has stated; governance's own review
+  criterion is minimalism.
+- **The removal is spec-surface only and behaviorally inert.** `permissions` carries no
+  `additionalProperties: false`, so a pre-0.6 sender still emitting the field submits successfully
+  and §10 robustness has the Hub ignore it. Rejecting would have been gratuitous breakage — the field
+  never had semantics, so no sender ever meant anything by it. A Hub MUST NOT give it meaning.
+  Pinned by **sv-073**.
+
+### Compatibility
+
+- **Breaking, narrowly: the two `ask` fixes only.** They reject submits a 0.5 Hub accepted — and in
+  both cases the ask so accepted was already broken, producing an ambiguous answer or no possible
+  answer at all. What is lost is a failure mode, not a capability. That is why this is a minor bump
+  rather than an amendment to the published v0.5.
+- Everything else is unchanged: every `notify`, `task`, directive, ack, presence, session, and
+  inter-agent behavior is byte-for-byte identical, and no signature context moves. A 0.6 Hub stays
+  backward-compatible with 0.3/0.4/0.5 envelopes on every other leg. The push-parity threshold stays
+  anchored at the signature-break minor (**3**).
+- New `spec/v0.6.md` + `schema/v0.6/` (full snapshot; the v0.5 schemas re-`$id`'d, with changes
+  confined to `message.schema.json`'s `request` block, `response.schema.json`'s `edited`, and
+  `resolve-request.schema.json`'s `value` description).
+- Reference: `MA2H_VERSION` → `"0.6"`; a third schema registry (`validateV06`/`validateV06Def`); the
+  vector runner's version routing generalized to a snapshot table rather than a hard-coded `v0.5/`
+  branch; and three exported helpers for the rules a schema cannot express —
+  `duplicateOptionValue`, `unanswerableInputSchema`, `isEditedAnswer` — so implementations discharge
+  dp-026/027/028 against the reference's reading rather than a re-derived one. `wireVersionFor` is
+  deliberately untouched: nothing in v0.6 raises the minor an envelope *requires*.
+
 ## 0.5 (2026-08-10) — Draft
 
 ### Added (§16.4 — per-account listing: a deployment ceiling, and a per-caller `scope`) — SCP #62

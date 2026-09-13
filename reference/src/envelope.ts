@@ -67,6 +67,22 @@ for (const file of SCHEMA_FILES_V05) {
   ajvV05.addSchema(JSON.parse(readFileSync(new URL(file, SCHEMA_DIR_V05), "utf8")));
 }
 
+// v0.6 snapshot (spec/v0.6.md): a THIRD registry, added for the same reason the v0.5 one was —
+// v0.6-targeted vectors validate against schema/v0.6/ while every v0.4 and v0.5 validator above
+// stays byte-identical. v0.6 is a corrective release confined to the `ask` contract (§5.2/§6):
+// `options` gains uniqueItems, `request.schema` must describe an answer object, `permissions`
+// drops `allow_accept` and defines `allow_edit`, and `response.edited` gains its semantics. Every
+// other schema in the snapshot is the v0.5 file re-`$id`'d.
+const SCHEMA_DIR_V06 = new URL("../../schema/v0.6/", import.meta.url);
+const SCHEMA_FILES_V06 = SCHEMA_FILES_V05;
+const BASE_V06 = "https://ma2h.org/schema/v0.6/";
+
+const ajvV06: AjvLike = new AjvCtor({ strict: false, allErrors: true });
+addFormats(ajvV06);
+for (const file of SCHEMA_FILES_V06) {
+  ajvV06.addSchema(JSON.parse(readFileSync(new URL(file, SCHEMA_DIR_V06), "utf8")));
+}
+
 export type ValidationResult = { valid: true } | { valid: false; errors: string[] };
 
 function runValidator(schemaId: string, data: unknown): ValidationResult {
@@ -129,6 +145,95 @@ export function validateV05Def(schemaFile: string, def: string, data: unknown): 
   const validate = ajvV05.getSchema(ref);
   if (!validate) throw new Error(`schema $def not loaded: ${ref}`);
   return resultFrom(validate, data);
+}
+
+/**
+ * Validate against a v0.6 schema by filename (e.g. "message.schema.json").
+ * Backs conformance vectors whose `target` carries the "v0.6/" prefix.
+ */
+export function validateV06(schemaFile: string, data: unknown): ValidationResult {
+  if (!(SCHEMA_FILES_V06 as readonly string[]).includes(schemaFile)) {
+    throw new Error(`unknown v0.6 schema: ${schemaFile}`);
+  }
+  const validate = ajvV06.getSchema(BASE_V06 + schemaFile);
+  if (!validate) throw new Error(`schema not loaded: ${BASE_V06 + schemaFile}`);
+  return resultFrom(validate, data);
+}
+
+/** Validate against a `$def` inside a v0.6 schema — the v0.6 twin of `validateV05Def`. */
+export function validateV06Def(schemaFile: string, def: string, data: unknown): ValidationResult {
+  const ref = `${BASE_V06}${schemaFile}#/$defs/${def}`;
+  const validate = ajvV06.getSchema(ref);
+  if (!validate) throw new Error(`schema $def not loaded: ${ref}`);
+  return resultFrom(validate, data);
+}
+
+/**
+ * The two v0.6 `ask` rules a JSON Schema cannot express, so a Hub must enforce them itself
+ * (spec §5.2, §12 class-3). Exported so an implementation discharges the obligation with the
+ * reference's reading of it rather than a re-derived one.
+ */
+
+/**
+ * `options[].value` MUST be unique within `options` (spec §5.2, v0.6). JSON Schema has no
+ * uniqueness-by-sub-property keyword — `uniqueItems` compares whole items, so it cannot see that
+ * two options with the same `value` and different `label`s collide. Returns the first duplicated
+ * value, or null when the array is unique (or absent/not an array, which is the schema's business).
+ *
+ * Why it matters: §6 returns the chosen `value` and nothing identifying WHICH entry produced it, so
+ * a duplicate makes the Response ambiguous at the protocol level — unrecoverable at either end,
+ * because the distinguishing information was never on the wire.
+ */
+export function duplicateOptionValue(options: unknown): string | null {
+  if (!Array.isArray(options)) return null;
+  const seen = new Set<string>();
+  for (const o of options) {
+    if (typeof o !== "object" || o === null) continue;
+    const v = (o as { value?: unknown }).value;
+    if (typeof v !== "string") continue;
+    if (seen.has(v)) return v;
+    seen.add(v);
+  }
+  return null;
+}
+
+/**
+ * A `mode=input` `request.schema` MUST describe the ANSWER OBJECT (spec §5.2/§6, v0.6): `type`
+ * "object" if present, and at least one `properties` entry. Returns a reason string when the schema
+ * is unanswerable, or null when it is fine.
+ *
+ * Both failures are determinable at SUBMIT time, which is the whole point of checking here: a
+ * scalar schema admits no object and so no §6-valid answer, and a property-less one presents the
+ * human with nothing to fill in. Deferring either to resolve time reports it only to the human, who
+ * cannot fix the agent's schema and has no channel to say what is wrong.
+ */
+export function unanswerableInputSchema(schema: unknown): string | null {
+  if (typeof schema !== "object" || schema === null || Array.isArray(schema)) {
+    return "request.schema must be a JSON object";
+  }
+  const s = schema as { type?: unknown; properties?: unknown };
+  if (typeof s.type === "string" && s.type !== "object") {
+    return `request.schema must describe an object (got type "${s.type}"): the answer to an input ask is an object (spec §6)`;
+  }
+  const props = s.properties;
+  if (typeof props !== "object" || props === null || Array.isArray(props) || Object.keys(props).length === 0) {
+    return "request.schema must define at least one entry under `properties` — a schema with no properties renders no fields and cannot be answered";
+  }
+  return null;
+}
+
+/**
+ * `response.edited` (spec §6, v0.6): true IFF `value` is not a member of `options[].value`. Computed
+ * from the answer itself — never from which affordance the human used — so it is a property of the
+ * answer that the agent can independently recompute, and two resolutions carrying the same value
+ * against the same options always agree. Always false for a non-string value (mode=input).
+ */
+export function isEditedAnswer(options: unknown, value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  if (!Array.isArray(options)) return false;
+  return !options.some(
+    (o) => typeof o === "object" && o !== null && (o as { value?: unknown }).value === value,
+  );
 }
 
 /**

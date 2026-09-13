@@ -1,4 +1,4 @@
-# MA2H Conformance Vectors (v0.5)
+# MA2H Conformance Vectors (v0.6)
 
 These vectors let an implementer prove conformance. **Read this first** — it states what the vectors can
 and cannot verify, so green ≠ false confidence (spec §12).
@@ -47,9 +47,9 @@ pnpm dlx ajv-cli@5 validate \
 or load all eight schemas into any Draft 2020-12 validator and check each vector's `input` against its
 `target`, asserting the declared `expect`.
 
-**Version-prefixed targets (v0.5).** A bare `target` (e.g. `message.schema.json`) validates against
-`schema/v0.4/`. A target prefixed `v0.5/` (e.g. `v0.5/inbound-message.schema.json`) validates against
-the `schema/v0.5/` snapshot — swap the `-s`/`-r` paths above accordingly (nine schemas in v0.5,
+**Version-prefixed targets.** A bare `target` (e.g. `message.schema.json`) validates against
+`schema/v0.4/`. A target prefixed with a version (e.g. `v0.5/inbound-message.schema.json`,
+`v0.6/message.schema.json`) validates against that version's snapshot — swap the `-s`/`-r` paths above accordingly (nine schemas in v0.5,
 including `session.schema.json`). The reference runner (`npm run vectors`) routes both automatically.
 The v0.5 **signature** obligations (the §9.8 `message`/`response`/`receipt` entry contexts, worked in
 [`examples/entry-signatures-v0.5.md`](../examples/entry-signatures-v0.5.md)) are pinned as the
@@ -218,3 +218,25 @@ parentheses are the numbered sub-obligations inside a `dp` vector's `obligation`
 | 0.4 session-less drain isolation (never receives the v0.5 entry kinds; webhook directives-only) | dp-020 (3), (4) |
 | v0.5 durability (un-acked entries of any kind; active leases; pending bounce obligations survive restart) | pa-002 (§3.1) |
 | Normative v0.5 spec text present and correctly scoped (grammar, opt-in gates, §9.8 discipline, §10 additivity, §13.4/§13.5 duties, §14.2 terminals, §15/§16 rules) | pa-002 (24 asserts) |
+
+## v0.6 coverage map — the `ask` contract
+
+v0.6 is corrective and its vectors are deliberately split across two classes, because the release's
+central finding is that **part of the `ask` contract is not schema-expressible at all**.
+
+| Rule (spec §5.2/§6) | Schema-validation | Downstream proof |
+|---|---|---|
+| `mode=input` `schema` describes the answer object | `sv-067` scalar → invalid · `sv-068` no `properties` → invalid · `sv-069` answer-object → valid | `dp-027` — the Hub REFUSES at submit and creates no message |
+| `options[].value` unique | `sv-070` identical entries → invalid (`uniqueItems`) · **`sv-071` same value, different labels → VALID** | `dp-026` — the Hub rejects `422`; `label`/`description` duplication does not |
+| `permissions.allow_edit` + `response.edited` | `sv-072` accepted · `sv-074` bad type → invalid | `dp-028` — membership enforcement, the exemption, the `edited` stamp, signature binding, `default_on_expire` unaffected |
+| `permissions.allow_accept` removed | `sv-073` still valid (ignored unknown field) | — |
+
+**Read `sv-071` carefully.** It is marked `valid` on purpose. JSON Schema has no
+uniqueness-by-sub-property keyword — `uniqueItems` compares whole array items, so two options sharing
+a `value` but differing in `label` are distinct items and validate cleanly, while the answer they
+produce is ambiguous. The vector records that boundary **inside the vector set**, so a green run is
+never mistaken for proof that uniqueness is enforced. The rule itself lives in `dp-026`.
+
+The reference exports `duplicateOptionValue`, `unanswerableInputSchema` and `isEditedAnswer`
+(`reference/src/envelope.ts`) so an implementation discharges `dp-026`/`dp-027`/`dp-028` against the
+reference's reading of these rules rather than a re-derived one.

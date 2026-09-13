@@ -1,0 +1,644 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.6/message.schema.json",
+  "title": "MA2H Message (v0.6)",
+  "description": "Agent->Hub message envelope. Discriminated on `type`; cross-type fields are forbidden per branch. `id` is Hub-assigned and is NOT an input. v0.5 adds the optional `to` (inter-agent addressing, spec \u00a74/S2 grammar: first `#` terminates the agent-id segment; the session segment matches `^sess_`) and `agent.session` (spec \u00a74.1, \u00a716).",
+  "type": "object",
+  "required": [
+    "ma2h_version",
+    "type",
+    "created_at",
+    "agent",
+    "title"
+  ],
+  "properties": {
+    "ma2h_version": {
+      "type": "string",
+      "pattern": "^0\\.(0|[1-9]\\d*)$"
+    },
+    "type": {
+      "enum": [
+        "notify",
+        "ask",
+        "task"
+      ]
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "agent": {
+      "$ref": "#/$defs/agent"
+    },
+    "to": {
+      "type": "string",
+      "pattern": "^agent:[^#]+(#sess_.+)?$",
+      "description": "Optional destination (v0.5, spec \u00a74): `agent:<id>` (principal-addressed) or `agent:<id>#<session>` (session-addressed). Absent = the human inbox, unchanged. `to: human:...` is invalid in 0.5. A `#`-bearing agent id is inexpressible here (its first `#` parses as the separator and the remainder must match `^sess_`). The Hub validates the destination at accept time (422 unknown_destination / 410 destination_gone, spec \u00a78.1/\u00a78.5)."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "body": {
+      "type": "string",
+      "contentMediaType": "text/markdown",
+      "description": "Human-readable Markdown detail. Untrusted: the Hub sanitizes to a no-raw-HTML profile before rendering (spec \u00a79.6). Length is capability-advertised via max_body_bytes, not constrained here."
+    },
+    "priority": {
+      "enum": [
+        "low",
+        "normal",
+        "high",
+        "urgent"
+      ],
+      "default": "normal"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "context": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/part"
+      }
+    },
+    "state": {
+      "type": "object",
+      "description": "Opaque, agent-owned, agent-integrity-sealed resume blob. Hub MUST NOT inspect or log.",
+      "additionalProperties": true
+    },
+    "client_ref": {
+      "type": "string",
+      "description": "Opaque correlation label. Never a dedup key. Not exposed to resolvers."
+    },
+    "idempotency_key": {
+      "type": "string",
+      "description": "Dedup key, scope (agent.id, idempotency_key). REQUIRED for ask/task."
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sensitive": {
+      "type": "boolean",
+      "description": "Message-level sensitivity; excludes value(s) from export/telemetry."
+    },
+    "request": {
+      "$ref": "#/$defs/request"
+    },
+    "action": {
+      "$ref": "#/$defs/action"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "ma2h_version": {
+            "pattern": "^0\\.([5-9]|[1-9]\\d+)$"
+          }
+        },
+        "required": [
+          "ma2h_version"
+        ]
+      },
+      "then": {
+        "properties": {
+          "request": {
+            "properties": {
+              "allowed_resolvers": {
+                "items": {
+                  "pattern": "^(human|system):.+$|^agent:[^#]+(#sess_.+)?$"
+                }
+              }
+            }
+          },
+          "action": {
+            "properties": {
+              "allowed_resolvers": {
+                "items": {
+                  "pattern": "^(human|system):.+$|^agent:[^#]+(#sess_.+)?$"
+                }
+              }
+            }
+          }
+        }
+      },
+      "$comment": ">= 0.5 envelopes: agent-form allowed_resolvers entries follow the \u00a74 address grammar (spec \u00a79.1 matching). Pre-0.5 envelopes keep the legacy pattern \u2014 hash-bearing principals stay valid for human-inbox traffic (unchanged-wire contract)."
+    },
+    {
+      "if": {
+        "anyOf": [
+          {
+            "required": [
+              "to"
+            ]
+          },
+          {
+            "required": [
+              "agent"
+            ],
+            "properties": {
+              "agent": {
+                "required": [
+                  "session"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "ma2h_version": {
+            "pattern": "^0\\.([5-9]|[1-9]\\d+)$",
+            "$comment": "see root $comment"
+          },
+          "agent": {
+            "properties": {
+              "id": {
+                "pattern": "^[^#]+$"
+              }
+            }
+          }
+        }
+      },
+      "$comment": "`to` and `agent.session` are v0.5 features: an envelope carrying either MUST declare minor >= 5, so the validator never approves a submission whose delivered form (the >= 0.5 inter-agent entry branch of inbound-message.schema.json) could not validate. The same conditional rejects a `#`-bearing agent.id on an addressed/session-bearing submit (spec \u00a74): the Hub would have to attest a `from` the first-#-splits grammar cannot represent \u2014 such principals cannot participate in the inter-agent leg (they also cannot register sessions or be addressed)."
+    }
+  ],
+  "oneOf": [
+    {
+      "title": "notify",
+      "properties": {
+        "type": {
+          "const": "notify"
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "request"
+            ]
+          },
+          {
+            "required": [
+              "action"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "title": "ask",
+      "properties": {
+        "type": {
+          "const": "ask"
+        }
+      },
+      "required": [
+        "type",
+        "request",
+        "idempotency_key"
+      ],
+      "not": {
+        "required": [
+          "action"
+        ]
+      }
+    },
+    {
+      "title": "task",
+      "properties": {
+        "type": {
+          "const": "task"
+        }
+      },
+      "required": [
+        "type",
+        "action",
+        "idempotency_key"
+      ],
+      "not": {
+        "required": [
+          "request"
+        ]
+      }
+    }
+  ],
+  "$defs": {
+    "agent": {
+      "type": "object",
+      "required": [
+        "id",
+        "run_id",
+        "runtime"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "runtime": {
+          "enum": [
+            "github-actions",
+            "cli",
+            "cloud",
+            "desktop",
+            "openclaw",
+            "other"
+          ]
+        },
+        "session": {
+          "type": "string",
+          "pattern": "^sess_.+$",
+          "description": "Optional registered session of the authenticated principal (v0.5, spec \u00a74.1/\u00a716). Foreign/unknown -> 422; own-but-terminal -> 410. When present, the Caller's mailbox for Response delivery is this session (spec \u00a76). Excluded (with run_id) from the \u00a78.1 idempotency identical-payload comparison."
+        },
+        "project": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "part": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "text"
+          ],
+          "properties": {
+            "kind": {
+              "const": "text"
+            },
+            "text": {
+              "type": "string"
+            },
+            "metadata": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "data"
+          ],
+          "properties": {
+            "kind": {
+              "const": "data"
+            },
+            "data": {
+              "type": "object"
+            },
+            "metadata": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "required": [
+            "kind",
+            "file"
+          ],
+          "properties": {
+            "kind": {
+              "const": "file"
+            },
+            "file": {
+              "type": "object",
+              "required": [
+                "uri"
+              ],
+              "properties": {
+                "uri": {
+                  "type": "string",
+                  "format": "uri"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "mime_type": {
+                  "type": "string"
+                }
+              }
+            },
+            "metadata": {
+              "type": "object"
+            }
+          }
+        }
+      ]
+    },
+    "responseOption": {
+      "type": "object",
+      "required": [
+        "value",
+        "label"
+      ],
+      "properties": {
+        "value": {
+          "type": "string",
+          "description": "The ANSWER payload for this choice \u2014 what \u00a76 returns verbatim as `response.value`. MUST be unique within `options` (spec \u00a75.2). Agent-authored, so an agent MAY treat it as known-safe UNLESS `permissions.allow_edit` is true, in which case `response.value` may be human free text (\u00a79.6)."
+        },
+        "label": {
+          "type": "string",
+          "description": "Human-facing text for this choice. Presentation only; never returned in the Response."
+        },
+        "description": {
+          "type": "string",
+          "description": "Optional longer human-facing explanation. Presentation only; never returned in the Response."
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "select",
+            "input",
+            "confirm"
+          ]
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/responseOption"
+          },
+          "uniqueItems": true,
+          "description": "The choices offered for select/confirm. `value` MUST be unique across the array (spec \u00a75.2): \u00a76 returns the chosen `value` and nothing identifying WHICH entry produced it, so a duplicate makes the answer ambiguous. JSON Schema has no uniqueness-by-sub-property keyword, so `uniqueItems` here catches only wholly identical entries \u2014 the value-uniqueness rule itself is a Hub obligation (422 at submit), pinned by a \u00a712 class-3 vector, not by this document."
+        },
+        "schema": {
+          "type": "object",
+          "description": "REQUIRED for mode=input: a flat JSON Schema describing the ANSWER OBJECT (spec \u00a76 fixes the input answer as an object validating against it). MUST declare `type: \"object\"` if `type` is present, and MUST define at least one entry under `properties` \u2014 a scalar schema admits no valid answer and a property-less one presents nothing to fill in; both make the ask unanswerable the moment it is accepted (v0.6, spec \u00a75.2). Property types: string/number/boolean/enum. Properties MAY carry `x-ma2h-sensitive: true`.",
+          "properties": {
+            "type": {
+              "const": "object"
+            },
+            "properties": {
+              "type": "object",
+              "minProperties": 1
+            }
+          },
+          "required": [
+            "properties"
+          ]
+        },
+        "permissions": {
+          "type": "object",
+          "description": "Which affordances the human is offered (spec \u00a75.2, \u00a77). `allow_accept` was REMOVED in v0.6 \u2014 it shipped in v0.1-v0.5 with no semantics in any version, no implementation, and no Response-side anchor. Removal is from the SPEC SURFACE only: a pre-0.6 sender that still carries it is unaffected, because \u00a710 robustness already requires a Hub to ignore unknown fields. A Hub MUST NOT give it meaning.",
+          "properties": {
+            "allow_edit": {
+              "type": "boolean",
+              "default": false,
+              "description": "Option-based modes (select/confirm) only: permit the human to answer with a `value` that is NOT a member of `options[].value` \u2014 a free-form answer offered alongside the listed options (v0.6, spec \u00a75.2). Default false, which is the pre-v0.6 rule exactly: absent or false, a Hub MUST reject an off-menu value (422). Meaningless for mode=input; a Hub MUST ignore it there. An agent setting this MUST handle an answer outside its own option set and MUST treat it as untrusted human text (\u00a79.6)."
+            },
+            "allow_respond": {
+              "type": "boolean",
+              "description": "False removes the answer affordance: the human may only `decline` (spec \u00a75.2, \u00a77)."
+            },
+            "allow_ignore": {
+              "type": "boolean",
+              "description": "False removes the decline/ignore affordance (spec \u00a75.2, \u00a77). A human ignoring an ask resolves it `declined` \u2014 the v0.1 `ignored` resolution does not exist."
+            }
+          }
+        },
+        "default_on_expire": {
+          "type": [
+            "string",
+            "object",
+            "null"
+          ],
+          "description": "For select: MUST be a member of options[].value (Hub-enforced + conformance vector). For input: an object validating against `schema`, or null."
+        },
+        "allowed_resolvers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(human|agent|system):.+$"
+          },
+          "description": "Who may resolve (spec \u00a79.1). On a >= 0.5 envelope an agent-form entry follows the \u00a74 address grammar (the root conditional): principal form matches any session of that principal; a session-qualified form (#sess_...) matches only that exact session \u2014 a malformed agent entry could never match an attested actor, leaving the message unresolvable. Pre-0.5 envelopes keep the legacy v0.4 pattern (hash-bearing principals remain valid for human-inbox traffic)."
+        },
+        "callback": {
+          "$ref": "#/$defs/callback"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "select"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "options"
+            ],
+            "properties": {
+              "options": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "input"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "schema"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "confirm"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "options": {
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        }
+      ]
+    },
+    "action": {
+      "type": "object",
+      "required": [
+        "instructions"
+      ],
+      "properties": {
+        "instructions": {
+          "type": "string"
+        },
+        "checklist": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "text"
+            ],
+            "properties": {
+              "text": {
+                "type": "string"
+              },
+              "done": {
+                "type": "boolean",
+                "default": false
+              }
+            }
+          }
+        },
+        "verification": {
+          "type": "string"
+        },
+        "allowed_resolvers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(human|agent|system):.+$"
+          },
+          "description": "Who may resolve (spec \u00a79.1). On a >= 0.5 envelope an agent-form entry follows the \u00a74 address grammar (the root conditional): principal form matches any session of that principal; a session-qualified form (#sess_...) matches only that exact session \u2014 a malformed agent entry could never match an attested actor, leaving the message unresolvable. Pre-0.5 envelopes keep the legacy v0.4 pattern (hash-bearing principals remain valid for human-inbox traffic)."
+        },
+        "callback": {
+          "$ref": "#/$defs/callback"
+        }
+      }
+    },
+    "callback": {
+      "type": "object",
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "push",
+            "pull"
+          ]
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "auth": {
+          "type": "object",
+          "required": [
+            "scheme"
+          ],
+          "properties": {
+            "scheme": {
+              "enum": [
+                "hmac",
+                "bearer",
+                "apikey"
+              ]
+            },
+            "secret_ref": {
+              "type": "string"
+            },
+            "token_ref": {
+              "type": "string"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "scheme": {
+                    "const": "hmac"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "secret_ref"
+                ],
+                "not": {
+                  "required": [
+                    "token_ref"
+                  ]
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "scheme": {
+                    "enum": [
+                      "bearer",
+                      "apikey"
+                    ]
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "token_ref"
+                ],
+                "not": {
+                  "required": [
+                    "secret_ref"
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "push"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "url"
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

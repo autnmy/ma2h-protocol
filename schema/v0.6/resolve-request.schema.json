@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ma2h.org/schema/v0.6/resolve-request.schema.json",
+  "title": "MA2H Resolve Request (v0.6)",
+  "description": "Body of POST /v1/messages/{id}/resolve (spec \u00a78.8) \u2014 the wire binding for resolving an open ask/task, made interoperable in v0.5 for the inter-agent leg's addressee (spec \u00a76). The caller's identity/authorization and any session presentation ride the credential and the ?session= parameter (spec \u00a78.8, \u00a79.1), never the body. `cancelled` is the \u00a78.4 verb and `expired` is Hub-only, so neither appears here. Value-vs-request validation beyond shape (membership in options[].value and its v0.6 allow_edit exemption, conformance to request.schema) is Hub-enforced (spec \u00a78.8). `edited` is NOT a field here: it is computed by the Hub from the membership test (spec \u00a76), and a resolver-supplied one MUST be ignored.",
+  "type": "object",
+  "required": [
+    "resolution"
+  ],
+  "properties": {
+    "resolution": {
+      "enum": [
+        "answered",
+        "declined",
+        "completed",
+        "dismissed"
+      ],
+      "description": "The terminal the resolver asserts: answered|declined for an ask, completed|dismissed for a task (verb-match Hub-enforced)."
+    },
+    "value": {
+      "type": [
+        "string",
+        "object"
+      ],
+      "description": "REQUIRED iff resolution is `answered`: the chosen option value (select/confirm; string) or the input object (input mode), per spec \u00a75.2. For select/confirm it MUST be a member of options[].value UNLESS the request set permissions.allow_edit:true, in which case a non-member string is accepted and the Hub sets response.edited:true (v0.6, spec \u00a75.2/\u00a76). MUST NOT appear for any other resolution."
+    },
+    "comment": {
+      "type": "string",
+      "description": "Optional; carried into response.comment (spec \u00a76)."
+    },
+    "checklist": {
+      "type": "array",
+      "description": "Task resolutions only: the final \u00a75.3 checklist state, carried into the Response. MUST NOT appear for ask resolutions.",
+      "items": {
+        "type": "object",
+        "required": [
+          "text",
+          "done"
+        ],
+        "properties": {
+          "text": {
+            "type": "string"
+          },
+          "done": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "resolution": {
+            "const": "answered"
+          }
+        },
+        "required": [
+          "resolution"
+        ]
+      },
+      "then": {
+        "required": [
+          "value"
+        ]
+      },
+      "else": {
+        "not": {
+          "required": [
+            "value"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "resolution": {
+            "enum": [
+              "answered",
+              "declined"
+            ]
+          }
+        },
+        "required": [
+          "resolution"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "checklist"
+          ]
+        }
+      }
+    }
+  ]
+}

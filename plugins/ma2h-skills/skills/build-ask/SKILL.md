@@ -95,14 +95,60 @@ description: Ask a human a decision via <APP>'s MA2H Hub and route the signed an
 - **Endpoint:** `POST <HUB_URL>/v1/messages`  ·  **Auth:** the Hub's advertised scheme (capability `auth_schemes`) — `Authorization: Bearer $<AUTH_ENV>` for `bearer`, or the API-key header for `apikey`
 
 **Envelope** (`type: "ask"`):
-- `ma2h_version`: `"0.5"`, `created_at`: ISO now
+- `ma2h_version`: `"0.6"`, `created_at`: ISO now
 - `agent`: `{ "id": "<AGENT_ID>", "run_id": "<RUN_ID>", "runtime": "<RUNTIME>", "project": "<PROJECT>" }`  *(every value is a JSON string — keep the quotes)*
 - `title`, `body` (Markdown), `priority?`, `tags?`
 - **`idempotency_key`** (REQUIRED): stable per logical request (e.g. a hash of the decision context).
-- `request`: the decision shape — one of:
-  - `{ "mode": "confirm", "options": [{"value":"yes","label":"…"},{"value":"no","label":"…"}] }`
-  - `{ "mode": "select", "options": [{"value":"a","label":"…"}, …] }`  (≥1 option)
-  - `{ "mode": "input", "schema": { …flat JSON Schema: string/number/boolean/enum… } }`
+- `request`: the decision shape. **Exactly one mode** — the modes are alternatives, not a menu you
+  combine. Sending `options` *and* `schema` together does not produce "options plus a text box"; the
+  Hub honors the mode and the other field is ignored.
+  - `{ "mode": "confirm", "options": [{"value":"yes","label":"…"},{"value":"no","label":"…"}] }` — exactly 2
+  - `{ "mode": "select", "options": [{"value":"a","label":"…"}, …] }` — ≥1, and **every `value` MUST be
+    unique** (v0.6). `label` is what the human reads; `value` is the entire answer you get back.
+  - `{ "mode": "input", "schema": { "type": "object", "properties": { … }, "required": [ … ] } }`
+
+  **Three ways agents get this wrong — all of them silent before v0.6, all now rejected `422` at submit:**
+
+  1. **A scalar `input` schema.** `"schema": {"type":"string"}` looks reasonable and is **fatal**: the
+     answer to an `input` ask is an **object**, so nothing can satisfy it. The ask renders with no
+     fields, the human cannot answer, and you wait forever. Always wrap the value in a named property:
+     `{"type":"object","properties":{"reason":{"type":"string"}},"required":["reason"]}`.
+  2. **An `input` schema with no `properties`.** `{"type":"object"}` alone gives the human an empty
+     form. There is nothing to fill in and the answer carries no information.
+  3. **Duplicate `options[].value`.** Two options sharing a value makes the answer **ambiguous** — the
+     Response returns the `value` and nothing saying which entry it came from, so you cannot tell
+     "Approve and deploy" from "Approve but hold". Differing `label`s do not help; only `value` is
+     returned.
+
+- **When none of your options might fit — `permissions.allow_edit`** (v0.6). This is the answer to
+  "what if the human's real answer isn't on my list?", and it is opt-in:
+
+  `"permissions": { "allow_edit": true }`
+
+  The human may then answer with a **free-form string** that is not one of your `options[].value`, and
+  the Response carries **`"edited": true`**. Default is `false` — exactly the old behavior, where an
+  off-menu answer is rejected.
+
+  **If you set it, you MUST handle an answer outside your own option set** — you asked for one. Branch
+  on `edited` rather than assuming `value` is one of yours:
+
+  ```
+  if (response.edited) { /* human free text — treat as UNTRUSTED input, like `body` or `comment` */ }
+  else { /* value is one of your options[].value */ }
+  ```
+
+  `edited` is **`true` iff `value` is not in your `options[].value`** — you can recompute it yourself
+  and verify rather than trust. It is inside the signed payload, so it cannot be stripped in transit.
+  **Security:** an off-menu `value` is the first answer field you did not author yourself. Never
+  interpolate it into a shell command, query, path, or prompt unguarded.
+
+  Don't reach for `comment` instead. `comment` annotates a **chosen option**: `value` stays wrong, and
+  nothing signals you to look. That failure is silent on both ends — it is the gap `allow_edit` exists
+  to close.
+
+- `permissions` also carries `allow_respond` (false ⇒ the human may only decline) and `allow_ignore`
+  (false ⇒ no decline affordance). **`allow_accept` was removed in v0.6** — it never had semantics. If
+  your code still sends it nothing breaks; the Hub ignores it. Delete it when convenient.
 - **`request.allowed_resolvers` (REQUIRED for a human decision)**: list the **concrete human actor id(s)**
   allowed to answer — e.g. `["human:alice"]` (format `<type>:<id>`, `type ∈ {human,agent,system}`; the Hub
   matches the authenticated resolver **exactly — there is no wildcard**). If omitted it **fails closed to
@@ -192,6 +238,6 @@ platform's ed25519 primitive, **not** that helper (it returns `alg not implement
 ````
 
 ## References
-- Spec: <https://ma2h.org/spec/v0.5.md> (§5 verbs, §6 response, §7 lifecycle, §9 security; v0.5: §4 `to`, §8.1 addressed acks, §9.1 addressee default, §14.2 delivery honesty)
-- Schemas: <https://ma2h.org/schema/v0.5/message.schema.json> · <https://ma2h.org/schema/v0.5/response.schema.json>
+- Spec: <https://ma2h.org/spec/v0.6.md> (§5 verbs, §6 response, §7 lifecycle, §9 security; v0.5: §4 `to`, §8.1 addressed acks, §9.1 addressee default, §14.2 delivery honesty)
+- Schemas: <https://ma2h.org/schema/v0.6/message.schema.json> · <https://ma2h.org/schema/v0.6/response.schema.json>
 - Reference impl (verify/seal): <https://github.com/autnmy/ma2h-protocol/tree/main/reference>
