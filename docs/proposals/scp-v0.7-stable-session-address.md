@@ -1,6 +1,6 @@
 # SCP: MA2H v0.7 — an address that survives a lease lapse (lapse-revival vs. a Hub-bound name)
 
-> Draft for [SCP issue #TBD](https://github.com/autnmy/ma2h-protocol/issues/TBD) — not yet filed, not yet
+> Draft for [SCP issue #69](https://github.com/autnmy/ma2h-protocol/issues/69) — filed, not yet
 > sponsored. Drafted against [`spec/v0.6.md`](../../spec/v0.6.md) and the published vectors `dp-019`, `dp-021`, `dp-022`.
 > This document proposes and compares; it changes no spec text, no schema, and no vector. The `v0.7`
 > in the file name is the minor this would ship in if accepted as written (additive, MINOR); it is
@@ -11,8 +11,8 @@
 - **Status:** Draft
 - **Type:** Standards Track (normative)
 - **Created:** 2026-09-20
-- **SCP issue:** #TBD
-- **Linked PR:** — (none; an implementation PR follows a ruling on the Recommendation)
+- **SCP issue:** #69
+- **Linked PR:** — (document PR #68; an implementation PR follows a ruling on the Recommendation)
 - **Scope:** Option A touches §16.1, §16.2, §16.3, §16.4, §16.4.1, §14.2, §8.0, §8.5 and `dp-019`.
   Option B touches §4 (the `to` grammar), §8.0, §8.1, §8.5, §8.7.1, §13.2, §13.4, §14.2, §16.1,
   §16.4, §16.4.1, §16.5, adds a cross-reference in §16.3, and adds vectors; it leaves §16.2, the
