@@ -1,6 +1,6 @@
 # SCP: MA2H v0.7 — a pushed signal that is not a failure (the `unread` and `acknowledged` receipts)
 
-> Draft for SCP issue #TBD — not yet filed, not yet sponsored. Drafted against
+> Draft for [SCP issue #70](https://github.com/autnmy/ma2h-protocol/issues/70) — filed, not yet sponsored. Drafted against
 > [`spec/v0.6.md`](../../spec/v0.6.md), `schema/v0.6/`, the reference implementation, and the published
 > vectors `dp-019`, `dp-020`, `dp-021`, `dp-022`. This document proposes and compares; it changes no
 > spec text, no schema, and no vector. The `v0.7` in the file name is the minor this would ship in if
@@ -13,8 +13,8 @@
 - **Status:** Draft
 - **Type:** Standards Track (normative)
 - **Created:** 2026-09-21
-- **SCP issue:** #TBD
-- **Linked PR:** — (document PR #TBD; an implementation PR follows a ruling on the Recommendation)
+- **SCP issue:** #70
+- **Linked PR:** — (document PR #71; an implementation PR follows a ruling on the Recommendation)
 - **Scope:** Option B touches §8.0, §8.1, §8.7.1, §9.8 (the receipt digest's *inputs*, not its key
   set), §13.4, §14.2, §16.1 and `dp-022`. Option A touches the same sections plus §4 (one envelope
   field) and `dp-020` obligation (9). The ack definition (§13.4 step 4, §14.2) is a normative
