@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MA2H Specification · all versions</title>
+<meta name="description" content="Every version of the MA2H (Multi-agent to Human) protocol specification. Current: v0.6 draft.">
+<link rel="canonical" href="https://ma2h.org/spec/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="MA2H">
+<meta property="og:url" content="https://ma2h.org/spec/">
+<meta property="og:title" content="MA2H Specification · all versions">
+<meta property="og:description" content="Every version of the MA2H (Multi-agent to Human) protocol specification. Current: v0.6 draft.">
+<meta property="og:image" content="https://ma2h.org/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="MA2H Specification · all versions">
+<meta name="twitter:description" content="Every version of the MA2H (Multi-agent to Human) protocol specification. Current: v0.6 draft.">
+<meta name="twitter:image" content="https://ma2h.org/og.png">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
+
+<style>:root{--bg:#070809;--panel:#0d0f13;--ink:#d4dae3;--ink2:#9aa3af;--rule:#20242c;--chip:#14171d;--accent:#66b2ff;--serif:system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 var(--serif)}
+*{box-sizing:border-box}a{color:var(--accent)}.wrap{max-width:820px;margin:0 auto;padding:24px 20px 64px}
+header.top{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;border-bottom:1px solid var(--rule);padding-bottom:12px;margin-bottom:28px;font:14px/1.4 var(--mono)}
+header.top b a{color:var(--ink);text-decoration:none}header.top a{text-decoration:none}
+.crumbs{font:13px var(--mono);color:var(--ink2);margin-bottom:8px}.crumbs a{color:var(--ink2)}
+h1{font-size:2em;line-height:1.2;margin:.2em 0 .4em}h2{margin-top:2em;border-top:1px solid var(--rule);padding-top:1em}h1,h2,h3,h4{font-weight:500}
+a.anchor{color:inherit;text-decoration:none}
+code{font:.85em var(--mono);background:var(--chip);padding:.1em .3em;border-radius:4px}pre{background:var(--panel);border:1px solid var(--rule);padding:14px;overflow:auto;border-radius:8px}pre code{background:none;padding:0}
+table{border-collapse:collapse;display:block;overflow:auto;font-size:.9em}th,td{border:1px solid var(--rule);padding:6px 9px;text-align:left;vertical-align:top}
+blockquote{margin:1em 0;padding:.2em 1em;border-left:3px solid var(--rule);color:var(--ink2)}
+nav.toc{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:10px 18px;font-size:.92em}nav.toc ol{margin:.3em 0;padding-left:1.2em}
+.note{font:14px/1.5 var(--mono);color:var(--ink2)}details{border-bottom:1px solid var(--rule);padding:10px 0}summary{cursor:pointer;font-weight:500}
+footer{margin-top:56px;border-top:1px solid var(--rule);padding-top:14px;font:13px/1.6 var(--mono);color:var(--ink2)}</style>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://meetautonomy.com/#org","name":"Autonomy LLC","url":"https://meetautonomy.com/","sameAs":["https://github.com/autnmy"]},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"MA2H","item":"https://ma2h.org/"},{"@type":"ListItem","position":2,"name":"Spec","item":"https://ma2h.org/spec/"}]}]}</script>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><b><a href="/">MA2H</a></b><a href="/spec/v0.6/">Spec v0.6</a><a href="/faq/">FAQ</a><a href="https://ohhai.app/">OH HAI (hub)</a><a href="https://github.com/autnmy/ma2h-protocol">GitHub</a></header>
+<div class="crumbs"><a href="/">MA2H</a> / Spec</div>
+<main>
+<h1>MA2H specification</h1><p>MA2H is a vendor- and runtime-neutral protocol for a fleet of autonomous agents to coordinate with a human through one Hub. All versions are drafts.</p>
+<ul><li><a href="/spec/v0.6/">v0.6 — current</a> · <a href="/spec/v0.6.md">Markdown</a></li><li><a href="/spec/v0.5/">v0.5</a> · <a href="/spec/v0.5.md">Markdown</a></li><li><a href="/spec/v0.4/">v0.4</a> · <a href="/spec/v0.4.md">Markdown</a></li><li><a href="/spec/v0.3/">v0.3</a> · <a href="/spec/v0.3.md">Markdown</a></li><li><a href="/spec/v0.2/">v0.2</a> · <a href="/spec/v0.2.md">Markdown</a></li><li><a href="/spec/v0.1/">v0.1</a> · <a href="/spec/v0.1.md">Markdown</a></li></ul>
+<p>See also: <a href="/CHANGELOG.md">changelog</a> · <a href="/MIGRATION.md">migration</a> · <a href="https://github.com/autnmy/ma2h-protocol/tree/main/schema">JSON Schemas</a> · <a href="https://github.com/autnmy/ma2h-protocol/tree/main/conformance">conformance vectors</a> · <a href="/faq/">FAQ</a>.</p>
+</main>
+<footer>MA2H v0.6 draft · Apache-2.0 · Stewarded by <a href="https://meetautonomy.com/">Autonomy</a> · Hub implementation: <a href="https://ohhai.app/">OH HAI</a> · Related: <a href="https://issuegraph.org/">Issuegraph</a> · <a href="https://descant.run/">Descant</a></footer>
+</div>
+</body>
+</html>

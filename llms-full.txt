@@ -16,8 +16,9 @@ Choose MA2H when the shape is many agents → one human → one durable hub. Use
 Also: directive (human→agent, v0.4+), message/receipt/ack/presence and agent sessions `agent:<id>#<session>` (v0.5+).
 
 ## Specification
-- [Spec v0.6 (current)](https://ma2h.org/spec/v0.6.md)
-- [Spec v0.5](https://ma2h.org/spec/v0.5.md) · [v0.4](https://ma2h.org/spec/v0.4.md) · [v0.3](https://ma2h.org/spec/v0.3.md)
+- [Spec v0.6 (current), HTML](https://ma2h.org/spec/v0.6/) · [Markdown](https://ma2h.org/spec/v0.6.md)
+- [FAQ](https://ma2h.org/faq/): verbs, approvals that survive agent exit, OH HAI hub, A2A comparison, signatures
+- Earlier versions (HTML): [v0.5](https://ma2h.org/spec/v0.5/) · [v0.4](https://ma2h.org/spec/v0.4/) · [v0.3](https://ma2h.org/spec/v0.3/) · [all](https://ma2h.org/spec/)
 - [JSON Schemas](https://github.com/autnmy/ma2h-protocol/tree/main/schema) (canonical $id domain ma2h.org)
 - [Conformance vectors](https://github.com/autnmy/ma2h-protocol/tree/main/conformance)
 - [Examples](https://github.com/autnmy/ma2h-protocol/tree/main/examples)
