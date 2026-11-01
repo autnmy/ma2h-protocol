@@ -1,0 +1,371 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MA2H Specification v0.1 (draft) · superseded · Multi-agent to Human Protocol</title>
+<meta name="description" content="MA2H v0.1 specification: how a fleet of autonomous agents sends notify, ask and task messages to one Hub, and how signed human answers route back to the agent. Superseded by v0.6.">
+<link rel="canonical" href="https://ma2h.org/spec/v0.1/">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="MA2H">
+<meta property="og:url" content="https://ma2h.org/spec/v0.1/">
+<meta property="og:title" content="MA2H Specification v0.1 (draft) · superseded · Multi-agent to Human Protocol">
+<meta property="og:description" content="MA2H v0.1 specification: how a fleet of autonomous agents sends notify, ask and task messages to one Hub, and how signed human answers route back to the agent. Superseded by v0.6.">
+<meta property="og:image" content="https://ma2h.org/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="MA2H Specification v0.1 (draft) · superseded · Multi-agent to Human Protocol">
+<meta name="twitter:description" content="MA2H v0.1 specification: how a fleet of autonomous agents sends notify, ask and task messages to one Hub, and how signed human answers route back to the agent. Superseded by v0.6.">
+<meta name="twitter:image" content="https://ma2h.org/og.png">
+<link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
+
+<style>:root{--bg:#070809;--panel:#0d0f13;--ink:#d4dae3;--ink2:#9aa3af;--rule:#20242c;--chip:#14171d;--accent:#66b2ff;--serif:system-ui,-apple-system,"Segoe UI",sans-serif;--mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 var(--serif)}
+*{box-sizing:border-box}a{color:var(--accent)}.wrap{max-width:820px;margin:0 auto;padding:24px 20px 64px}
+header.top{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:baseline;border-bottom:1px solid var(--rule);padding-bottom:12px;margin-bottom:28px;font:14px/1.4 var(--mono)}
+header.top b a{color:var(--ink);text-decoration:none}header.top a{text-decoration:none}
+.crumbs{font:13px var(--mono);color:var(--ink2);margin-bottom:8px}.crumbs a{color:var(--ink2)}
+h1{font-size:2em;line-height:1.2;margin:.2em 0 .4em}h2{margin-top:2em;border-top:1px solid var(--rule);padding-top:1em}h1,h2,h3,h4{font-weight:500}
+a.anchor{color:inherit;text-decoration:none}
+code{font:.85em var(--mono);background:var(--chip);padding:.1em .3em;border-radius:4px}pre{background:var(--panel);border:1px solid var(--rule);padding:14px;overflow:auto;border-radius:8px}pre code{background:none;padding:0}
+table{border-collapse:collapse;display:block;overflow:auto;font-size:.9em}th,td{border:1px solid var(--rule);padding:6px 9px;text-align:left;vertical-align:top}
+blockquote{margin:1em 0;padding:.2em 1em;border-left:3px solid var(--rule);color:var(--ink2)}
+nav.toc{background:var(--panel);border:1px solid var(--rule);border-radius:8px;padding:10px 18px;font-size:.92em}nav.toc ol{margin:.3em 0;padding-left:1.2em}
+.note{font:14px/1.5 var(--mono);color:var(--ink2)}details{border-bottom:1px solid var(--rule);padding:10px 0}summary{cursor:pointer;font-weight:500}
+footer{margin-top:56px;border-top:1px solid var(--rule);padding-top:14px;font:13px/1.6 var(--mono);color:var(--ink2)}</style>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","@id":"https://meetautonomy.com/#org","name":"Autonomy LLC","url":"https://meetautonomy.com/","sameAs":["https://github.com/autnmy"]},{"@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"MA2H","item":"https://ma2h.org/"},{"@type":"ListItem","position":2,"name":"Spec","item":"https://ma2h.org/spec/"},{"@type":"ListItem","position":3,"name":"v0.1","item":"https://ma2h.org/spec/v0.1/"}]},{"@type":"TechArticle","headline":"MA2H — Multi-agent to Human Protocol, v0.1","version":"0.1","url":"https://ma2h.org/spec/v0.1/","author":{"@id":"https://meetautonomy.com/#org"},"publisher":{"@id":"https://meetautonomy.com/#org"},"license":"https://www.apache.org/licenses/LICENSE-2.0"}]}</script>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><b><a href="/">MA2H</a></b><a href="/spec/v0.6/">Spec v0.6</a><a href="/faq/">FAQ</a><a href="https://ohhai.app/">OH HAI (hub)</a><a href="https://github.com/autnmy/ma2h-protocol">GitHub</a></header>
+<div class="crumbs"><a href="/">MA2H</a> / <a href="/spec/">Spec</a> / v0.1</div>
+<main>
+<p class="note"><b>Superseded.</b> The current version is <a href="/spec/v0.6/">v0.6</a>. Rendered from <a href="/spec/v0.1.md">/spec/v0.1.md</a>.</p>
+<nav class="toc" aria-label="Contents"><b>Contents</b><ol><li><a href="#0-abstract">0. Abstract</a></li><li><a href="#1-conformance-and-terminology">1. Conformance and Terminology</a></li><li><a href="#2-goals-and-non-goals">2. Goals and Non-Goals</a></li><li><a href="#3-architecture">3. Architecture</a></li><li><a href="#4-message-envelope-common-fields">4. Message Envelope (common fields)</a></li><li><a href="#5-the-three-verbs">5. The Three Verbs</a></li><li><a href="#6-response-envelope-human--hub--agent">6. Response Envelope (human → Hub → agent)</a></li><li><a href="#7-lifecycle--state-machines">7. Lifecycle / State Machines</a></li><li><a href="#8-transport-bindings-httpjson">8. Transport Bindings (HTTP/JSON)</a></li><li><a href="#9-security-and-privacy">9. Security and Privacy</a></li><li><a href="#10-versioning-and-roadmap">10. Versioning and Roadmap</a></li><li><a href="#11-provenance-what-ma2h-reuses-and-from-where">11. Provenance (what MA2H reuses, and from where)</a></li><li><a href="#appendix-a--worked-examples">Appendix A — Worked Examples</a></li></ol></nav>
+<h1 id="ma2h--multi-agent-to-human-protocol"><a class="anchor" href="#ma2h--multi-agent-to-human-protocol">MA2H — Multi-agent to Human Protocol</a></h1>
+<p><strong>Version:</strong> 0.1 (Draft) · <strong>Date:</strong> 2026-06-03 · <strong>License:</strong> Apache-2.0 · <strong>Steward:</strong> Autonomy</p>
+<blockquote>
+<p>⚠️ <strong>Superseded by <a href="/spec/v0.2/">v0.2</a></strong> (2026-06-03). v0.1 is retained for history only. It has known
+trust-model, return-leg, concurrency, and durability gaps that v0.2 fixes — do not implement against it.
+See the <a href="/CHANGELOG.md">CHANGELOG</a>.</p>
+</blockquote>
+<h2 id="0-abstract"><a class="anchor" href="#0-abstract">0. Abstract</a></h2>
+<p>MA2H is a vendor- and runtime-neutral protocol by which <strong>agents reach humans</strong> and <strong>receive decisions
+back</strong>. It defines a hub-and-spoke model: heterogeneous <strong>Agents</strong> POST one of three message types —
+<code>notify</code>, <code>ask</code>, <code>task</code> — to a central <strong>Hub</strong>; a <strong>Human</strong> triages them from one inbox; and answers to
+<code>ask</code>/<code>task</code> messages are routed back to the originating agent via <strong>push</strong> (webhook) or <strong>pull</strong>
+(polling). MA2H is the agent↔human complement to A2A (agent↔agent) and MCP (agent↔tools).</p>
+<h2 id="1-conformance-and-terminology"><a class="anchor" href="#1-conformance-and-terminology">1. Conformance and Terminology</a></h2>
+<p>The key words <strong>MUST</strong>, <strong>MUST NOT</strong>, <strong>REQUIRED</strong>, <strong>SHOULD</strong>, <strong>SHOULD NOT</strong>, <strong>MAY</strong> are to be
+interpreted as described in RFC 2119 / RFC 8174.</p>
+<ul>
+<li><strong>Agent</strong> — a software process (any runtime) that originates MA2H messages. A &quot;spoke.&quot;</li>
+<li><strong>Hub</strong> — the central server that ingests messages, presents the human inbox, and routes responses. The &quot;center.&quot;</li>
+<li><strong>Human</strong> — the operator who triages the inbox and resolves <code>ask</code>/<code>task</code> messages.</li>
+<li><strong>Caller</strong> — the specific agent run/invocation that produced a message; identified by <code>agent.run_id</code>.</li>
+<li><strong>Resolution</strong> — the terminal outcome of a message (e.g., <code>answered</code>, <code>completed</code>, <code>expired</code>).</li>
+</ul>
+<p>A <strong>conformant Hub</strong> MUST accept the message envelope (§4–§5), expose the transport bindings (§8), and
+emit the response envelope (§6) on resolution. A <strong>conformant Agent</strong> MUST send a valid envelope and MUST
+be able to receive a resolution by at least one of push or pull.</p>
+<h2 id="2-goals-and-non-goals"><a class="anchor" href="#2-goals-and-non-goals">2. Goals and Non-Goals</a></h2>
+<p><strong>Goals</strong></p>
+<ul>
+<li>Runtime-agnostic: anything that speaks HTTPS + JSON can participate. No SDK required.</li>
+<li>Minimal core: three verbs, one envelope.</li>
+<li>First-class support for <strong>ephemeral</strong> agents (a CLI run, a GitHub Action) via the pull binding, and for
+<strong>resumable</strong> agents via the push binding.</li>
+<li>Async by default; a human is never assumed to be online.</li>
+<li>Reuse established conventions (§11) rather than inventing new ones.</li>
+</ul>
+<p><strong>Non-Goals (v0.1)</strong> — deferred to later versions, called out in §10.</p>
+<ul>
+<li>The human-facing inbox <strong>UI</strong> (only the wire contract is normative).</li>
+<li>Human <strong>identity / SSO</strong> and authn of operators.</li>
+<li>Multi-human <strong>assignment, escalation, SLA</strong> routing (the ITSM layer). v0.2 candidate.</li>
+<li><strong>Streaming</strong> partial agent output (AG-UI&#39;s domain).</li>
+<li>Multi-turn <strong>threaded</strong> asks (a resolution is single-shot in v0.1).</li>
+</ul>
+<h2 id="3-architecture"><a class="anchor" href="#3-architecture">3. Architecture</a></h2>
+<pre><code>  ┌─────────┐   POST /v1/messages   ┌──────────────────┐   inbox    ┌────────┐
+  │  Agent  │ ────────────────────▶ │       Hub        │ ─────────▶ │ Human  │
+  │ (spoke) │ ◀──────────────────── │ (ingest + inbox  │ ◀───────── │        │
+  └─────────┘  push webhook  /  or  │  + router)       │  resolve   └────────┘
+       │       agent polls poll_url └──────────────────┘
+       └── GET /v1/messages/{id}
+</code></pre>
+<p>A <code>notify</code> terminates at the inbox. An <code>ask</code> or <code>task</code> produces a <strong>Response</strong> (§6) when the human
+resolves it; the Hub delivers that Response to the agent by the binding the agent selected (§8).</p>
+<h2 id="4-message-envelope-common-fields"><a class="anchor" href="#4-message-envelope-common-fields">4. Message Envelope (common fields)</a></h2>
+<p>Every message is a JSON object with these common fields:</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Req</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>ma2h_version</code></td>
+<td>string</td>
+<td>MUST</td>
+<td>Protocol version, e.g. <code>&quot;0.1&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>id</code></td>
+<td>string</td>
+<td>MUST</td>
+<td>Stable message id (ULID/UUID). Agent-supplied or Hub-assigned; if agent-supplied it MUST be unique per agent.</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>enum</td>
+<td>MUST</td>
+<td><code>notify</code> | <code>ask</code> | <code>task</code>. Discriminator.</td>
+</tr>
+<tr>
+<td><code>created_at</code></td>
+<td>string</td>
+<td>MUST</td>
+<td>RFC 3339 timestamp.</td>
+</tr>
+<tr>
+<td><code>agent</code></td>
+<td>object</td>
+<td>MUST</td>
+<td>Origin descriptor (§4.1).</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td>string</td>
+<td>MUST</td>
+<td>One line for the inbox list. ≤ 200 chars.</td>
+</tr>
+<tr>
+<td><code>body</code></td>
+<td>string</td>
+<td>SHOULD</td>
+<td>Human-readable detail. Markdown.</td>
+</tr>
+<tr>
+<td><code>priority</code></td>
+<td>enum</td>
+<td>SHOULD</td>
+<td><code>low</code> | <code>normal</code> | <code>high</code> | <code>urgent</code>. Default <code>normal</code>.</td>
+</tr>
+<tr>
+<td><code>tags</code></td>
+<td>string[]</td>
+<td>MAY</td>
+<td>Free-form labels for filtering (<code>[&quot;deploy&quot;,&quot;web-app&quot;]</code>).</td>
+</tr>
+<tr>
+<td><code>context</code></td>
+<td>Part[]</td>
+<td>MAY</td>
+<td>Attachments: text, structured data, or files (§4.2).</td>
+</tr>
+<tr>
+<td><code>expires_at</code></td>
+<td>string</td>
+<td>MAY</td>
+<td>RFC 3339. After this, an unresolved <code>ask</code>/<code>task</code> auto-resolves (§7).</td>
+</tr>
+<tr>
+<td><code>idempotency_key</code></td>
+<td>string</td>
+<td>MAY</td>
+<td>Hub MUST treat a repeat key from the same agent as the same message.</td>
+</tr>
+</tbody></table>
+<h3 id="41-agent-descriptor"><a class="anchor" href="#41-agent-descriptor">4.1 <code>agent</code> descriptor</a></h3>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;deploybot/dev-team&quot;,        // stable logical agent identity
+  &quot;run_id&quot;: &quot;run_01H...&quot;,         // this specific invocation (correlation for resume)
+  &quot;runtime&quot;: &quot;github-actions&quot;,    // github-actions | cli | cloud | desktop | openclaw | other
+  &quot;project&quot;: &quot;web-app&quot;,         // optional grouping key (≈ A2A contextId)
+  &quot;labels&quot;: { &quot;model&quot;: &quot;opus-4.8&quot; } // optional free-form
+}
+</code></pre>
+<p><code>agent.id</code> + <code>agent.run_id</code> together identify the <strong>Caller</strong> to route a response back to.</p>
+<h3 id="42-part-borrowed-from-a2a"><a class="anchor" href="#42-part-borrowed-from-a2a">4.2 <code>Part</code> (borrowed from A2A)</a></h3>
+<p>A <code>context</code> entry is exactly one of:</p>
+<pre><code class="language-json">{ &quot;kind&quot;: &quot;text&quot;, &quot;text&quot;: &quot;...&quot; }
+{ &quot;kind&quot;: &quot;data&quot;, &quot;data&quot;: { &quot;...&quot;: &quot;...&quot; } }     // structured JSON, e.g. a diff summary
+{ &quot;kind&quot;: &quot;file&quot;, &quot;file&quot;: { &quot;uri&quot;: &quot;https://...&quot;, &quot;name&quot;: &quot;diff.patch&quot;, &quot;mime_type&quot;: &quot;text/x-diff&quot; } }
+</code></pre>
+<p>Each Part MAY carry <code>metadata</code>.</p>
+<h2 id="5-the-three-verbs"><a class="anchor" href="#5-the-three-verbs">5. The Three Verbs</a></h2>
+<h3 id="51-notify"><a class="anchor" href="#51-notify">5.1 <code>notify</code></a></h3>
+<p>Informational. No response is expected; the message is terminal on delivery. Used for summaries, status
+updates, the daily executive digest. Carries only the common envelope (§4). A Hub MUST NOT route a
+response for a <code>notify</code>.</p>
+<h3 id="52-ask"><a class="anchor" href="#52-ask">5.2 <code>ask</code></a></h3>
+<p>A decision the human must make. The agent is blocked on, or will act on, the answer. Adds a <code>request</code>
+block:</p>
+<pre><code class="language-json">&quot;request&quot;: {
+  &quot;mode&quot;: &quot;select&quot;,            // select | input | confirm
+  &quot;options&quot;: [                 // REQUIRED when mode=select (MCP enumNames + HumanLayer ResponseOption)
+    { &quot;value&quot;: &quot;ship&quot;,  &quot;label&quot;: &quot;Ship to prod now&quot;,  &quot;description&quot;: &quot;Deploy immediately.&quot; },
+    { &quot;value&quot;: &quot;hold&quot;,  &quot;label&quot;: &quot;Hold for review&quot;,   &quot;description&quot;: &quot;Wait for a human PR review.&quot; },
+    { &quot;value&quot;: &quot;abort&quot;, &quot;label&quot;: &quot;Abort the change&quot;,  &quot;description&quot;: &quot;Revert and close.&quot; }
+  ],
+  &quot;schema&quot;: {                  // REQUIRED when mode=input — FLAT JSON Schema (string/number/bool/enum only)
+    &quot;type&quot;: &quot;object&quot;,
+    &quot;properties&quot;: { &quot;reason&quot;: { &quot;type&quot;: &quot;string&quot; } },
+    &quot;required&quot;: [&quot;reason&quot;]
+  },
+  &quot;permissions&quot;: {             // borrowed from LangGraph HumanInterruptConfig
+    &quot;allow_accept&quot;: true, &quot;allow_edit&quot;: true, &quot;allow_respond&quot;: true, &quot;allow_ignore&quot;: true
+  },
+  &quot;default_on_expire&quot;: &quot;hold&quot;, // value applied if expires_at passes unresolved; null = no default
+  &quot;callback&quot;: { /* §8.3 */ }
+}
+</code></pre>
+<p><code>mode=confirm</code> is sugar for a two-option select (<code>approve</code>/<code>deny</code>).</p>
+<h3 id="53-task"><a class="anchor" href="#53-task">5.3 <code>task</code></a></h3>
+<p>A manual action a human performs <strong>in the world</strong>, outside the agent. Distinct from <code>ask</code>: the human does
+work, not just picks an answer. Adds an <code>action</code> block:</p>
+<pre><code class="language-json">&quot;action&quot;: {
+  &quot;instructions&quot;: &quot;Rotate API_SIGNING_KEY in the prod vault and confirm the webhook still signs.&quot;,
+  &quot;checklist&quot;: [                       // optional sub-steps the human can tick
+    { &quot;text&quot;: &quot;Generate a new key in the secret manager&quot;, &quot;done&quot;: false },
+    { &quot;text&quot;: &quot;Update prod secret&quot;, &quot;done&quot;: false }
+  ],
+  &quot;verification&quot;: &quot;Webhook test event returns 200 with a valid signature.&quot;,
+  &quot;callback&quot;: { /* §8.3 — optional; notify the agent when marked done */ }
+}
+</code></pre>
+<h2 id="6-response-envelope-human--hub--agent"><a class="anchor" href="#6-response-envelope-human--hub--agent">6. Response Envelope (human → Hub → agent)</a></h2>
+<p>Emitted by the Hub when an <code>ask</code>/<code>task</code> reaches a terminal state. Delivered via §8.</p>
+<pre><code class="language-json">{
+  &quot;ma2h_version&quot;: &quot;0.1&quot;,
+  &quot;in_reply_to&quot;: &quot;msg_01H...&quot;,          // the original message id
+  &quot;agent&quot;: { &quot;id&quot;: &quot;deploybot/dev-team&quot;, &quot;run_id&quot;: &quot;run_01H...&quot; },
+  &quot;resolution&quot;: &quot;answered&quot;,             // see §7 per type
+  &quot;response&quot;: {                         // present for ask; present-if-captured for task
+    &quot;value&quot;: &quot;hold&quot;,                    // chosen option value, or the input object
+    &quot;edited&quot;: false,                    // true if the human edited an agent-proposed value
+    &quot;actor&quot;: &quot;human:alice&quot;,          // who resolved it
+    &quot;resolved_at&quot;: &quot;2026-06-03T18:04:11Z&quot;,
+    &quot;comment&quot;: &quot;Let&#39;s get a human eye on the migration first.&quot;
+  },
+  &quot;state&quot;: { &quot;...&quot;: &quot;...&quot; }             // OPAQUE agent state, round-tripped verbatim (HumanLayer pattern).
+                                        // The Hub MUST store and return it unmodified and MUST NOT inspect it.
+}
+</code></pre>
+<p>The <code>state</code> field lets a stateless agent reconstruct its context on resume without the Hub understanding it.</p>
+<h2 id="7-lifecycle--state-machines"><a class="anchor" href="#7-lifecycle--state-machines">7. Lifecycle / State Machines</a></h2>
+<pre><code>notify:   created ──▶ delivered (terminal)
+
+ask:      open ──┬─▶ answered    (terminal)   ← human chose/responded
+                 ├─▶ declined    (terminal)   ← human refused (allow_respond/permissions)
+                 ├─▶ cancelled   (terminal)   ← agent or Hub withdrew it
+                 └─▶ expired     (terminal)   ← expires_at passed; default_on_expire applied if set
+
+task:     open ──┬─▶ completed   (terminal)   ← human marked done
+                 ├─▶ dismissed   (terminal)   ← human declined to do it
+                 └─▶ expired     (terminal)
+</code></pre>
+<p>Terminal states are irreversible (A2A rule). An agent MAY <code>cancel</code> its own open message (§8.4); the Hub
+MUST mark it <code>cancelled</code> and stop soliciting the human.</p>
+<h2 id="8-transport-bindings-httpjson"><a class="anchor" href="#8-transport-bindings-httpjson">8. Transport Bindings (HTTP/JSON)</a></h2>
+<p>All endpoints are HTTPS, <code>Content-Type: application/json</code>. Base path <code>/v1</code>.</p>
+<h3 id="81-submit--post-v1messages"><a class="anchor" href="#81-submit--post-v1messages">8.1 Submit — <code>POST /v1/messages</code></a></h3>
+<p>Body: a message envelope (§4–§5). On success the Hub returns <strong><code>202 Accepted</code></strong> (HITL-Protocol handshake):</p>
+<pre><code class="language-json">{
+  &quot;id&quot;: &quot;msg_01H...&quot;,
+  &quot;status&quot;: &quot;open&quot;,                                  // or &quot;delivered&quot; for notify
+  &quot;poll_url&quot;: &quot;https://hub.example/v1/messages/msg_01H...&quot;,
+  &quot;review_url&quot;: &quot;https://hub.example/inbox/msg_01H...&quot;// human-facing deep link (out-of-band share)
+}
+</code></pre>
+<h3 id="82-pull--get-v1messagesid"><a class="anchor" href="#82-pull--get-v1messagesid">8.2 Pull — <code>GET /v1/messages/{id}</code></a></h3>
+<p>Returns the message plus its current <code>status</code> and, once terminal, the <code>response</code> (§6). The Hub SHOULD
+support long-poll via <code>?wait=&lt;seconds&gt;</code> (cap 60): hold the connection until resolution or timeout, then
+return current state. This is the binding for <strong>ephemeral</strong> agents that cannot be called back.</p>
+<h3 id="83-push--agent-supplied-callback"><a class="anchor" href="#83-push--agent-supplied-callback">8.3 Push — agent-supplied <code>callback</code></a></h3>
+<p>An <code>ask</code>/<code>task</code> MAY include a callback so the Hub delivers the Response actively (A2A <code>PushNotificationConfig</code>):</p>
+<pre><code class="language-json">&quot;callback&quot;: {
+  &quot;mode&quot;: &quot;push&quot;,                       // push | pull (pull = omit url; agent polls 8.2)
+  &quot;url&quot;: &quot;https://agent.example/ma2h/resolve&quot;,
+  &quot;auth&quot;: { &quot;scheme&quot;: &quot;hmac&quot;, &quot;secret_ref&quot;: &quot;env:MA2H_CALLBACK_SECRET&quot; }  // hmac | bearer | apikey
+}
+</code></pre>
+<p>On resolution the Hub POSTs the Response envelope (§6) to <code>url</code>. The Hub MUST sign the request (§9), MUST
+retry with exponential backoff on non-2xx (≥ 5 attempts), and MUST include the message <code>id</code> so delivery is
+idempotent. An agent MAY register both push and pull; push is best-effort, pull is the source of truth.</p>
+<h3 id="84-cancel--post-v1messagesidcancel"><a class="anchor" href="#84-cancel--post-v1messagesidcancel">8.4 Cancel — <code>POST /v1/messages/{id}/cancel</code></a></h3>
+<p>Withdraws an open message. Idempotent.</p>
+<h2 id="9-security-and-privacy"><a class="anchor" href="#9-security-and-privacy">9. Security and Privacy</a></h2>
+<ul>
+<li><strong>Agent → Hub</strong> auth: bearer token or API key scoped to an <code>agent.id</code>. The Hub MUST reject envelopes
+whose <code>agent.id</code> does not match the credential.</li>
+<li><strong>Hub → Agent</strong> callback signing: when <code>auth.scheme = hmac</code>, the Hub MUST send
+<code>MA2H-Signature: t=&lt;unix&gt;,v1=&lt;hex(HMAC-SHA256(secret, &quot;&lt;t&gt;.&lt;raw-body&gt;&quot;))&gt;</code> (Stripe/Slack style). The agent
+MUST verify and MUST reject timestamps outside a ±5-minute window (replay defense).</li>
+<li><strong>Transport:</strong> HTTPS REQUIRED. Plaintext bindings MUST NOT be offered.</li>
+<li><strong>Secret hygiene (CHEQ idea):</strong> when an <code>ask</code> collects a sensitive value the agent must <em>use</em> but should
+not <em>see in its LLM context</em>, the response <code>value</code> MAY be a <strong>reference</strong> (<code>{&quot;secret_ref&quot;:&quot;vault://...&quot;}</code>)
+resolved out-of-band, never the raw secret. The Hub MUST allow flagging an input field as <code>sensitive</code> so
+it is excluded from any inbox export or telemetry.</li>
+<li><strong>PII in telemetry:</strong> Hub logs MUST NOT include <code>body</code>/<code>response.value</code> of messages flagged <code>sensitive</code>.</li>
+</ul>
+<h2 id="10-versioning-and-roadmap"><a class="anchor" href="#10-versioning-and-roadmap">10. Versioning and Roadmap</a></h2>
+<ul>
+<li>Versioning: <code>ma2h_version</code> carries the spec version. Breaking changes bump the number; the Hub MUST reject
+an unknown major it cannot satisfy with <code>400</code>.</li>
+<li>RFC-2119 normative language; spec text Apache-2.0; contributions under DCO (<code>Signed-off-by</code>).</li>
+</ul>
+<p><strong>Roadmap (explicitly out of v0.1):</strong></p>
+<ul>
+<li><strong>v0.2</strong> — assignment / escalation / SLA (the ITSM layer): <code>assignee</code>, <code>escalation_policy</code>, on-call
+routing. The lesson from PagerDuty + enterprise ITSM is that routing metadata matters as much as payload.</li>
+<li><strong>v0.2</strong> — multi-turn threads (an <code>ask</code> whose answer spawns a follow-up <code>ask</code> on the same <code>context</code>/thread).</li>
+<li><strong>v0.3</strong> — streaming agent progress into the inbox item (AG-UI event interop).</li>
+<li><strong>v0.x</strong> — channel fan-out (deliver an inbox item to Slack/email/SMS), modeled on HumanLayer <code>ContactChannel</code>.</li>
+</ul>
+<h2 id="11-provenance-what-ma2h-reuses-and-from-where"><a class="anchor" href="#11-provenance-what-ma2h-reuses-and-from-where">11. Provenance (what MA2H reuses, and from where)</a></h2>
+<p>MA2H is intentionally non-NIH. Conventions adopted from prior art:</p>
+<table>
+<thead>
+<tr>
+<th>From</th>
+<th>Reused in MA2H</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>A2A</strong> (Linux Foundation)</td>
+<td><code>Part</code> union (text/data/file), <code>callback</code> ← <code>PushNotificationConfig</code> auth schemes, <code>project</code> ≈ <code>contextId</code>, terminal-state irreversibility, <code>input-required</code> → the <code>ask</code> lifecycle</td>
+</tr>
+<tr>
+<td><strong>HITL Protocol</strong> (<code>rotorstar/hitl-protocol</code>)</td>
+<td><code>202 Accepted</code> + <code>poll_url</code>/<code>review_url</code> submit handshake (§8.1)</td>
+</tr>
+<tr>
+<td><strong>MCP elicitation</strong> (Anthropic)</td>
+<td><code>select</code> options as <code>enum</code>+<code>enumNames</code>, flat input schema for renderability, accept/decline/cancel resolutions</td>
+</tr>
+<tr>
+<td><strong>HumanLayer</strong></td>
+<td>opaque <code>state</code> round-trip for stateless agents, typed contact channels (roadmap §10)</td>
+</tr>
+<tr>
+<td><strong>LangGraph</strong></td>
+<td><code>request.permissions</code> ← <code>HumanInterruptConfig</code> (allow_accept/edit/respond/ignore)</td>
+</tr>
+<tr>
+<td><strong>CHEQ</strong> (IETF draft)</td>
+<td>keep human-entered secrets out of the agent&#39;s LLM context (§9)</td>
+</tr>
+</tbody></table>
+<h2 id="appendix-a--worked-examples"><a class="anchor" href="#appendix-a--worked-examples">Appendix A — Worked Examples</a></h2>
+<p>See <a href="https://github.com/autnmy/ma2h-protocol/tree/main/examples"><code>/examples</code></a>: the daily executive digest as a <code>notify</code>, a dev-team ship/hold decision as
+an <code>ask</code>, a manual key-rotation as a <code>task</code>, and the corresponding response envelope.</p>
+
+</main>
+<footer>MA2H v0.6 draft · Apache-2.0 · Stewarded by <a href="https://meetautonomy.com/">Autonomy</a> · Hub implementation: <a href="https://ohhai.app/">OH HAI</a> · Related: <a href="https://issuegraph.org/">Issuegraph</a> · <a href="https://descant.run/">Descant</a></footer>
+</div>
+</body>
+</html>
