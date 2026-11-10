@@ -1,6 +1,6 @@
-#!/usr/bin/env -S node --import tsx
+#!/usr/bin/env node
 // MA2H reference CLI — validate / sign / verify / run-vectors.
-// Run: npm run ma2h -- <cmd> ...   or   node --import tsx bin/ma2h.ts <cmd> ...
+// Run: npm run ma2h -- <cmd> ...   or, after npm run build:   node dist/bin/ma2h.js <cmd> ...
 
 import { readFileSync } from "node:fs";
 import {

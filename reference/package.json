@@ -9,12 +9,13 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
-    "build": "tsc",
+    "build": "node scripts/copy-assets.mjs && tsc -p tsconfig.build.json",
     "ma2h": "node --import tsx bin/ma2h.ts",
     "vectors": "node --import tsx bin/ma2h.ts run-vectors",
     "demo": "node --import tsx demo/playground.ts"
   },
-  "bin": { "ma2h": "bin/ma2h.ts" },
+  "bin": { "ma2h": "dist/bin/ma2h.js" },
+  "files": ["dist/src", "dist/bin", "schema", "conformance/vectors"],
   "dependencies": {
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1"
