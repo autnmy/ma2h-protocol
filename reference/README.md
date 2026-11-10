@@ -48,9 +48,18 @@ npm run vectors                                 # execute the conformance vector
 # CLI
 npm run ma2h -- validate ../examples/ask-dev-team-decision.json
 npm run ma2h -- validate ../examples/message-inter-agent-ask.json   # v0.5 entry, auto-detected
+npm run ma2h -- validate ../examples/ask-ship-decision-v0.6.json    # v0.6 message, auto-detected
 npm run ma2h -- sign <signed_context.json> --key <key>
 npm run ma2h -- verify <signed_context.json> --v1 <sig> --key <key>
+
+# The same CLI on plain Node, no tsx
+npm run build                                   # copies schema/ and conformance/vectors/ in, emits dist/
+node dist/bin/ma2h.js validate ../examples/ask-ship-decision-v0.6.json
 ```
+
+`npm run build` copies the schemas and the conformance vectors into this package, because the built CLI
+reads them by paths relative to `dist/`. `npm pack` then carries `dist/`, the schemas and the vectors,
+and the packed CLI runs on Node 20 with no `tsx`. The package stays private: it is not published.
 
 `npm run vectors` executes the `schema-validation` and `downstream-proof` (signature) vectors and reports
 `prose-audit` vectors as skipped (manual sign-off). The remaining §12 obligations that need more than the
