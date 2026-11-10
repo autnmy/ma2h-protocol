@@ -3,8 +3,8 @@
   "version": "0.6.0",
   "description": "Vendor-neutral reference implementation and conformance harness for MA2H (the Multi-agent to Human Protocol). Not affiliated with any specific Hub product.",
   "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "git+https://github.com/autnmy/ma2h-protocol.git", "directory": "reference" },
   "type": "module",
-  "private": true,
   "engines": { "node": ">=20" },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -15,7 +15,8 @@
     "demo": "node --import tsx demo/playground.ts"
   },
   "bin": { "ma2h": "dist/bin/ma2h.js" },
-  "files": ["dist/src", "dist/bin", "schema", "conformance/vectors"],
+  "files": ["dist/src", "dist/bin", "schema", "conformance/vectors", "LICENSE", "NOTICE"],
+  "publishConfig": { "access": "public", "provenance": true },
   "dependencies": {
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1"

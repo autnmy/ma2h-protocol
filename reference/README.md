@@ -59,7 +59,9 @@ node dist/bin/ma2h.js validate ../examples/ask-ship-decision-v0.6.json
 
 `npm run build` copies the schemas and the conformance vectors into this package, because the built CLI
 reads them by paths relative to `dist/`. `npm pack` then carries `dist/`, the schemas and the vectors,
-and the packed CLI runs on Node 20 with no `tsx`. The package stays private: it is not published.
+and the packed CLI runs on Node 20 with no `tsx`. The package is published to npm as `@ma2h/reference`
+(with provenance) only by a manual run of the Publish workflow (`.github/workflows/publish.yml`); its
+`dry_run` input, on by default, does everything except the upload.
 
 `npm run vectors` executes the `schema-validation` and `downstream-proof` (signature) vectors and reports
 `prose-audit` vectors as skipped (manual sign-off). The remaining §12 obligations that need more than the
