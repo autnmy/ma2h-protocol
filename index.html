@@ -345,7 +345,7 @@ queued ──▶ delivered ──▶ acknowledged
       <div class="cmdline"><span class="p">~/ma2h</span> <span class="car">❯</span> <span class="cmd">ma2h build</span></div>
       <div class="out">
         <h2 class="vh">Build with MA2H</h2>
-        <p class="tag">MA2H has <b>no npm package yet</b>. This is what you can install or run today:</p>
+        <p class="tag">The reference implementation is on npm as <b>@ma2h/reference</b>. This is what you can install or run today:</p>
         <dl class="verb toolkit">
           <dt>skills plugin</dt><dd>the six agent-native skills above, for Claude Code — from a terminal:</dd>
         </dl>
@@ -354,13 +354,13 @@ claude plugin install ma2h-skills@ma2h</pre>
         <dl class="verb toolkit">
           <dt>reference</dt><dd>the strict-TypeScript implementation and its <code>ma2h</code> CLI — validate a message, sign and verify, run the conformance vectors <span class="faint">(Node 20 or later)</span></dd>
         </dl>
-        <pre class="map cmds">git clone https://github.com/autnmy/ma2h-protocol
-cd ma2h-protocol/reference &amp;&amp; npm install
-npm run ma2h -- validate ../examples/ask-ship-decision-v0.6.json
-npm run vectors</pre>
+        <pre class="map cmds">npm install -g @ma2h/reference
+ma2h validate your-message.json
+ma2h run-vectors</pre>
         <nav class="links" aria-label="Build with MA2H">
           <a class="lk" href="/schema/v0.6/message.schema.json"><span class="k">schemas</span><span class="d">JSON Schema 2020-12 — point your validator at these <code>$id</code> URLs</span></a>
           <a class="lk" href="https://github.com/autnmy/ma2h-protocol/tree/main/conformance"><span class="k">conformance</span><span class="d">the vectors a Hub or client must pass</span></a>
+          <a class="lk" href="https://www.npmjs.com/package/@ma2h/reference"><span class="k">npm</span><span class="d"><code>@ma2h/reference</code>, published with provenance</span></a>
           <a class="lk" href="https://github.com/autnmy/ma2h-protocol/tree/main/reference"><span class="k">reference</span><span class="d">source, tests and CLI usage</span></a>
         </nav>
       </div>
