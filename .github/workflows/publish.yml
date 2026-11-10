@@ -1,0 +1,87 @@
+name: Publish
+
+# Publishes reference/ as @ma2h/reference. Deliberately not on push: a published
+# version is permanent (npm allows no unpublish after 72 hours), so it happens
+# only on a deliberate manual run. Same shape as autnmy/issuegraph's publish.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      # Underscore, not a hyphen: a GitHub expression reads `inputs.dry-run` as
+      # `inputs.dry` MINUS `run`, and the workflow then fails to load.
+      dry_run:
+        description: 'Run everything except the upload itself'
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  # Required for npm provenance, which reference/package.json requests through
+  # its publishConfig.
+  id-token: write
+
+concurrency:
+  group: publish-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: publish @ma2h/reference
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: reference
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: reference/package-lock.json
+          registry-url: 'https://registry.npmjs.org'
+
+      # Fail here, with the secret's name, rather than at the upload with a
+      # registry error that reads like an outage. Only where a token is needed,
+      # so a dry run still rehearses everything without one.
+      - name: Require a publish token
+        if: ${{ !inputs.dry_run }}
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "${NPM_TOKEN}" ]; then
+            echo "::error::NPM_TOKEN is not set on this repository, so nothing can be published."
+            echo "::error::It needs an npm token with publish access to the @ma2h scope."
+            exit 1
+          fi
+          echo "NPM_TOKEN is present."
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test (reference unit + conformance vectors)
+        run: npm test
+
+      # The package ships dist/, so the build is an explicit step: the publish
+      # below runs with --ignore-scripts and no lifecycle hook builds it.
+      - name: Build
+        run: npm run build
+
+      # A dry run RUNS the publish with --dry-run, so packing and the manifest
+      # checks execute and the tarball contents are listed; only the upload is
+      # skipped. Access and provenance come from the package's publishConfig.
+      - name: Publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "${DRY_RUN}" = "true" ]; then
+            npm publish --ignore-scripts --dry-run
+            echo "Dry run complete: packed and validated, nothing uploaded."
+          else
+            npm publish --ignore-scripts
+          fi
