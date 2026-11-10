@@ -27,6 +27,10 @@ jobs:
   publish:
     name: publish @ma2h/reference
     runs-on: ubuntu-latest
+    # NPM_TOKEN is a secret of this environment, whose deployment branches are
+    # main only, so no workflow on another branch (a pull_request run that edits
+    # ci.yml, say) can read it.
+    environment: npm-publish
     defaults:
       run:
         working-directory: reference
@@ -37,7 +41,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
           cache-dependency-path: reference/package-lock.json
           registry-url: 'https://registry.npmjs.org'
@@ -46,19 +50,21 @@ jobs:
       # registry error that reads like an outage. Only where a token is needed,
       # so a dry run still rehearses everything without one.
       - name: Require a publish token
-        if: ${{ !inputs.dry_run }}
+        if: ${{ inputs.dry_run == false }}
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           if [ -z "${NPM_TOKEN}" ]; then
-            echo "::error::NPM_TOKEN is not set on this repository, so nothing can be published."
+            echo "::error::NPM_TOKEN is not set in the npm-publish environment, so nothing can be published."
             echo "::error::It needs an npm token with publish access to the @ma2h scope."
             exit 1
           fi
           echo "NPM_TOKEN is present."
 
+      # --ignore-scripts: the job holds id-token: write, so a dependency's install
+      # script must not run here. Nothing in this package needs one.
       - name: Install
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Typecheck
         run: npm run typecheck
@@ -73,15 +79,17 @@ jobs:
 
       # A dry run RUNS the publish with --dry-run, so packing and the manifest
       # checks execute and the tarball contents are listed; only the upload is
-      # skipped. Access and provenance come from the package's publishConfig.
+      # skipped. It fails closed: only the exact value "false" uploads, anything
+      # else is a dry run. Access and provenance come from the package's
+      # publishConfig.
       - name: Publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          if [ "${DRY_RUN}" = "true" ]; then
+          if [ "${DRY_RUN}" = "false" ]; then
+            npm publish --ignore-scripts
+          else
             npm publish --ignore-scripts --dry-run
             echo "Dry run complete: packed and validated, nothing uploaded."
-          else
-            npm publish --ignore-scripts
           fi
