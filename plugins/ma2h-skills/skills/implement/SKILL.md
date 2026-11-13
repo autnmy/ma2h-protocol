@@ -38,8 +38,8 @@ Your definition of done is **conformance**, not a copied reference implementatio
 ## 0. Ground yourself in the spec
 
 Read these before writing code — they are the source of truth:
-- **Spec:** <https://ma2h.org/spec/v0.6.md> (§5 verbs · §6 response · §7 lifecycle · §8 transport · §9 security · **§13 inbound directives** · **§14 ack/delivery** · **§16 sessions**)
-- **Schemas:** <https://ma2h.org/schema/v0.6/message.schema.json> · `response.schema.json` · `capability.schema.json` · `submit-ack.schema.json` · `get-message.schema.json` · `inbound-message.schema.json` *(the delivered-entry union)* · `ack.schema.json` · `presence.schema.json` · `session.schema.json` + `resolve-request.schema.json` *(v0.5)*
+- **Spec:** <https://ma2h.org/spec/v0.7.md> (§5 verbs · §6 response · §7 lifecycle · §8 transport · §9 security · **§13 inbound directives** · **§14 ack/delivery** · **§16 sessions**)
+- **Schemas:** <https://ma2h.org/schema/v0.7/message.schema.json> · `response.schema.json` · `capability.schema.json` · `submit-ack.schema.json` · `get-message.schema.json` · `inbound-message.schema.json` *(the delivered-entry union)* · `ack.schema.json` · `presence.schema.json` · `session.schema.json` + `resolve-request.schema.json` *(v0.5)*
 - **Reference impl** (the crypto/lifecycle, to mirror — see §3): <https://github.com/autnmy/ma2h-protocol/tree/main/reference>
 - **Conformance vectors** (your tests): <https://github.com/autnmy/ma2h-protocol/tree/main/conformance>
 
@@ -61,7 +61,7 @@ Implement these over **HTTPS only** (plaintext MUST NOT be offered, §8). Paths 
 | POST | `/v1/messages` | ingest `notify`/`ask`/`task`; **Hub assigns `id`**; returns `202` + the submit-ack body **including `poll_url`** (the canonical per-message URL clients poll) |
 | GET | `/v1/messages` · `/v1/messages/{id}` | inbox read; reads are **idempotent**; **pull-mode** clients read the terminal Response **embedded in the message body** of `GET /v1/messages/{id}` — trusted via the authenticated GET transport, **not signed** |
 | POST | `/v1/messages/{id}/resolve` | a human resolves an `ask`/`task` → triggers the signed response. **v0.5 pins this as the §8.8 wire binding** (body: `resolve-request.schema.json`) so an **addressed** message's agent addressee resolves over the wire too; an agent resolver MAY present `?session=` (own live session, else foreign/unknown → `404`, own-terminal → `410`) and the Hub attests the session-qualified `actor` |
-| POST | `/v1/messages/{id}/cancel` | the agent withdraws an open `ask` → terminal `cancelled`, which **emits a terminal Response** delivered like a resolve (push and/or embedded for pull) so the agent gets closure |
+| POST | `/v1/messages/{id}/cancel` | the agent withdraws an open `ask` → terminal `cancelled`, which **emits a terminal Response** delivered like a resolve (push and/or embedded for pull) so the agent gets closure. **v0.7:** an open `task` too → `dismissed` with the submitting agent as `actor`; an optional body `{ "comment" }` lands as `response.comment`, bounded like the resolve comment (`422` over, message stays open) |
 | GET | `/.well-known/ma2h` | advertise limits + supported auth schemes (standardized discovery) |
 | GET | `/v1/stream` *(optional)* | SSE live tail for a live inbox |
 | POST · GET · DELETE | `/v1/sessions`, `/v1/sessions/{id}` *(v0.5, optional — required for the inter-agent leg, section 7)* | register / read / close a **session** (spec §16): the Hub mints `sess_` ids; `ttl_seconds` is clamped to the advertised bounds; over the `max_live_per_agent` cap → `429`; `DELETE` is idempotent, and the account's authenticated **human** may close any account session (the kill-switch). Own-session listing is unconditional; foreign sessions are indistinguishable from unknown |
@@ -138,7 +138,7 @@ implementation is done when each MUST below holds **and** the vectors pass.
 
 ### 3.5 The v0.5 inter-agent MUSTs (only if you offer `sessions` + `inter_agent` — see section 7)
 
-Every `§` reference in this block is a **spec** section (<https://ma2h.org/spec/v0.6.md>); this
+Every `§` reference in this block is a **spec** section (<https://ma2h.org/spec/v0.7.md>); this
 skill's own parts are called out as "section N".
 
 Skip this block for a human-inbox-only Hub. If you offer the leg, every item is normative and the v0.5
@@ -316,6 +316,6 @@ leg (section 7), **run `build-bridge`** in the apps whose agents should hold an 
 sender builders' v0.5 addressing blocks cover the sending side).
 
 ## References
-- MA2H: <https://ma2h.org> · Spec: <https://ma2h.org/spec/v0.6.md>
-- Schemas: <https://ma2h.org/schema/v0.6/message.schema.json>
+- MA2H: <https://ma2h.org> · Spec: <https://ma2h.org/spec/v0.7.md>
+- Schemas: <https://ma2h.org/schema/v0.7/message.schema.json>
 - Reference impl + conformance: <https://github.com/autnmy/ma2h-protocol/tree/main/reference> · <https://github.com/autnmy/ma2h-protocol/tree/main/conformance>

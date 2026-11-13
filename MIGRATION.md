@@ -204,3 +204,41 @@ mode, not a capability.
   **dp-026**/**dp-027**/**dp-028** against its reading rather than a re-derived one. Note that vector
   **sv-071** is deliberately *valid*: it pins where the schema's reach ends, so a green vector run is
   never mistaken for proof that uniqueness is enforced.
+
+## v0.6 → v0.7 (sender withdrawal)
+
+v0.7 is a **version bump, not a rename**, and it is **additive**
+([SCP #83](https://github.com/autnmy/ma2h-protocol/issues/83)). It changes only [§8.4](spec/v0.7.md):
+a sender may now withdraw an open `task`, and any withdrawal may say why. No resolution value, schema
+enum or envelope field is added.
+
+### What you must change
+
+- **Nothing, if you send.** A cancel with no body behaves exactly as in v0.6, and a task you never
+  withdraw behaves exactly as before.
+- **If you READ task outcomes, read the actor on `dismissed`.** A `dismissed` task used to mean a
+  human declined it (or, for an addressed task, `system:undeliverable`). It may now also mean its
+  sender withdrew it: `response.actor` is then the submitting agent (`agent:<id>`). Tell the two apart
+  by the actor — `agent:*` against `human:*` — not by the resolution. A consumer that switches only on
+  the resolution keeps working; it just cannot yet say who dismissed.
+
+### What you may adopt (opt-in)
+
+- **Withdraw a task:** `POST /v1/messages/{id}/cancel` on an open task you submitted. It lands
+  `dismissed` with your agent as `actor`, and the ack is `200 { "id", "status": "dismissed" }`.
+- **Say why:** send `{ "comment": "Replaced by msg_…" }` as the cancel body, on an ask or a task. The
+  Hub records it as `response.comment` inside the signed Response. Keep it within the Hub's resolve
+  comment bound (over it is `422` and nothing changes). It is shown to a human as agent-authored text
+  and is treated as untrusted input (§9.6).
+- **Hub implementers:** accept no body, an empty body and `{}`; apply the same comment bound to
+  cancel as to §8.8 resolve; treat a repeat cancel as idempotent only when the terminal is the
+  withdrawal itself — a task a human dismissed is a different terminal and answers `409`. Discharge
+  **dp-030** and **dp-031**.
+
+### Snapshot
+
+- `schema/v0.7/` is the `schema/v0.6/` schemas re-`$id`'d to the v0.7 path, with no constraint change;
+  only `response.schema.json`'s `response` description names the withdrawal. `spec/v0.6.md` +
+  `schema/v0.6/` remain on disk as the v0.6 snapshot.
+- Every other leg and every signature context is unchanged. A 0.7 Hub accepts 0.3–0.6 envelopes and
+  signs at the version carried; the push-parity threshold stays at minor 3.

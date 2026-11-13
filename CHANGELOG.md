@@ -2,6 +2,53 @@
 
 All notable changes to the MA2H (Multi-agent to Human Protocol) specification.
 
+## 0.7 (2026-11-13) — Draft
+
+**Sender withdrawal** — [SCP #83](https://github.com/autnmy/ma2h-protocol/issues/83). v0.7 adds no leg,
+no resolution value, and no envelope field. It closes two gaps in §8.4 that left stale work in front of
+a human: a sender could not withdraw a `task` at all, and a withdrawal of an `ask` could not say why.
+
+### Added (§8.4 — the submitting principal may withdraw an open `task`)
+
+- A withdrawn task resolves **`dismissed`** with `response.actor` the submitting agent
+  (`agent:<agent.id>`, or the session-qualified form), the shape §7 already uses for the
+  `system:undeliverable` auto-dismiss. Its `response` carries `actor`, `resolved_at` and an optional
+  `comment`, never `value`. The cancel ack is `200 { "id", "status": "dismissed" }`.
+- The §9.1 binding covers it: another principal's withdraw is `404` and the task stays `open`, so a
+  task id cannot be probed by withdrawing it. The §7 rules apply as they do to an ask cancel: first
+  terminal wins, a cancel strictly after `expires_at` loses to expiry, a cancel after a different
+  terminal is `409 already_terminal`, and a repeat cancel is idempotent. A task a human dismissed is a
+  different terminal from a withdrawal and answers `409`.
+- `cancelled` stays ask-only. The canonical resolution list (§1, §6, §7, §11) is unchanged.
+
+### Added (§8.4 — an optional `{ "comment": string }` body on any cancel)
+
+- The Hub records it as `response.comment` on the terminal Response, so it is inside the §9.2
+  signature. "This message replaces that one" is a comment naming the new message id; no supersede
+  field is added.
+- It is bounded like a §8.8 resolve comment: over the bound is `422 invalid_field` and the message
+  stays `open`. No body, an empty body and `{}` behave exactly as in v0.6. A repeat cancel with a
+  different comment returns the first Response unchanged.
+- §9.6: the comment is **agent-authored** and is untrusted input to whoever reads it, as `body` is.
+
+### Compatibility
+
+- **Additive (MINOR).** An agent that sends no body gets the v0.6 behaviour, and an agent that never
+  withdraws a task sees nothing new. The one reading change: a consumer that read `dismissed` as "a
+  human declined" now reads `response.actor` too (`agent:*` against `human:*`). Before 1.0 that is
+  acceptable under §10. The push-parity threshold stays anchored at minor **3**.
+- New `spec/v0.7.md` + `schema/v0.7/` (full snapshot; the v0.6 schemas re-`$id`'d with no constraint
+  change — the v0.6 Response schema already admits a `dismissed` task Response with an `agent:` actor,
+  a `comment` and no `value`; only `response`'s description names the withdrawal).
+- Vectors: **dp-030** (task withdraw, submitter binding), **dp-031** (cancel comment recorded, signed,
+  immutable, bounded), **sv-080** (a withdrawn task Response validates against `schema/v0.7/`).
+- Reference: `MA2H_VERSION` → `"0.7"`; `Hub.cancel()` takes a task and an optional `{ comment }`;
+  a fourth schema registry (`validateV07`/`validateV07Def`) with its vector-runner row and CLI
+  routing. The reference had no resolve-comment bound to reuse, so it gains one Hub option,
+  `maxCommentLength`, enforced by one helper on both §8.8 resolve paths and on cancel (unset means
+  unbounded, the v0.6 behaviour). Proven by `test/task-withdraw.test.ts`. `wireVersionFor` gains no
+  row: nothing in v0.7 is on a submitted envelope.
+
 ## 0.6 (2026-09-13) — Draft
 
 **The `ask` contract.** v0.6 adds no leg. Every version before it extended MA2H outward; this one
