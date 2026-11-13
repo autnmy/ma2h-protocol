@@ -29,7 +29,7 @@ Also: directive (human→agent, v0.4+), message/receipt/ack/presence and agent s
 
 ## Implementations and related
 - [OH HAI](https://ohhai.app): universal inbox for agent fleets — an MA2H hub with web and iOS apps, where humans answer agents' notify/ask/task
-- [Descant](https://descant.run): autonomous software-engineering agent whose runs reach a human through OH HAI
+- [Descant](https://descant.run): software factory whose runs reach a human through OH HAI
 - [Issuegraph](https://issuegraph.org): open spec for machine-readable issue dependencies (same steward)
 - [Autonomy](https://meetautonomy.com): steward of MA2H
 
