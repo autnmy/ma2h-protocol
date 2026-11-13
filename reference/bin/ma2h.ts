@@ -13,6 +13,7 @@ import {
   validateV05,
   validateV05Def,
   validateV06,
+  validateV07,
   type ValidationResult,
 } from "../src/envelope.js";
 import { buildSignedContext, signResponse, verifyResponse } from "../src/signing.js";
@@ -95,8 +96,8 @@ const V05_ONLY_KINDS: ReadonlySet<ValidateKind> = new Set([
   "entry",
 ]);
 
-/** Schema filename per kind. Shared by the v0.5 and v0.6 snapshots — same ten documents,
- * re-`$id`'d — so one map serves both; a future snapshot that renames a file needs its own. */
+/** Schema filename per kind. Shared by the v0.5, v0.6 and v0.7 snapshots — same ten documents,
+ * re-`$id`'d — so one map serves all three; a future snapshot that renames a file needs its own. */
 const V05_SCHEMA_BY_KIND: Record<ValidateKind, string> = {
   message: "message.schema.json",
   response: "response.schema.json",
@@ -126,10 +127,24 @@ function declaresV05(doc: unknown): boolean {
   return minor !== null && minor >= 5;
 }
 
-/** True when the document declares a >= 0.6 `ma2h_version` — the v0.6 `ask`-contract snapshot. */
-function declaresV06(doc: unknown): boolean {
+/**
+ * The snapshots a document is routed to BY ITS DECLARED MINOR alone, newest first: the first row
+ * whose `sinceMinor` the document reaches wins. v0.5 is not a row — it is also reached by the
+ * v0.5-ONLY kinds whatever the document declares, so it keeps its own rule below.
+ */
+const DECLARED_SNAPSHOTS: ReadonlyArray<{
+  sinceMinor: number;
+  label: string;
+  validate: (schemaFile: string, data: unknown) => ValidationResult;
+}> = [
+  { sinceMinor: 7, label: "v0.7", validate: validateV07 },
+  { sinceMinor: 6, label: "v0.6", validate: validateV06 },
+];
+
+/** The declared-minor snapshot a document selects, or undefined below minor 6. */
+function declaredSnapshot(doc: unknown): (typeof DECLARED_SNAPSHOTS)[number] | undefined {
   const minor = declaredMinor(doc);
-  return minor !== null && minor >= 6;
+  return minor === null ? undefined : DECLARED_SNAPSHOTS.find((s) => minor >= s.sinceMinor);
 }
 
 function cmdValidate(positionals: string[], flags: Map<string, string>): void {
@@ -144,8 +159,10 @@ function cmdValidate(positionals: string[], flags: Map<string, string>): void {
   // would silently skip the v0.6 `ask` constraints, so `ma2h validate` would pass an envelope the
   // Hub rejects (codex, PR #65 round 2). The v0.5-ONLY kinds stay on v0.5 unless the document itself
   // declares higher: those shapes exist in both snapshots.
-  const useV06 = declaresV06(doc);
-  const useV05 = !useV06 && (V05_ONLY_KINDS.has(kind) || declaresV05(doc));
+  // A 0.7 document likewise validates against the v0.7 snapshot (`DECLARED_SNAPSHOTS`).
+  const declared = declaredSnapshot(doc);
+  const useV05 = declared === undefined && (V05_ONLY_KINDS.has(kind) || declaresV05(doc));
+  const label = declared?.label ?? (useV05 ? "v0.5" : "v0.4");
   // The session collection envelope `{ "sessions": [...] }` validates against the sessionList $def
   // (spec §16.1) — the root schema is the single-session RESOURCE, which would reject the wrapper.
   if (kind === "session-list") {
@@ -162,8 +179,8 @@ function cmdValidate(positionals: string[], flags: Map<string, string>): void {
     kind === "session" && doc && typeof doc === "object" && "session" in (doc as Record<string, unknown>)
       ? (doc as { session: unknown }).session
       : doc;
-  const res: ValidationResult = useV06
-    ? validateV06(V05_SCHEMA_BY_KIND[kind], target)
+  const res: ValidationResult = declared
+    ? declared.validate(V05_SCHEMA_BY_KIND[kind], target)
     : useV05
     ? validateV05(V05_SCHEMA_BY_KIND[kind], target)
     : kind === "response"
@@ -178,10 +195,10 @@ function cmdValidate(positionals: string[], flags: Map<string, string>): void {
               ? validatePresence(doc)
               : validateMessage(doc);
   if (res.valid) {
-    console.log(`✓ valid ${kind} (${useV06 ? "v0.6" : useV05 ? "v0.5" : "v0.4"} schema): ${file}`);
+    console.log(`✓ valid ${kind} (${label} schema): ${file}`);
     return;
   }
-  console.error(`✗ invalid ${kind} (${useV06 ? "v0.6" : useV05 ? "v0.5" : "v0.4"} schema): ${file}`);
+  console.error(`✗ invalid ${kind} (${label} schema): ${file}`);
   for (const e of res.errors) console.error(`  - ${e}`);
   process.exit(1);
 }

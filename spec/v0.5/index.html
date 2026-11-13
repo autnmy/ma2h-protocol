@@ -4,17 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MA2H Specification v0.5 (draft) · superseded · Multi-agent to Human Protocol</title>
-<meta name="description" content="MA2H v0.5 specification: how a fleet of autonomous agents sends notify, ask and task messages to one Hub, and how signed human answers route back to the agent. Superseded by v0.6.">
+<meta name="description" content="MA2H v0.5 specification: how a fleet of autonomous agents sends notify, ask and task messages to one Hub, and how signed human answers route back to the agent. Superseded by v0.7.">
 <link rel="canonical" href="https://ma2h.org/spec/v0.5/">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="MA2H">
 <meta property="og:url" content="https://ma2h.org/spec/v0.5/">
 <meta property="og:title" content="MA2H Specification v0.5 (draft) · superseded · Multi-agent to Human Protocol">
-<meta property="og:description" content="MA2H v0.5 specification: how a fleet of autonomous agents sends notify, ask and task messages to one Hub, and how signed human answers route back to the agent. Superseded by v0.6.">
+<meta property="og:description" content="MA2H v0.5 specification: how a fleet of autonomous agents sends notify, ask and task messages to one Hub, and how signed human answers route back to the agent. Superseded by v0.7.">
 <meta property="og:image" content="https://ma2h.org/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="MA2H Specification v0.5 (draft) · superseded · Multi-agent to Human Protocol">
-<meta name="twitter:description" content="MA2H v0.5 specification: how a fleet of autonomous agents sends notify, ask and task messages to one Hub, and how signed human answers route back to the agent. Superseded by v0.6.">
+<meta name="twitter:description" content="MA2H v0.5 specification: how a fleet of autonomous agents sends notify, ask and task messages to one Hub, and how signed human answers route back to the agent. Superseded by v0.7.">
 <meta name="twitter:image" content="https://ma2h.org/og.png">
 <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
 
@@ -36,10 +36,10 @@ footer{margin-top:56px;border-top:1px solid var(--rule);padding-top:14px;font:13
 </head>
 <body>
 <div class="wrap">
-<header class="top"><b><a href="/">MA2H</a></b><a href="/spec/v0.6/">Spec v0.6</a><a href="/faq/">FAQ</a><a href="https://ohhai.app/">OH HAI (hub)</a><a href="https://github.com/autnmy/ma2h-protocol">GitHub</a></header>
+<header class="top"><b><a href="/">MA2H</a></b><a href="/spec/v0.7/">Spec v0.7</a><a href="/faq/">FAQ</a><a href="https://ohhai.app/">OH HAI (hub)</a><a href="https://github.com/autnmy/ma2h-protocol">GitHub</a></header>
 <div class="crumbs"><a href="/">MA2H</a> / <a href="/spec/">Spec</a> / v0.5</div>
 <main>
-<p class="note"><b>Superseded.</b> The current version is <a href="/spec/v0.6/">v0.6</a>. Rendered from <a href="/spec/v0.5.md">/spec/v0.5.md</a>.</p>
+<p class="note"><b>Superseded.</b> The current version is <a href="/spec/v0.7/">v0.7</a>. Rendered from <a href="/spec/v0.5.md">/spec/v0.5.md</a>.</p>
 <nav class="toc" aria-label="Contents"><b>Contents</b><ol><li><a href="#0-abstract">0. Abstract</a></li><li><a href="#1-conformance-and-terminology">1. Conformance and Terminology</a></li><li><a href="#2-goals-and-non-goals">2. Goals and Non-Goals</a></li><li><a href="#3-architecture">3. Architecture</a></li><li><a href="#4-message-envelope-common-fields">4. Message Envelope (common fields)</a></li><li><a href="#5-the-three-verbs">5. The Three Verbs</a></li><li><a href="#6-response-envelope-hub--agent">6. Response Envelope (Hub → agent)</a></li><li><a href="#7-lifecycle--state-machines">7. Lifecycle / State Machines</a></li><li><a href="#8-transport-bindings-httpjson">8. Transport Bindings (HTTP/JSON)</a></li><li><a href="#9-security-and-privacy">9. Security and Privacy</a></li><li><a href="#10-versioning-and-roadmap">10. Versioning and Roadmap</a></li><li><a href="#11-provenance-what-ma2h-reuses">11. Provenance (what MA2H reuses)</a></li><li><a href="#12-validation-and-proof-obligations">12. Validation and Proof Obligations</a></li><li><a href="#13-the-inbound-leg--human--agent-directives-v04">13. The Inbound Leg — Human → Agent Directives (v0.4)</a></li><li><a href="#14-acknowledgment--receipt-cross-cutting-v04">14. Acknowledgment / Receipt (cross-cutting, v0.4)</a></li><li><a href="#15-presence--listening-cross-cutting-v04">15. Presence / &quot;Listening&quot; (cross-cutting, v0.4)</a></li><li><a href="#16-sessions-v05">16. Sessions (v0.5)</a></li><li><a href="#appendix-a--worked-examples">Appendix A — Worked Examples</a></li></ol></nav>
 <h1 id="ma2h--multi-agent-to-human-protocol"><a class="anchor" href="#ma2h--multi-agent-to-human-protocol">MA2H — Multi-agent to Human Protocol</a></h1>
 <p><strong>Version:</strong> 0.5 (Draft) · <strong>Date:</strong> 2026-08-10 · <strong>License:</strong> Apache-2.0 · <strong>Steward:</strong> Autonomy</p>
@@ -2188,7 +2188,7 @@ agent→agent ask entry), <code>receipt-bounced</code> (a bounce receipt), and t
 fails while every party behaves correctly, and the six-point conformance checklist).</p>
 
 </main>
-<footer>MA2H v0.6 draft · Apache-2.0 · Stewarded by <a href="https://meetautonomy.com/">Autonomy</a> · Hub implementation: <a href="https://ohhai.app/">OH HAI</a> · Related: <a href="https://issuegraph.org/">Issuegraph</a> · <a href="https://descant.run/">Descant</a></footer>
+<footer>MA2H v0.7 draft · Apache-2.0 · Stewarded by <a href="https://meetautonomy.com/">Autonomy</a> · Hub implementation: <a href="https://ohhai.app/">OH HAI</a> · Related: <a href="https://issuegraph.org/">Issuegraph</a> · <a href="https://descant.run/">Descant</a></footer>
 </div>
 </body>
 </html>

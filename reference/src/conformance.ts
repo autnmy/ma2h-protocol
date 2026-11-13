@@ -18,6 +18,8 @@ import {
   validateV05Def,
   validateV06,
   validateV06Def,
+  validateV07,
+  validateV07Def,
   type ValidationResult,
 } from "./envelope.js";
 import {
@@ -93,6 +95,7 @@ const SNAPSHOTS: ReadonlyArray<{
 }> = [
   { prefix: "v0.5/", file: validateV05, def: validateV05Def },
   { prefix: "v0.6/", file: validateV06, def: validateV06Def },
+  { prefix: "v0.7/", file: validateV07, def: validateV07Def },
 ];
 
 function validateAgainst(target: string, data: unknown): ValidationResult {

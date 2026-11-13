@@ -22,7 +22,7 @@ import {
   type HubTouchpoint,
   type KnownHubErrorCode,
 } from "./errors.js";
-import { validateMessage, validateV05, type ValidationResult, validateV06 } from "./envelope.js";
+import { validateMessage, validateV05, type ValidationResult, validateV06, validateV07 } from "./envelope.js";
 import type {
   A2hMessage,
   A2hVersion,
@@ -367,7 +367,7 @@ function rebuildAction(action: TaskAction): TaskAction {
 /**
  * The builder self-validation net: validate a freshly-built envelope against the registry its
  * STAMPED version selects (the v0.4 registry for a pre-0.5 stamp — no v0.3 registry is published —
- * the v0.5 registry from minor 5, and the v0.6 registry from minor 6), throwing a descriptive `Error` on failure so a
+ * the v0.5 registry from minor 5, the v0.6 registry from minor 6, and the v0.7 registry from minor 7), throwing a descriptive `Error` on failure so a
  * misconstruction surfaces at BUILD time, not at submit time. Not a `HubError`: this is the
  * builder's own construction check, not a Hub verdict.
  */
@@ -377,9 +377,11 @@ function assertBuiltEnvelope(message: A2hMessage): void {
   // v0.6 schema rejects — the self-check passing on a schema the envelope does not claim, which is
   // the one thing this function exists to prevent (codex, PR #65 round 2).
   const minor = minorOf(message.ma2h_version);
-  const snapshot = minor >= 6 ? "v0.6" : minor >= 5 ? "v0.5" : "v0.4";
+  const snapshot = minor >= 7 ? "v0.7" : minor >= 6 ? "v0.6" : minor >= 5 ? "v0.5" : "v0.4";
   const result =
-    minor >= 6
+    minor >= 7
+      ? validateV07("message.schema.json", message)
+      : minor >= 6
       ? validateV06("message.schema.json", message)
       : minor >= 5
         ? validateV05("message.schema.json", message)

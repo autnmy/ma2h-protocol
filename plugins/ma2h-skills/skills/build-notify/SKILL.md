@@ -127,6 +127,6 @@ before using `to`; addressed sends require `ma2h_version` ≥ `"0.5"`.
 ````
 
 ## References
-- Spec: <https://ma2h.org/spec/v0.6.md> (§5.1 notify · §4 `to` · §8.1 addressed acks · §14.2 delivery honesty)
-- Message schema: <https://ma2h.org/schema/v0.6/message.schema.json>
+- Spec: <https://ma2h.org/spec/v0.7.md> (§5.1 notify · §4 `to` · §8.1 addressed acks · §14.2 delivery honesty)
+- Message schema: <https://ma2h.org/schema/v0.7/message.schema.json>
 - MA2H overview: <https://ma2h.org>

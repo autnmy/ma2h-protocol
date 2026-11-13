@@ -1,6 +1,6 @@
 {
   "name": "@ma2h/reference",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Vendor-neutral reference implementation and conformance harness for MA2H (the Multi-agent to Human Protocol). Not affiliated with any specific Hub product.",
   "license": "Apache-2.0",
   "repository": { "type": "git", "url": "git+https://github.com/autnmy/ma2h-protocol.git", "directory": "reference" },

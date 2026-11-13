@@ -164,6 +164,8 @@ Do **not** rebuild the envelope with a fresh `created_at`: the same key with a *
 that comparison — a crashed agent retrying from a new run/session still recovers the original ack, and
 the **original** submit's session stays the bound Caller.)
 
+To **withdraw** an ask that no longer applies, `POST /v1/messages/{id}/cancel`, optionally with `{ "comment": "Replaced by msg_…" }` (v0.7): it lands `cancelled`, and the comment reaches the human as `response.comment`.
+
 ## (Optional, v0.5) Ask another agent
 
 To put this decision in front of **another agent of the same account**, add `"to": "agent:<dest-id>"` —
@@ -238,6 +240,6 @@ platform's ed25519 primitive, **not** that helper (it returns `alg not implement
 ````
 
 ## References
-- Spec: <https://ma2h.org/spec/v0.6.md> (§5 verbs, §6 response, §7 lifecycle, §9 security; v0.5: §4 `to`, §8.1 addressed acks, §9.1 addressee default, §14.2 delivery honesty)
-- Schemas: <https://ma2h.org/schema/v0.6/message.schema.json> · <https://ma2h.org/schema/v0.6/response.schema.json>
+- Spec: <https://ma2h.org/spec/v0.7.md> (§5 verbs, §6 response, §7 lifecycle, §9 security; v0.5: §4 `to`, §8.1 addressed acks, §9.1 addressee default, §14.2 delivery honesty)
+- Schemas: <https://ma2h.org/schema/v0.7/message.schema.json> · <https://ma2h.org/schema/v0.7/response.schema.json>
 - Reference impl (verify/seal): <https://github.com/autnmy/ma2h-protocol/tree/main/reference>

@@ -36,6 +36,7 @@ import {
   validateV05,
   validateV05Def,
   validateV06,
+  validateV07,
   duplicateOptionValue,
   unanswerableInputSchema,
   isEditedAnswer,
@@ -83,6 +84,17 @@ import type {
  * the threshold to IMPLEMENTED_MINOR would wrongly reject 0.3 push against a 0.4 Hub (§10).
  */
 const PAYLOAD_BOUND_SINCE_MINOR = 3;
+
+/**
+ * The terminal a sender's §8.4 withdrawal lands as, per verb (v0.7, SCP #83). No resolution value is
+ * added for it: a withdrawn task reuses `dismissed`, the shape §7 already gives the
+ * `system:undeliverable` auto-dismiss. Which `dismissed` is a withdrawal is RECORDED on the record
+ * (`MessageRecord.withdrawn`), never read off the actor: an addressee's dismissal is `agent:*` too.
+ */
+const WITHDRAWAL_RESOLUTION = {
+  ask: "cancelled",
+  task: "dismissed",
+} as const satisfies Record<"ask" | "task", Resolution>;
 
 export class HubError extends Error {
   /**
@@ -159,6 +171,19 @@ export interface HubOptions {
   streamMaxHoldSeconds?: number;
   /** Message/mailbox retention (spec §8.2/§14.2), driving the v0.5 undeliverable terminals. Default 30 days. */
   retentionDays?: number;
+  /**
+   * The Hub's ONE bound on a free-text `comment`, in Unicode code points: the §8.8 resolve comment
+   * and the §8.4 cancel comment alike, because v0.7 (§8.4) defines the cancel bound as the resolve
+   * bound. Over it → `422 invalid_field` and the message stays `open`. The spec leaves the number to
+   * the Hub (§8.6 sanctions per-field limits); absent means unbounded, the pre-0.7 behaviour.
+   */
+  maxCommentLength?: number;
+}
+
+/** `POST /v1/messages/{id}/cancel` body (spec §8.4, v0.7). Optional: no body, `{}` and an absent
+ * `comment` all mean a withdrawal with no reason given. */
+export interface CancelRequestBody {
+  comment?: string;
 }
 
 /** A registered session (spec §16) plus the internal lease bookkeeping. */
@@ -307,6 +332,7 @@ export class Hub {
   private readonly sessionVisibility: boolean;
   private readonly streamMaxHoldSeconds: number;
   private readonly retentionMs: number;
+  private readonly maxCommentLength: number | null;
 
   constructor(opts: HubOptions) {
     this.signingKey = opts.signingKey;
@@ -326,6 +352,7 @@ export class Hub {
     this.sessionVisibility = opts.sessionVisibility ?? true;
     this.streamMaxHoldSeconds = opts.streamMaxHoldSeconds ?? 30;
     this.retentionMs = (opts.retentionDays ?? 30) * 86_400_000;
+    this.maxCommentLength = opts.maxCommentLength ?? null;
   }
 
   // ---- Sessions (spec §16, v0.5) ----
@@ -712,7 +739,9 @@ export class Hub {
     }
 
     const v =
-      minor !== null && minor >= 6
+      minor !== null && minor >= 7
+        ? validateV07("message.schema.json", message)
+        : minor !== null && minor >= 6
         ? validateV06("message.schema.json", message)
         : minor !== null && minor >= 5
           ? validateV05("message.schema.json", message)
@@ -1041,18 +1070,20 @@ export class Hub {
   }
 
   /**
-   * Agent-initiated withdrawal of an open `ask` (§8.4). Submitter-bound per §9.1:
-   * `principal` is the authenticated caller's `agent.id`. A caller that did not
-   * submit the message cannot learn it exists — a foreign id and an unknown id are
-   * indistinguishable (`not_found`), which makes the binding an id-enumeration guard
-   * and stops one agent from terminally withdrawing another's open ask. On success
-   * the `cancelled` Response is emitted and delivered like a resolve (push and/or
-   * pull), so the agent still gets closure. A cancel past `expires_at` loses to the
-   * default expiry (§7); a cancel after any *other* terminal throws `already_terminal`
-   * carrying the existing `{ id, status, resolution }` (§8.4 `409`).
+   * Agent-initiated withdrawal of an open `ask` or (v0.7) `task` (§8.4). Submitter-bound per §9.1:
+   * `principal` is the authenticated caller's `agent.id`. A caller that did not submit the message
+   * cannot learn it exists — a foreign id and an unknown id are indistinguishable (`not_found`),
+   * which makes the binding an id-enumeration guard and stops one agent from terminally withdrawing
+   * another's open ask or task. On success the terminal Response — `cancelled` for an ask,
+   * `dismissed` for a task, either way with the submitting agent as `actor` — is emitted and
+   * delivered like a resolve (push and/or pull), so the agent still gets closure. The optional
+   * `body.comment` lands as `response.comment`, bounded like a resolve comment (`422`, message left
+   * open). A cancel past `expires_at` loses to the default expiry (§7); a cancel after any terminal
+   * other than a withdrawal throws `already_terminal` carrying the existing `{ id, status, resolution }`
+   * (§8.4 `409`); a repeat cancel returns the first Response unchanged, whatever its comment.
    */
-  cancel(id: string, principal: string, nowMs?: number): A2hResponse {
-    // Settle session leases first (§7/§16.3): a session-addressed ask whose destination lease
+  cancel(id: string, principal: string, nowMs?: number, body?: CancelRequestBody): A2hResponse {
+    // Settle session leases first (§7/§16.3): a session-addressed message whose destination lease
     // already elapsed must let its `system:undeliverable` bounce win the CAS over a late cancel,
     // exactly as resolve() — the same "applies a terminal without touching a session" path.
     this.settleSessions(nowMs ?? this.now());
@@ -1060,41 +1091,93 @@ export class Hub {
     if (!record || record.message.agent.id !== principal) {
       throw new HubError("not_found", `unknown message: ${id}`);
     }
-    if (record.message.type !== "ask") {
-      throw new HubError("validation_error", "only an `ask` is cancellable in v0.3");
+    const type = record.message.type;
+    if (type === "notify") {
+      throw new HubError("validation_error", "only an `ask` or a `task` is cancellable (§8.4)");
     }
+    // The body is read BEFORE any transition so a refused one leaves the message exactly as it was.
+    const comment = Hub.cancelComment(body);
+    this.assertCommentWithinBound(comment);
     const t = nowMs ?? this.now();
-    // Expiry-vs-cancel (§7): the ask conceptually expired at `expires_at`. A cancel arriving
-    // strictly after that loses to the default expiry against the same clock — exactly as a
-    // late resolve does (see `resolve`) — so an overdue ask resolves to `expired`/
-    // `default_on_expire`, never `cancelled`. Guarded on `open` so it never re-fires a
-    // terminal: an already-`cancelled` ask still re-cancels idempotently below.
+    // Expiry-vs-cancel (§7): the message conceptually expired at `expires_at`. A cancel arriving
+    // strictly after that loses to the default expiry against the same clock — exactly as a late
+    // resolve does (see `resolve`) — so an overdue message resolves to `expired` (an ask with
+    // `default_on_expire` applied), never to its withdrawal. Guarded on `open` so it never re-fires
+    // a terminal: an already-withdrawn message still re-cancels idempotently below.
     if (record.status === "open" && record.expiresAtMs !== null && t > record.expiresAtMs) {
       return this.applyDefaultExpiry(record, t);
     }
     if (record.status !== "open") {
-      // first-terminal-wins (§7): a prior terminal stands. A repeat cancel is idempotent;
-      // any other terminal is surfaced — with the existing `{ id, status, resolution }` the
-      // §8.4 `409` MUST carry — so the agent reads the real outcome, not a fake success.
-      if (record.status !== "cancelled") {
-        const existing = record.response as A2hResponse;
+      // first-terminal-wins (§7): a prior terminal stands. A repeat cancel is idempotent; any other
+      // terminal is surfaced — with the existing `{ id, status, resolution }` the §8.4 `409` MUST
+      // carry — so the agent reads the real outcome, not a fake success.
+      const existing = record.response as A2hResponse;
+      if (!Hub.isWithdrawalTerminal(record)) {
         throw new HubError("already_terminal", `message already ${record.status}`, {
           id: record.id,
           status: record.status,
           resolution: existing.resolution,
         });
       }
-      return record.response as A2hResponse;
+      return existing;
     }
     applyResolution(record, {
-      resolution: "cancelled",
+      resolution: WITHDRAWAL_RESOLUTION[type],
       actor: `agent:${record.message.agent.id}`,
       resolved_at: new Date(t).toISOString(),
       resolution_id: newResolutionId(),
+      ...(comment !== undefined ? { comment } : {}),
       ...(record.message.state !== undefined ? { state: record.message.state } : {}),
     });
+    record.withdrawn = true;
     this.emitResponse(record);
     return record.response as A2hResponse;
+  }
+
+  /**
+   * Is this terminal the one a withdrawal produces — so a repeat cancel is idempotent rather than a
+   * `409` (§8.4)? For an ask, any `cancelled`: v0.6's rule, unchanged. For a task, only the
+   * `dismissed` this Hub recorded as the submitter's own withdrawal; a task dismissed by a human, by an
+   * addressee (even a sibling session of the same principal), or by the Hub's `system:undeliverable`
+   * auto-resolution reached a different terminal and is surfaced as one.
+   */
+  private static isWithdrawalTerminal(record: MessageRecord): boolean {
+    const type = record.message.type;
+    if (type === "notify" || record.status !== WITHDRAWAL_RESOLUTION[type]) return false;
+    if (type === "ask") return true;
+    // Recorded, not inferred from the actor: an addressee's `dismissed` is `agent:*` too (§8.4).
+    return record.withdrawn === true;
+  }
+
+  /**
+   * The `comment` of a §8.4 cancel body (v0.7). No body, `{}`, and a body without `comment` are all
+   * a withdrawal with no reason. A transport hands over parsed JSON, so the shape is checked here:
+   * a body that is not an object, or a `comment` that is not a string, is malformed (`400`).
+   */
+  private static cancelComment(body: CancelRequestBody | undefined): string | undefined {
+    if (body === undefined) return undefined;
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      throw new HubError("validation_error", "cancel body must be a JSON object (§8.4)");
+    }
+    if (body.comment !== undefined && typeof body.comment !== "string") {
+      throw new HubError("validation_error", "cancel `comment` must be a string (§8.4)");
+    }
+    return body.comment;
+  }
+
+  /**
+   * The Hub's one `comment` bound (`maxCommentLength`), shared by §8.8 resolve and §8.4 cancel. Over
+   * it is a field-level refusal, `422 invalid_field` (§8.5/§8.6), raised before any transition.
+   */
+  private assertCommentWithinBound(comment: string | undefined): void {
+    if (comment === undefined || this.maxCommentLength === null) return;
+    const length = [...comment].length;
+    if (length > this.maxCommentLength) {
+      throw new HubError(
+        "invalid_field",
+        `comment is ${length} characters; this Hub bounds a comment at ${this.maxCommentLength} (§8.4, §8.8)`,
+      );
+    }
   }
 
   /** Human/inbox resolution. Enforces fail-closed authz + expiry-vs-answer precedence. */
@@ -1128,6 +1211,7 @@ export class Hub {
     if (record.message.type === "ask" && input.resolution === "answered") {
       this.validateAnswerValue(record.message as AskMessage, input.value);
     }
+    this.assertCommentWithinBound(input.comment);
 
     // §6 (v0.6): `edited` is TRUE iff the answer is outside the EFFECTIVE option set — the
     // synthesized approve/deny pair for an options-less confirm, not an absent array. Hub-computed
@@ -1276,6 +1360,7 @@ export class Hub {
       throw new HubError("invalid_field", `resolution ${body.resolution} does not match a ${record.message.type} (§7/§8.8)`);
     }
     if (body.resolution === "answered") this.validateAnswerValue(record.message as AskMessage, body.value);
+    this.assertCommentWithinBound(body.comment);
     if (record.status !== "open") {
       const existing = record.response as A2hResponse;
       throw new HubError("already_terminal", `message already ${record.status}`, {
