@@ -74,7 +74,10 @@ destination-reachability snapshot on the submit ack, per-session presence, and t
 nobody is left believing a lie. MA2H is the agent↔human complement to A2A (agent↔agent, HTTP-addressable
 peers) and MCP (agent↔tools); the v0.5 leg covers hub-mediated coordination among <strong>one account&#39;s</strong>
 agents — spokes that are HTTP clients with no inbound port — not cross-account federation (§2).</p>
-<p>This version (0.6) adds <strong>no leg</strong>. Every version before it extended MA2H outward — v0.2 hardening,
+<p>This version (0.7) adds <strong>no leg</strong> either. It lets a sender withdraw an open <code>task</code>, not only an <code>ask</code>, and
+lets any withdrawal say why (§8.4), with no new resolution value and no new envelope field. The two
+paragraphs below describe v0.6, the corrective release it builds on.</p>
+<p>v0.6 added <strong>no leg</strong>. Every version before it extended MA2H outward — v0.2 hardening,
 the v0.3 payload-bound signature, the v0.4 inbound leg, the v0.5 inter-agent leg — and each was
 additive by construction. v0.6 turns inward and repairs the <strong><code>ask</code> contract</strong> (§5.2, §6), the oldest
 surface in the protocol and the one every other leg now routes answers through.</p>
