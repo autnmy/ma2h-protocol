@@ -1,0 +1,23 @@
+{
+  "id": "sv-080-dismissed-task-agent-actor-valid",
+  "class": "schema-validation",
+  "description": "A sender's §8.4 withdrawal of a task (v0.7, SCP #83) lands as `dismissed` with the submitting agent as `actor`, a `comment`, and no `value`. The Response schema needed no change to admit it: `actor` already allows `agent:`, and nothing requires `value` on a task. This vector pins that the v0.7 snapshot keeps admitting it.",
+  "ref": "spec §6, §7, §8.4 (v0.7)",
+  "target": "v0.7/response.schema.json",
+  "expect": "valid",
+  "input": {
+    "ma2h_version": "0.7",
+    "in_reply_to": "msg_01J9TASK0001",
+    "resolution_id": "res_01J9WDRW0001",
+    "agent": {
+      "id": "deploybot/dev-team",
+      "run_id": "run_01J9DEPLOY01"
+    },
+    "resolution": "dismissed",
+    "response": {
+      "actor": "agent:deploybot/dev-team",
+      "resolved_at": "2026-11-13T09:15:00Z",
+      "comment": "Replaced by msg_01J9TASK0002: the vault moved, rotate there instead."
+    }
+  }
+}

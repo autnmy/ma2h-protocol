@@ -1,4 +1,4 @@
-# MA2H Conformance Vectors (v0.6)
+# MA2H Conformance Vectors (v0.7)
 
 These vectors let an implementer prove conformance. **Read this first** — it states what the vectors can
 and cannot verify, so green ≠ false confidence (spec §12).
@@ -49,7 +49,7 @@ or load all eight schemas into any Draft 2020-12 validator and check each vector
 
 **Version-prefixed targets.** A bare `target` (e.g. `message.schema.json`) validates against
 `schema/v0.4/`. A target prefixed with a version (e.g. `v0.5/inbound-message.schema.json`,
-`v0.6/message.schema.json`) validates against that version's snapshot — swap the `-s`/`-r` paths above accordingly (nine schemas in v0.5,
+`v0.6/message.schema.json`, `v0.7/response.schema.json`) validates against that version's snapshot — swap the `-s`/`-r` paths above accordingly (nine schemas in v0.5,
 including `session.schema.json`). The reference runner (`npm run vectors`) routes both automatically.
 The v0.5 **signature** obligations (the §9.8 `message`/`response`/`receipt` entry contexts, worked in
 [`examples/entry-signatures-v0.5.md`](../examples/entry-signatures-v0.5.md)) are pinned as the
@@ -82,7 +82,8 @@ are reported as *skipped* with a pointer to the reference behavior suites that d
    per-agent, Hub-invisible; verify-before-use holds).
 5. **Request-leg auth** (`dp-002`) — a message's poll/callback/cancel access is bound to the submitting
    principal: a second authenticated agent can neither read nor cancel another agent's message by id
-   (`run_id` does not authorize cross-run access), and the non-submitter sees `404`, not `403`.
+   (`run_id` does not authorize cross-run access), and the non-submitter sees `404`, not `403`. As of
+   v0.7 the binding covers a task withdrawal too (`dp-030`).
 6. **Response-payload integrity** (`dp-003`) — the §9.2 signature binds `payload_sha256`, a digest of the
    response payload. A Response whose `response.value`/`comment`/`actor` or `state` is altered in transit —
    signed metadata and `MA2H-Signature` header left intact — fails verification, because the agent recomputes
@@ -240,3 +241,21 @@ never mistaken for proof that uniqueness is enforced. The rule itself lives in `
 The reference exports `duplicateOptionValue`, `unanswerableInputSchema` and `isEditedAnswer`
 (`reference/src/envelope.ts`) so an implementation discharges `dp-026`/`dp-027`/`dp-028` against the
 reference's reading of these rules rather than a re-derived one.
+
+## v0.7 coverage map — sender withdrawal
+
+v0.7 ([SCP #83](https://github.com/autnmy/ma2h-protocol/issues/83)) adds no schema constraint, so
+almost all of it is behaviour: who may withdraw, what the withdrawal lands as, and what a `comment`
+on it does.
+
+| Rule (spec §8.4, v0.7) | Schema-validation | Downstream proof |
+|---|---|---|
+| A withdrawn task is `dismissed` with the submitting agent as `actor`, `resolved_at`, optional `comment`, never `value` | `sv-080` → valid against `schema/v0.7/` | `dp-030` (2) |
+| Only the submitting principal may withdraw a task; anyone else gets `404` and the task stays `open` | — | `dp-030` (1) |
+| §7 rules for a task: idempotent repeat, `409 already_terminal` after another terminal (a human's `dismissed` included), expiry beats a late cancel, an addressed task stops being actionable | — | `dp-030` (3)–(6) |
+| The optional `{ "comment" }` body lands as `response.comment`, inside the §9.2 signature | — | `dp-031` (1), (2) |
+| A repeat cancel with a different comment returns the first Response unchanged | — | `dp-031` (3) |
+| An over-bound comment is `422` and the message stays `open`; the bound is the §8.8 resolve bound | — | `dp-031` (4) |
+
+The reference discharges `dp-030` and `dp-031` in `reference/test/task-withdraw.test.ts`; the runner
+reports both as skipped, like every behavioural obligation without a deterministic fixture.
