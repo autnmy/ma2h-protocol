@@ -84,6 +84,20 @@ for (const file of SCHEMA_FILES_V06) {
   ajvV06.addSchema(JSON.parse(readFileSync(new URL(file, SCHEMA_DIR_V06), "utf8")));
 }
 
+// v0.7 snapshot (spec/v0.7.md): a FOURTH registry, for the same reason as the two before it —
+// v0.7-targeted vectors validate against schema/v0.7/ while every earlier validator stays
+// byte-identical. v0.7 is additive and confined to §8.4 sender withdrawal (SCP #83): no schema
+// constraint changes, so every file is the v0.6 one re-`$id`'d.
+const SCHEMA_DIR_V07 = new URL("../../schema/v0.7/", import.meta.url);
+const SCHEMA_FILES_V07 = SCHEMA_FILES_V06;
+const BASE_V07 = "https://ma2h.org/schema/v0.7/";
+
+const ajvV07: AjvLike = new AjvCtor({ strict: false, allErrors: true });
+addFormats(ajvV07);
+for (const file of SCHEMA_FILES_V07) {
+  ajvV07.addSchema(JSON.parse(readFileSync(new URL(file, SCHEMA_DIR_V07), "utf8")));
+}
+
 export type ValidationResult = { valid: true } | { valid: false; errors: string[] };
 
 function runValidator(schemaId: string, data: unknown): ValidationResult {
@@ -165,6 +179,27 @@ export function validateV06(schemaFile: string, data: unknown): ValidationResult
 export function validateV06Def(schemaFile: string, def: string, data: unknown): ValidationResult {
   const ref = `${BASE_V06}${schemaFile}#/$defs/${def}`;
   const validate = ajvV06.getSchema(ref);
+  if (!validate) throw new Error(`schema $def not loaded: ${ref}`);
+  return resultFrom(validate, data);
+}
+
+/**
+ * Validate against a v0.7 schema by filename (e.g. "response.schema.json").
+ * Backs conformance vectors whose `target` carries the "v0.7/" prefix.
+ */
+export function validateV07(schemaFile: string, data: unknown): ValidationResult {
+  if (!(SCHEMA_FILES_V07 as readonly string[]).includes(schemaFile)) {
+    throw new Error(`unknown v0.7 schema: ${schemaFile}`);
+  }
+  const validate = ajvV07.getSchema(BASE_V07 + schemaFile);
+  if (!validate) throw new Error(`schema not loaded: ${BASE_V07 + schemaFile}`);
+  return resultFrom(validate, data);
+}
+
+/** Validate against a `$def` inside a v0.7 schema — the v0.7 twin of `validateV06Def`. */
+export function validateV07Def(schemaFile: string, def: string, data: unknown): ValidationResult {
+  const ref = `${BASE_V07}${schemaFile}#/$defs/${def}`;
+  const validate = ajvV07.getSchema(ref);
   if (!validate) throw new Error(`schema $def not loaded: ${ref}`);
   return resultFrom(validate, data);
 }

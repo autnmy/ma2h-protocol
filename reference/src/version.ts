@@ -4,10 +4,10 @@
 
 /**
  * The `ma2h_version` this implementation EMITS on every envelope it mints (spec §10) — major 0,
- * up to minor 6. This is "the version this implementation emits", NOT a Hub's accepted-version
+ * up to minor 7. This is "the version this implementation emits", NOT a Hub's accepted-version
  * floor: those are different values with different semantics. What a Hub still ACCEPTS is
  * governed separately (e.g. `hub.ts`'s `PAYLOAD_BOUND_SINCE_MINOR` anchors the §9.2 push-parity
- * floor at minor 3, so a 0.3 push is still accepted while 0.6 is emitted). Conflating the two —
+ * floor at minor 3, so a 0.3 push is still accepted while 0.7 is emitted). Conflating the two —
  * or re-declaring this literal per call site — is the drift issue #41 / oh-hai#712 documents:
  * downstream declared the wire version in five places and advertised `v0.3` while emitting `0.5`.
  *
@@ -24,5 +24,9 @@
  * discard. The v0.6 CORRECTIONS add no row: they are shapes a Hub refuses, not features an envelope
  * opts into, so they raise no envelope's required minor. That is the distinction coupling the two
  * rules would have erased — the #712 drift class, recreated inside its own fix.
+ *
+ * v0.7 (sender withdrawal, SCP #83) adds no row either: its additions live on the §8.4 cancel
+ * request and on the Hub-minted Response, never on a submitted envelope, so no envelope's required
+ * minor rises.
  */
-export const MA2H_VERSION = "0.6";
+export const MA2H_VERSION = "0.7";
