@@ -87,8 +87,9 @@ const PAYLOAD_BOUND_SINCE_MINOR = 3;
 
 /**
  * The terminal a sender's §8.4 withdrawal lands as, per verb (v0.7, SCP #83). No resolution value is
- * added for it: a withdrawn task reuses `dismissed`, told apart from a human dismissal by its
- * `agent:` actor — the shape §7 already gives the `system:undeliverable` auto-dismiss.
+ * added for it: a withdrawn task reuses `dismissed`, the shape §7 already gives the
+ * `system:undeliverable` auto-dismiss. Which `dismissed` is a withdrawal is RECORDED on the record
+ * (`MessageRecord.withdrawn`), never read off the actor: an addressee's dismissal is `agent:*` too.
  */
 const WITHDRAWAL_RESOLUTION = {
   ask: "cancelled",
@@ -1111,7 +1112,7 @@ export class Hub {
       // terminal is surfaced — with the existing `{ id, status, resolution }` the §8.4 `409` MUST
       // carry — so the agent reads the real outcome, not a fake success.
       const existing = record.response as A2hResponse;
-      if (!Hub.isWithdrawalTerminal(record, existing)) {
+      if (!Hub.isWithdrawalTerminal(record)) {
         throw new HubError("already_terminal", `message already ${record.status}`, {
           id: record.id,
           status: record.status,
@@ -1128,23 +1129,24 @@ export class Hub {
       ...(comment !== undefined ? { comment } : {}),
       ...(record.message.state !== undefined ? { state: record.message.state } : {}),
     });
+    record.withdrawn = true;
     this.emitResponse(record);
     return record.response as A2hResponse;
   }
 
   /**
    * Is this terminal the one a withdrawal produces — so a repeat cancel is idempotent rather than a
-   * `409` (§8.4)? For an ask, any `cancelled`: v0.6's rule, unchanged. For a task, `dismissed`
-   * attested to the submitter itself; a task dismissed by a human, an addressee, or the Hub's
-   * `system:undeliverable` auto-resolution reached a different terminal and is surfaced as one.
+   * `409` (§8.4)? For an ask, any `cancelled`: v0.6's rule, unchanged. For a task, only the
+   * `dismissed` this Hub recorded as the submitter's own withdrawal; a task dismissed by a human, by an
+   * addressee (even a sibling session of the same principal), or by the Hub's `system:undeliverable`
+   * auto-resolution reached a different terminal and is surfaced as one.
    */
-  private static isWithdrawalTerminal(record: MessageRecord, existing: A2hResponse): boolean {
+  private static isWithdrawalTerminal(record: MessageRecord): boolean {
     const type = record.message.type;
     if (type === "notify" || record.status !== WITHDRAWAL_RESOLUTION[type]) return false;
     if (type === "ask") return true;
-    const actor = existing.response?.actor ?? "";
-    const own = `agent:${record.message.agent.id}`;
-    return actor === own || actor.startsWith(`${own}#`);
+    // Recorded, not inferred from the actor: an addressee's `dismissed` is `agent:*` too (§8.4).
+    return record.withdrawn === true;
   }
 
   /**

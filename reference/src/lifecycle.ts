@@ -17,6 +17,12 @@ export interface MessageRecord {
   resolvedAtMs?: number;
   resolution_id: string | null;
   response: A2hResponse | null;
+  /**
+   * True when this record's terminal is its submitter's own §8.4 withdrawal (v0.7). Recorded at the
+   * withdrawal, never inferred from `response.actor`: an addressee's §8.8 `dismissed` also carries an
+   * `agent:*` actor, and one that shares the submitting principal can carry the very same one.
+   */
+  withdrawn?: boolean;
 }
 
 export type TransitionResult =

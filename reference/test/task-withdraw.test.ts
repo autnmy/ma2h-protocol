@@ -253,6 +253,37 @@ test("an addressed task withdrawn by its sender is no longer actionable: the add
   );
 });
 
+test("dp-030: a SIBLING SESSION's dismissal is not the sender's withdrawal, so the sender's cancel is 409", () => {
+  // An addressee that shares the submitting principal resolves through §8.8 with an `agent:<same id>#<sess>`
+  // actor (§6). The actor alone cannot mark a withdrawal (§8.4): the Hub records which terminal was one.
+  const { hub } = newHub();
+  hub.setAgentOwner(SENDER, OWNER);
+  hub.setInterAgentEnabled(OWNER);
+  const sibling = hub.registerSession(SENDER, undefined, T0).session;
+  const { id } = hub.submit(task({ to: `agent:${SENDER}#${sibling.id}`, action: { instructions: "rotate" } }));
+
+  const dismissed = hub.resolveAsAgent(id, SENDER, { resolution: "dismissed" }, { session: sibling.id, now: T0 + 1_000 });
+  assert.equal(dismissed.response.resolution, "dismissed");
+  assert.ok(dismissed.response.response?.actor?.startsWith(`agent:${SENDER}`));
+  assert.throws(
+    () => hub.cancel(id, SENDER, T0 + 2_000, { comment: "Replaced." }),
+    (e: unknown) => isHubError("already_terminal", 409)(e) && e instanceof HubError && e.details?.status === "dismissed",
+  );
+});
+
+test("dp-030: a principal-addressed dismissal with the SAME bare actor is still not a withdrawal (409)", () => {
+  // With no session presented the addressee's actor is `agent:<same id>`, byte-equal to what a withdrawal
+  // writes. Only the Hub's record can tell them apart.
+  const { hub } = newHub();
+  hub.setAgentOwner(SENDER, OWNER);
+  hub.setInterAgentEnabled(OWNER);
+  const { id } = hub.submit(task({ to: `agent:${SENDER}`, action: { instructions: "rotate" } }));
+
+  const dismissed = hub.resolveAsAgent(id, SENDER, { resolution: "dismissed" }, { now: T0 + 1_000 });
+  assert.equal(dismissed.response.response?.actor, `agent:${SENDER}`);
+  assert.throws(() => hub.cancel(id, SENDER, T0 + 2_000), isHubError("already_terminal", 409));
+});
+
 test("notify is not withdrawable", () => {
   const { hub } = newHub();
   const { id } = hub.submit({

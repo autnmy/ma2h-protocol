@@ -689,7 +689,7 @@ ask:      open ──┬─▶ answered    ← human answered (allow_respond)
                  └─▶ expired     ← expires_at passed; default_on_expire applied if set
 
 task:     open ──┬─▶ completed   ← human marked done
-                 ├─▶ dismissed   ← human declined to act, OR the sender withdrew it (§8.4; actor agent:*)
+                 ├─▶ dismissed   ← human declined to act, OR the sender withdrew it (§8.4; Hub-recorded)
                  └─▶ expired     ← expires_at passed (no default)
 </code></pre>
 <p>Normative rules:</p>
@@ -894,8 +894,11 @@ Hub returns <code>200 { &quot;id&quot;, &quot;status&quot;: &quot;cancelled&quot
 <li><strong>Task outcome (v0.7).</strong> The task resolves <strong><code>dismissed</code></strong> with <code>response.actor</code> the submitting agent,
 in the same forms. <code>response</code> is present: a withdrawn task carries <code>actor</code> and <code>resolved_at</code>, plus
 <code>comment</code> when one was given, and never <code>value</code>. On success the Hub returns
-<code>200 { &quot;id&quot;, &quot;status&quot;: &quot;dismissed&quot; }</code>. A reader tells a sender&#39;s withdrawal from a human dismissal
-<strong>by the actor</strong> — <code>agent:*</code> against <code>human:*</code> — the same shape §7 uses for <code>system:undeliverable</code>.
+<code>200 { &quot;id&quot;, &quot;status&quot;: &quot;dismissed&quot; }</code>. The actor alone does <strong>not</strong>
+mark a withdrawal: on the inter-agent leg an addressee&#39;s §8.8 <code>dismissed</code> also carries an <code>agent:*</code>
+actor (§6), and an addressee that shares the submitting principal can carry the same one. The Hub
+therefore MUST record which terminal was the submitter&#39;s own withdrawal rather than infer it from the
+actor, and SHOULD show it to the human as one (for example, &quot;withdrawn by the sender&quot;).
 No resolution value is added: <code>cancelled</code> stays ask-only (§7).</li>
 <li><strong>Delivery.</strong> The terminal Response is emitted like a resolve — push, pull, and the §6 session
 <code>response</code> entry, unchanged — so the agent gets closure. For an <strong>addressed</strong> message, the
@@ -904,9 +907,11 @@ addressee&#39;s open entry MUST NOT stay actionable: a later §8.8 resolve by th
 <li><strong>Races, expiry, idempotency</strong> — the §7 rules, which apply to a task withdrawal exactly as to an ask
 cancel (v0.7). First terminal wins. A cancel strictly after <code>expires_at</code> loses to expiry, so an
 overdue ask or task resolves <code>expired</code>. If the message already reached a <strong>different</strong> terminal
-(e.g. <code>answered</code>, or a task <code>completed</code> or dismissed by a human), the Hub returns <code>409</code> with the
+(e.g. <code>answered</code>, or a task <code>completed</code>, or dismissed by a human or by an addressee — including one
+that shares the submitting principal), the Hub returns <code>409</code> with the
 existing <code>{ &quot;id&quot;, &quot;status&quot;, &quot;resolution&quot; }</code> (the agent reads the real outcome). Idempotent:
-re-cancelling an already-<code>cancelled</code> ask, or a task its sender already withdrew, returns the same
+re-cancelling an already-<code>cancelled</code> ask, or a task whose terminal the Hub recorded as its sender&#39;s
+withdrawal, returns the same
 <code>200</code> and the same Response — a different <code>comment</code> on the repeat does not change it, because the
 first terminal is immutable.</li>
 </ul>

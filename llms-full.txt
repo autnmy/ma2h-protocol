@@ -862,7 +862,7 @@ ask:      open ──┬─▶ answered    ← human answered (allow_respond)
                  └─▶ expired     ← expires_at passed; default_on_expire applied if set
 
 task:     open ──┬─▶ completed   ← human marked done
-                 ├─▶ dismissed   ← human declined to act, OR the sender withdrew it (§8.4; actor agent:*)
+                 ├─▶ dismissed   ← human declined to act, OR the sender withdrew it (§8.4; Hub-recorded)
                  └─▶ expired     ← expires_at passed (no default)
 ```
 
@@ -1097,8 +1097,11 @@ cancel from any other authenticated agent is refused as if the id were unknown (
 - **Task outcome (v0.7).** The task resolves **`dismissed`** with `response.actor` the submitting agent,
   in the same forms. `response` is present: a withdrawn task carries `actor` and `resolved_at`, plus
   `comment` when one was given, and never `value`. On success the Hub returns
-  `200 { "id", "status": "dismissed" }`. A reader tells a sender's withdrawal from a human dismissal
-  **by the actor** — `agent:*` against `human:*` — the same shape §7 uses for `system:undeliverable`.
+  `200 { "id", "status": "dismissed" }`. The actor alone does **not**
+  mark a withdrawal: on the inter-agent leg an addressee's §8.8 `dismissed` also carries an `agent:*`
+  actor (§6), and an addressee that shares the submitting principal can carry the same one. The Hub
+  therefore MUST record which terminal was the submitter's own withdrawal rather than infer it from the
+  actor, and SHOULD show it to the human as one (for example, "withdrawn by the sender").
   No resolution value is added: `cancelled` stays ask-only (§7).
 - **Delivery.** The terminal Response is emitted like a resolve — push, pull, and the §6 session
   `response` entry, unchanged — so the agent gets closure. For an **addressed** message, the
@@ -1107,9 +1110,11 @@ cancel from any other authenticated agent is refused as if the id were unknown (
 - **Races, expiry, idempotency** — the §7 rules, which apply to a task withdrawal exactly as to an ask
   cancel (v0.7). First terminal wins. A cancel strictly after `expires_at` loses to expiry, so an
   overdue ask or task resolves `expired`. If the message already reached a **different** terminal
-  (e.g. `answered`, or a task `completed` or dismissed by a human), the Hub returns `409` with the
+  (e.g. `answered`, or a task `completed`, or dismissed by a human or by an addressee — including one
+  that shares the submitting principal), the Hub returns `409` with the
   existing `{ "id", "status", "resolution" }` (the agent reads the real outcome). Idempotent:
-  re-cancelling an already-`cancelled` ask, or a task its sender already withdrew, returns the same
+  re-cancelling an already-`cancelled` ask, or a task whose terminal the Hub recorded as its sender's
+  withdrawal, returns the same
   `200` and the same Response — a different `comment` on the repeat does not change it, because the
   first terminal is immutable.
 
