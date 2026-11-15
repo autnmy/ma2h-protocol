@@ -28,7 +28,7 @@ Also: directive (human→agent, v0.4+), message/receipt/ack/presence and agent s
 - [Repository](https://github.com/autnmy/ma2h-protocol)
 
 ## Implementations and related
-- [OH HAI](https://ohhai.app): universal inbox for agent fleets — an MA2H hub with web and iOS apps, where humans answer agents' notify/ask/task
+- [OH HAI](https://ohhai.app): universal multiplexing for AI agents across tools and runtimes; an MA2H Hub with web and iOS apps for updates, requests, responses, and instructions.
 - [Descant](https://descant.run): software factory whose runs reach a human through OH HAI
 - [Issuegraph](https://issuegraph.org): open spec for machine-readable issue dependencies (same steward)
 - [Autonomy](https://meetautonomy.com): steward of MA2H
